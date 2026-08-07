@@ -1,0 +1,27 @@
+name: Task
+description: A unit of build work inside a phase
+labels: ["type:task"]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options: ["0", "1", "2", "3", "4", "5", "6", "7"]
+    validations: { required: true }
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What is true when this is done?
+    validations: { required: true }
+  - type: textarea
+    id: tests
+    attributes:
+      label: How it will be tested
+    validations: { required: true }
+  - type: checkboxes
+    id: demo
+    attributes:
+      label: Demo
+      options:
+        - label: This is on the critical path for the 7-minute demo

@@ -1,0 +1,67 @@
+name: provenance
+
+services:
+  db:
+    # TimescaleDB gives time-series and PostGIS in one engine, which is the right
+    # size for ~18 stations. Multi-arch image: works on Apple Silicon.
+    image: timescale/timescaledb-ha:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-provenance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-provenance}
+      POSTGRES_DB: ${POSTGRES_DB:-provenance}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db_data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-provenance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-provenance}:${POSTGRES_PASSWORD:-provenance}@db:5432/${POSTGRES_DB:-provenance}
+      REDIS_URL: redis://cache:6379/0
+      PROVENANCE_ENV: local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/app/data:ro
+      - ../../reports:/app/reports
+    depends_on:
+      db: { condition: service_healthy }
+      cache: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    profiles: ["app"]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      api: { condition: service_healthy }
+    profiles: ["app"]
+
+volumes:
+  db_data:

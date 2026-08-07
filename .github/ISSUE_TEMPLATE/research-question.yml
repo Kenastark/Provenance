@@ -1,0 +1,15 @@
+name: Research question
+description: An open question about the data, the method, or the science
+labels: ["type:research"]
+body:
+  - type: textarea
+    id: question
+    attributes: { label: Question }
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes: { label: What decision does the answer unblock? }
+    validations: { required: true }
+  - type: textarea
+    id: how
+    attributes: { label: How could it be resolved? }

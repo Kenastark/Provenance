@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Provenance">
+  <title>Provenance (one ink)</title>
+  <!-- currentColor: set `color` on the parent to ink it navy, white, or black. -->
+  <g color="#031436">
+    <circle cx="100" cy="100" r="76" fill="none" stroke="currentColor" stroke-width="2.4" opacity="0.55"/>
+    <g stroke="currentColor" stroke-width="2.8" stroke-linecap="round" opacity="0.75">
+      <line x1="100" y1="64" x2="100" y2="37"/>
+      <line x1="131.18" y1="82" x2="154.56" y2="68.5"/>
+      <line x1="131.18" y1="118" x2="154.56" y2="131.5"/>
+      <line x1="100" y1="136" x2="100" y2="163"/>
+      <line x1="68.82" y1="118" x2="45.44" y2="131.5"/>
+      <line x1="68.82" y1="82" x2="45.44" y2="68.5"/>
+    </g>
+    <g fill="currentColor">
+      <circle cx="100" cy="24" r="13"/>
+      <circle cx="165.82" cy="62" r="13"/>
+      <circle cx="165.82" cy="138" r="13"/>
+      <circle cx="100" cy="176" r="13"/>
+      <circle cx="34.18" cy="138" r="13"/>
+      <circle cx="34.18" cy="62" r="13"/>
+      <circle cx="100" cy="100" r="36"/>
+    </g>
+    <path d="M84 100.5 L95.5 112 L117 88.5" fill="none" stroke="#FFFFFF" stroke-width="8.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

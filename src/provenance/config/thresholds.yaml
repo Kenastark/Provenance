@@ -1,0 +1,45 @@
+# Detector thresholds.
+#
+# Every threshold here needs a comment saying WHY it has that value - a physical
+# limit, an instrument specification, or a statistical convention. A threshold
+# without a justification is a magic number, and a judge will ask about it.
+#
+# Phase 1 fills in the real values. The entries below are placeholders and are
+# marked as such so nothing accidentally ships pretending to be calibrated.
+
+version: 0
+status: placeholder   # -> set to "calibrated" once phase 1 confirms against real data
+
+physical_bounds:
+  # units must match the observed unit string from the data, not an assumption
+  # min/max are instrument-plausible ambient ranges, not regulatory thresholds
+  PM10:  { min: 0.0, max: null, unit: null, basis: "TBC in phase 1" }
+  PM2.5: { min: 0.0, max: null, unit: null, basis: "TBC in phase 1" }
+
+cross_parameter:
+  # PM2.5 is a strict subset of PM10 by definition, so pm25 <= pm10 always holds
+  pm25_le_pm10:
+    enabled: true
+    tolerance: 0.0
+    basis: "definitional: PM2.5 particles are a subset of PM10 particles"
+
+zero_variance:
+  # R12. Consecutive identical readings before a series is called frozen.
+  min_consecutive_hours: null
+  basis: "TBC in phase 1 - must be longer than the longest legitimate flat period observed"
+
+comm_gap:
+  # R02. Consecutive absent hours before absence is called communication failure.
+  min_consecutive_hours: null
+  basis: "TBC in phase 1"
+
+step_change:
+  # R14. EWMA/CUSUM control chart parameters.
+  ewma_lambda: null
+  cusum_k: null
+  cusum_h: null
+  basis: "TBC in phase 1 - standard SPC starting points, then tuned against known events"
+
+detection_limit:
+  # R11. Per-parameter instrument detection limits, for left-censored handling.
+  NO: { limit: null, unit: null, basis: "TBC - read from instrument documentation" }

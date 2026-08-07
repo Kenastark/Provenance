@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+
+      - name: Lint
+        run: |
+          .venv/bin/ruff check src tests
+          .venv/bin/ruff format --check src tests
+
+      - name: Type check
+        run: .venv/bin/mypy
+
+      - name: Test
+        run: .venv/bin/pytest --cov-report=xml
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  no-data-required:
+    # Guards a standing rule: the test suite must never need the real dataset.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert no data files are tracked
+        run: |
+          if git ls-files 'data/raw/**' 'data/interim/**' 'data/processed/**' \
+             | grep -v '.gitkeep' | grep -q .; then
+            echo "Raw data is tracked in git. See data/README.md"; exit 1
+          fi
+          echo "OK: no tracked data files."

@@ -1,0 +1,47 @@
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--prov-bg);
+  color: var(--prov-text);
+  font-family: var(--prov-font-ui);
+  font-size: var(--prov-size-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--prov-space-3);
+  height: 56px;
+  padding: 0 var(--prov-space-4);
+  background: var(--prov-bg-raised);
+  border-bottom: 1px solid var(--prov-border);
+}
+
+.wordmark {
+  font-family: var(--prov-font-display);
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.descriptor {
+  color: var(--prov-text-tertiary);
+  font-size: var(--prov-size-caption);
+}
+
+.stage { padding: var(--prov-space-6); max-width: 60ch; }
+h1 { font-family: var(--prov-font-display); font-size: var(--prov-size-display-l); }
+p { color: var(--prov-text-secondary); }
+
+:focus-visible {
+  outline: 2px solid var(--prov-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

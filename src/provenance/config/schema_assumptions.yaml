@@ -1,0 +1,44 @@
+# Everything this codebase assumes about the shape of the input data.
+#
+# This file exists so that assumptions are in ONE place and fail LOUDLY. The
+# loader validates the real files against it and raises on drift rather than
+# silently coercing. `prov schema observe` writes the observed schema next to
+# this file so the two can be diffed.
+#
+# Rule: never invent a field name here. If a name is unknown, leave it null and
+# let phase 1 fill it in from the data.
+
+version: 0
+status: unconfirmed
+
+green_sentinel:
+  cadence: hourly              # inferred: 149,683 rows fits 16 stations x ~13 params x 720 hours
+  window_days: 30
+  expected_stations: 16        # confirmed: 16 land stations (+ 2 surface-water points)
+  timestamp_column: null
+  station_column: null
+  parameter_column: null
+  value_column: null
+  unit_column: null
+  known_structural_absences:
+    - { station: KER15, missing: wind, note: "station carries no wind sensors" }
+    - { station: KER02, missing: groundwater, note: "no groundwater source file" }
+
+enclod_traffic:
+  cadence: 15min
+  counters: 42                 # directional roadside counters on industrial corridors
+  window_months: 16
+  cumulative: true             # counters are cumulative and must be differenced, reset-aware
+  timestamp_column: null
+  counter_column: null
+  value_column: null
+
+weather:
+  source: HungaroMet
+  cadence: hourly
+  wind_direction_units: degrees
+  boundary_layer_height_available: null   # if false, use a documented time-of-day/season proxy
+
+gtfs:
+  source: "DKV via Volan Egyesules national feed"
+  static: true

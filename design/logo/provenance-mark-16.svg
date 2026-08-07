@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Provenance">
+  <title>Provenance (small)</title>
+  <defs>
+    <linearGradient id="pvs" gradientUnits="userSpaceOnUse" x1="24" y1="24" x2="176" y2="176">
+      <stop offset="0" stop-color="#0B52C4"/>
+      <stop offset="1" stop-color="#06B49A"/>
+    </linearGradient>
+  </defs>
+  <!-- Below ~24px the ring, spokes and six nodes collapse into noise.
+       The reduction keeps the one element that carries the meaning. -->
+  <circle cx="100" cy="100" r="88" fill="url(#pvs)"/>
+  <path d="M60 102 L88 130 L142 74" fill="none" stroke="#FFFFFF" stroke-width="19"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

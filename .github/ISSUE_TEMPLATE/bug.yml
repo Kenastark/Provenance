@@ -1,0 +1,22 @@
+name: Bug
+description: Something behaves incorrectly
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: expected
+    attributes: { label: Expected }
+    validations: { required: true }
+  - type: textarea
+    id: actual
+    attributes: { label: Actual }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Reproduction, description: Command, fixture, and seed }
+    validations: { required: true }
+  - type: checkboxes
+    id: demo
+    attributes:
+      label: Severity
+      options:
+        - label: Blocks the demo

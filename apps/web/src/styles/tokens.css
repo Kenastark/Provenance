@@ -1,0 +1,233 @@
+/* ==========================================================================
+   Provenance design tokens
+   Version 1.1
+
+   PALETTE: unchanged from the design brief v1.0. Trust Blue, Sentinel Green,
+   Alert Amber, Signal Red, cool neutrals. The approved logo did not change these
+   and must not - the interface palette is the agreed one.
+
+   The logo artwork carries its own slightly cooler, more saturated values
+   (--prov-brand-*). Brand marks routinely sit at higher saturation than UI
+   chrome, so this is intentional rather than drift. Those three values are for
+   the mark and the mark only.
+
+   Rules the token names encode:
+
+   1. Blue is the only interactive colour. Green, amber and red are STATE.
+      A green button or a green nav highlight would break the code an operator is
+      learning to read at a glance on the map.
+   2. Green means verified - which is also what the logo's centre node is doing.
+      Brand and status are one system rather than two competing ones.
+   3. The brand gradient is for the logo only. Never a UI surface, never a
+      background.
+   4. Colour is never the only channel. Every state has a matching shape token.
+   ========================================================================== */
+
+:root {
+  /* ---------------------------------------------------------------- brand */
+  /* Trust Blue - reliability, data integrity, chrome, interaction */
+  --prov-blue-900: #071A33;
+  --prov-blue-800: #0B2647;
+  --prov-blue-700: #0F3A6B;
+  --prov-blue-600: #14508F;
+  --prov-blue-500: #1B6AB8; /* primary interactive */
+  --prov-blue-400: #3E8FD8;
+  --prov-blue-300: #78B4E8;
+  --prov-blue-200: #B3D5F3;
+  --prov-blue-100: #E1EEFA;
+
+  /* Sentinel Green - the physical environment, and VERIFIED */
+  --prov-green-900: #053D28;
+  --prov-green-700: #0A7B4F; /* green text on light backgrounds */
+  --prov-green-600: #0FA968;
+  --prov-green-500: #16C97E; /* core */
+  --prov-green-400: #3BE096;
+  --prov-green-300: #7FEDBB;
+  --prov-green-100: #DFFAEE;
+
+  /* Alert Amber - anomaly, ambiguity, the system's honesty */
+  --prov-amber-700: #8A5200; /* the ONLY amber allowed as text on light */
+  --prov-amber-600: #B36B00;
+  --prov-amber-500: #F0A202;
+  --prov-amber-400: #FFBB33;
+  --prov-amber-100: #FFF3D6;
+
+  /* Signal Red - faults only. Never a large field. */
+  --prov-red-600: #C13438;
+  --prov-red-500: #E5484D;
+  --prov-red-100: #FDE7E7;
+
+  /* Cool neutrals - they sit under the map without arguing with it */
+  --prov-slate-950: #05070D;
+  --prov-slate-900: #0B0F1A;
+  --prov-slate-850: #111725;
+  --prov-slate-800: #1A2233;
+  --prov-slate-700: #27314A;
+  --prov-slate-600: #3B475F;
+  --prov-slate-500: #5A6883;
+  --prov-slate-400: #8593AB;
+  --prov-slate-300: #B4BECD;
+  --prov-slate-200: #D8DEE8;
+  --prov-slate-100: #EDF1F6;
+  --prov-slate-50: #F7F9FC;
+  --prov-white: #FFFFFF;
+
+  /* ----------------------------------------------------- logo artwork only */
+  /* Sampled from the approved logo. Do NOT use these in the interface. If you
+     later want the mark to sit exactly on the UI palette, swap these three for
+     blue-900 / blue-500 / green-500 - the mark's geometry is unchanged either
+     way, and design/README.md gives the one-line command. */
+  --prov-brand-ink: #031436;
+  --prov-brand-blue: #0B52C4;
+  --prov-brand-teal: #06B49A;
+  --prov-gradient-mark: linear-gradient(
+    135deg,
+    var(--prov-brand-ink) 0%,
+    var(--prov-brand-blue) 42%,
+    var(--prov-brand-teal) 100%
+  );
+
+  /* ----------------------------------------------------------- typography */
+  --prov-font-display: "Space Grotesk", Inter, system-ui, sans-serif;
+  --prov-font-ui: Inter, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --prov-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The wordmark is a fixed asset in a geometric face, not a live webfont.
+     Never re-set the word "Provenance" in the display face - use the lockup SVG. */
+
+  --prov-size-display-xl: 44px;
+  --prov-size-display-l: 32px;
+  --prov-size-heading: 20px;
+  --prov-size-subhead: 16px;
+  --prov-size-body: 14px;
+  --prov-size-data: 13px;
+  --prov-size-code: 13px;
+  --prov-size-caption: 12px;
+  --prov-size-micro: 11px;
+
+  --prov-lh-display-xl: 48px;
+  --prov-lh-display-l: 38px;
+  --prov-lh-heading: 28px;
+  --prov-lh-body: 21px;
+  --prov-lh-data: 18px;
+
+  /* Anywhere numbers stack vertically, this is mandatory. */
+  --prov-numeric-table: tabular-nums;
+
+  /* --------------------------------------------------------------- layout */
+  --prov-space-1: 4px;
+  --prov-space-2: 8px;
+  --prov-space-3: 12px;
+  --prov-space-4: 16px;
+  --prov-space-5: 24px;
+  --prov-space-6: 32px;
+  --prov-space-7: 48px;
+  --prov-space-8: 64px;
+
+  --prov-radius-sm: 2px; /* table cells, trust bar */
+  --prov-radius-md: 4px; /* inputs, chips */
+  --prov-radius-lg: 8px; /* panels */
+  --prov-radius-icon: 16px; /* app icon only */
+
+  --prov-topbar-height: 56px;
+  --prov-rail-width: 240px;
+  --prov-drawer-width: 380px;
+  --prov-row-height: 32px;
+  --prov-row-height-compact: 28px;
+
+  --prov-duration-fast: 120ms;
+  --prov-duration-panel: 200ms;
+  --prov-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ------------------------------------------------------ state semantics */
+  /* Shape tokens exist so colour is never the only channel. */
+  --prov-shape-verified: "circle-filled";
+  --prov-shape-degraded: "circle-half";
+  --prov-shape-fault: "circle-barred";
+  --prov-shape-ambiguous: "ring-dashed";
+  --prov-shape-no-coverage: "hatch";
+
+  --prov-threshold-verified: 0.85;
+  --prov-threshold-fault: 0.5;
+}
+
+/* ============================== DARK (default) ============================ */
+:root,
+[data-theme="dark"] {
+  --prov-bg: var(--prov-slate-900);
+  --prov-bg-raised: var(--prov-slate-850);
+  --prov-surface: var(--prov-slate-800);
+  --prov-surface-hover: var(--prov-slate-700);
+  --prov-border: var(--prov-slate-700);
+  --prov-border-strong: var(--prov-slate-600);
+
+  --prov-text: var(--prov-slate-100);
+  --prov-text-secondary: var(--prov-slate-300);
+  --prov-text-tertiary: var(--prov-slate-400);
+  --prov-text-inverse: var(--prov-blue-900);
+
+  --prov-interactive: var(--prov-blue-400);
+  --prov-interactive-hover: var(--prov-blue-300);
+  --prov-focus-ring: var(--prov-blue-400);
+
+  --prov-state-verified: var(--prov-green-500);
+  --prov-state-degraded: var(--prov-amber-500);
+  --prov-state-fault: var(--prov-red-500);
+  --prov-state-ambiguous: var(--prov-amber-400);
+  --prov-state-unknown: var(--prov-slate-500);
+
+  --prov-map-ground: #0E1626;
+  --prov-map-water: #0B1B2E;
+  --prov-map-road: #1E2A3E;
+  --prov-map-label: var(--prov-slate-400);
+
+  --prov-chart-grid: var(--prov-slate-700);
+  --prov-chart-series-1: var(--prov-blue-300);
+  --prov-chart-series-2: var(--prov-green-400);
+  --prov-chart-series-3: var(--prov-amber-400);
+  --prov-chart-series-4: var(--prov-blue-200);
+  --prov-chart-series-5: var(--prov-slate-400);
+  --prov-chart-series-6: var(--prov-red-500);
+
+  --prov-shadow-overlay: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+/* ================================== LIGHT ================================= */
+[data-theme="light"] {
+  --prov-bg: var(--prov-slate-50);
+  --prov-bg-raised: var(--prov-white);
+  --prov-surface: var(--prov-white);
+  --prov-surface-hover: var(--prov-slate-100);
+  --prov-border: var(--prov-slate-200);
+  --prov-border-strong: var(--prov-slate-300);
+
+  --prov-text: var(--prov-blue-900);
+  --prov-text-secondary: var(--prov-slate-600);
+  --prov-text-tertiary: var(--prov-slate-500);
+  --prov-text-inverse: var(--prov-white);
+
+  --prov-interactive: var(--prov-blue-500);
+  --prov-interactive-hover: var(--prov-blue-600);
+  --prov-focus-ring: var(--prov-blue-500);
+
+  /* Text-safe variants: the 500s are fills and strokes, not type, on light. */
+  --prov-state-verified: var(--prov-green-700);
+  --prov-state-degraded: var(--prov-amber-700);
+  --prov-state-fault: var(--prov-red-600);
+  --prov-state-ambiguous: var(--prov-amber-700);
+  --prov-state-unknown: var(--prov-slate-500);
+
+  --prov-map-ground: #EEF2F7;
+  --prov-map-water: #DCE6F2;
+  --prov-map-road: #DDE3EC;
+  --prov-map-label: var(--prov-slate-500);
+
+  --prov-chart-grid: var(--prov-slate-200);
+  --prov-chart-series-1: var(--prov-blue-500);
+  --prov-chart-series-2: var(--prov-green-700);
+  --prov-chart-series-3: var(--prov-amber-600);
+  --prov-chart-series-4: var(--prov-blue-300);
+  --prov-chart-series-5: var(--prov-slate-500);
+  --prov-chart-series-6: var(--prov-red-600);
+
+  --prov-shadow-overlay: 0 8px 24px rgb(7 26 51 / 12%);
+}

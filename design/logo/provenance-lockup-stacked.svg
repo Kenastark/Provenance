@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 340" width="560" height="340" role="img" aria-label="Provenance - AI Trust Layer for Environmental Data">
+  <title>Provenance - AI Trust Layer for Environmental Data</title>
+  <defs>
+    <linearGradient id="pvst" gradientUnits="userSpaceOnUse" x1="24" y1="14" x2="176" y2="186">
+      <stop offset="0" stop-color="#031436"/>
+      <stop offset="0.42" stop-color="#0B52C4"/>
+      <stop offset="1" stop-color="#06B49A"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(200,16) scale(0.8)">
+    <circle cx="100" cy="100" r="76" fill="none" stroke="url(#pvst)" stroke-width="2.4"/>
+    <g stroke="url(#pvst)" stroke-width="2.8" stroke-linecap="round">
+      <line x1="100" y1="64" x2="100" y2="37"/>
+      <line x1="131.18" y1="82" x2="154.56" y2="68.5"/>
+      <line x1="131.18" y1="118" x2="154.56" y2="131.5"/>
+      <line x1="100" y1="136" x2="100" y2="163"/>
+      <line x1="68.82" y1="118" x2="45.44" y2="131.5"/>
+      <line x1="68.82" y1="82" x2="45.44" y2="68.5"/>
+    </g>
+    <g fill="url(#pvst)">
+      <circle cx="100" cy="24" r="13"/><circle cx="165.82" cy="62" r="13"/>
+      <circle cx="165.82" cy="138" r="13"/><circle cx="100" cy="176" r="13"/>
+      <circle cx="34.18" cy="138" r="13"/><circle cx="34.18" cy="62" r="13"/>
+      <circle cx="100" cy="100" r="36"/>
+    </g>
+    <path d="M84 100.5 L95.5 112 L117 88.5" fill="none" stroke="#FFFFFF" stroke-width="8.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="280" y="255" text-anchor="middle"
+        font-family="Poppins, Montserrat, 'Space Grotesk', Inter, sans-serif"
+        font-size="52" font-weight="600" fill="#031436">Provenance</text>
+  <!-- The descriptor is split into two anchored halves so the space between the
+       colour changes never collapses in a renderer that ignores xml:space. -->
+  <text x="277" y="292" text-anchor="end" font-family="Inter, system-ui, sans-serif"
+        font-size="17" font-weight="500" fill="#0B52C4">AI Trust Layer for</text>
+  <text x="283" y="292" text-anchor="start" font-family="Inter, system-ui, sans-serif"
+        font-size="17" font-weight="500" fill="#06B49A">Environmental Data</text>
+</svg>

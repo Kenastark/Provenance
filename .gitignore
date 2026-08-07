@@ -1,0 +1,52 @@
+# ---- data: never committed. See data/README.md ----
+data/raw/**
+data/interim/**
+data/processed/**
+data/manifests/*.json
+!data/**/.gitkeep
+!data/README.md
+
+# ---- generated output ----
+reports/*
+!reports/.gitkeep
+
+# ---- model artefacts ----
+*.pt
+*.pth
+*.pkl
+*.joblib
+src/provenance/models/artefacts/**
+
+# ---- python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# ---- node ----
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/coverage/
+apps/web/playwright-report/
+apps/web/test-results/
+
+# ---- env & local ----
+.env
+.env.local
+*.local
+
+# ---- os / editors ----
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
