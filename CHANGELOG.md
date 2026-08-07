@@ -5,6 +5,22 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-08-08
+### Added
+- CI: dedicated `architecture` job running the structural-invariant tests on
+  their own, so a layering violation surfaces as its own PR check.
+- Brand guardrail: `tests/architecture/test_brand.py` fails if the app's token
+  file drifts from the authoritative `design/tokens/tokens.css` (byte-identical).
+- Brand guardrail: frontend `no-inline-hex` test fails if any hex colour literal
+  appears in `apps/web/src` outside `styles/tokens.css`.
+- ADR 0002: licensing recorded as provisional (MIT), with the triggers that would
+  force a change and who decides.
+
+### Changed
+- `test_no_data_files_are_tracked` now checks git's index rather than the
+  filesystem, so it passes with untracked real data present locally (required
+  from phase 1) while still failing if data is ever committed.
+
 ## [0.0.1] - 2026-08-07
 ### Added
 - Repository scaffold: src-layout Python package, monorepo directory structure.

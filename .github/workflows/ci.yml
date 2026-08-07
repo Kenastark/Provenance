@@ -47,6 +47,32 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  architecture:
+    # Runs the structural-invariant tests on their own so a layering violation
+    # shows up as its own check in the PR status list, not buried in the backend
+    # test log. These tests need no services and no real data.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+
+      - name: Architecture tests
+        # --no-cov: this job runs only the architecture subset, so the package
+        # coverage gate does not apply here (the backend job enforces it).
+        run: .venv/bin/pytest tests/architecture -p no:randomly --no-cov
+
   no-data-required:
     # Guards a standing rule: the test suite must never need the real dataset.
     runs-on: ubuntu-latest

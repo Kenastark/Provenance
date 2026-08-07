@@ -8,6 +8,7 @@ mechanically is checked here rather than left to review.
 from __future__ import annotations
 
 import ast
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -73,15 +74,25 @@ def test_src_never_imports_notebooks() -> None:
 
 
 def test_no_data_files_are_tracked() -> None:
-    """The test suite must never depend on the real dataset."""
+    """Data files must never be tracked by git.
+
+    Real data is expected to exist on disk locally (see data/README.md and
+    SETUP.md step 6) but must never enter git history. This checks git's index,
+    not the filesystem - untracked local data is normal and required from
+    phase 1 onward.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "data/raw", "data/interim", "data/processed"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     tracked = [
-        p
-        for p in (REPO / "data").rglob("*")
-        if p.is_file() and p.name not in {".gitkeep", "README.md"}
+        line for line in result.stdout.splitlines() if not line.endswith((".gitkeep", "README.md"))
     ]
     assert not tracked, (
-        f"Real data found in the repository: {[str(p) for p in tracked]}. "
-        "Data belongs outside git - see data/README.md."
+        f"Data files are tracked by git: {tracked}. "
+        "Data belongs outside git history - see data/README.md."
     )
 
 
