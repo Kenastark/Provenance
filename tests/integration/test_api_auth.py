@@ -52,9 +52,9 @@ def _expected(tier: str, role: str) -> int:
 async def test_auth_matrix(api_client: httpx.AsyncClient, path: str, tier: str, role: str) -> None:
     headers = {"X-API-Key": KEYS[role]} if KEYS[role] else {}
     resp = await api_client.get(path, headers=headers)
-    assert resp.status_code == _expected(
-        tier, role
-    ), f"{path} as {role}: got {resp.status_code}, body {resp.text[:200]}"
+    assert resp.status_code == _expected(tier, role), (
+        f"{path} as {role}: got {resp.status_code}, body {resp.text[:200]}"
+    )
 
 
 async def test_audit_run_detail_respects_roles(
