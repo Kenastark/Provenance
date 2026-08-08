@@ -28,9 +28,9 @@ All green.
 |---|---|
 | Backend `make check` (lint, mypy strict, pytest) | 267 passed, 92.08% coverage (gate 88%) |
 | Frontend lint + typecheck | clean |
-| Vitest component tests | 149 passed across 13 files |
+| Vitest component tests | 152 passed across 13 files |
 | Frontend coverage on `apps/web/src` | **94.71%** lines / 84.39% branches (gate 80%) |
-| Playwright end-to-end | 45 passed |
+| Playwright end-to-end | 51 passed (28 functional + a11y, 7 responsive, 8 visual, 8 placeholder guards) |
 | API client drift check | current |
 
 The e2e covers what the prompt asked for and runs against the real stack —
@@ -114,6 +114,17 @@ Specific gate items worth calling out:
    consumes it.
 
 ### Flag for review
+
+**0. A raw `{placeholder}` reached the event timeline, and only a screenshot caught
+it.** R07's detector stores `value`, `limit`, `unit`, `basis` — but not the
+parameter, which is a *column* on the row rather than part of the evidence dict. The
+timeline rendered the evidence dict alone and printed "Value of {value} {unit}
+exceeds the physical maximum for {parameter}." to the screen, on the one product
+whose entire claim is that it does not show you numbers you cannot trust. Fixed by
+merging the row's own columns into the evidence (`evidenceFor`), by a unit test over
+every code in the registry, and by an e2e that scans all five routes for a visible
+brace. Worth dwelling on: 45 tests were green while this was on screen, because
+every one of them asserted what *should* be there and none asserted what should not.
 
 **1. Trust reason codes have no machine-readable evidence, and it shows on screen.**
 This is the one that most deserves a look. The trust engine computes the numbers

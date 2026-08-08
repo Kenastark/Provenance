@@ -47,8 +47,8 @@ Format: Keep a Changelog. Versioning: SemVer.
 - CORS on the API (`PROVENANCE_CORS_ORIGINS`, an allow-list, never `*`). The
   dashboard is a browser client on another origin; without this every request fails
   preflight and every screen renders empty against a perfectly healthy API.
-- Test gate: 149 Vitest component tests (94.7% line coverage on `apps/web/src`,
-  gate 80%), and 45 Playwright end-to-end tests covering the demo path, axe-core
+- Test gate: 152 Vitest component tests (94.7% line coverage on `apps/web/src`,
+  gate 80%), and 51 Playwright end-to-end tests covering the demo path, axe-core
   scans of every route in both themes with zero critical violations, keyboard-only
   traversal, visual regression baselines for four screens in both themes, and the
   390px responsive floor.

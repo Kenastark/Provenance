@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ReasonCodeBadge } from "../components/ReasonCodeBadge";
 import {
   countsTowardDefectRate,
+  evidenceFor,
+  REASON_CODES,
   renderReasonSentence,
   renderReasonSentenceParts,
   sortCodesBySeverity,
@@ -77,5 +79,35 @@ describe("ReasonCodeBadge", () => {
     expect(
       screen.getByText("R12: Reading has not changed for 336 h - likely a frozen sensor."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("no raw placeholder ever reaches the screen", () => {
+  it("fills {parameter} from the row's own column, which the evidence dict omits", () => {
+    // R07's detector stores value/limit/unit/basis - not the parameter, which is a
+    // column on the defect. Rendering the evidence dict alone leaves "{parameter}"
+    // on screen, which is the bug the event timeline shipped with.
+    const row = {
+      parameter: "PM10",
+      station_id: "STA-03",
+      evidence: { value: 3000, limit: 2000, unit: "µg/m3", basis: "instrument ceiling" },
+    };
+    const sentence = renderReasonSentence("R07", evidenceFor(row));
+    expect(sentence).toBe("Value of 3000 µg/m3 exceeds the physical maximum for PM10.");
+    expect(sentence).not.toMatch(/[{}]/);
+  });
+
+  it("lets the detector's own evidence win over the row's columns", () => {
+    const merged = evidenceFor({ parameter: "PM10", evidence: { parameter: "PM2.5" } });
+    expect(merged.parameter).toBe("PM2.5");
+  });
+
+  it("renders no code with a visible brace, however sparse the evidence", () => {
+    const offenders: string[] = [];
+    for (const code of Object.keys(REASON_CODES)) {
+      const { text } = renderReasonSentenceParts(code, {});
+      if (/[{}]/.test(text)) offenders.push(`${code}: ${text}`);
+    }
+    expect(offenders).toEqual([]);
   });
 });

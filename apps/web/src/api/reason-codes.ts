@@ -87,6 +87,28 @@ export function renderReasonSentenceParts(code: string, evidence: Evidence = {})
   return { text, complete };
 }
 
+/**
+ * The evidence a row can offer a sentence, including the row's own columns.
+ *
+ * A detector stores the numbers it measured — R07 keeps `value`, `limit`, `unit`,
+ * `basis` — but not the things the row already says. R07's sentence needs
+ * `{parameter}`, and the parameter is a *column* on the defect, not part of the
+ * evidence dict. Without merging them the template comes back unfilled and a raw
+ * `{parameter}` lands on an operator's screen, which is exactly what this dashboard
+ * exists to stop other dashboards doing.
+ */
+export function evidenceFor(row: {
+  parameter?: string | null;
+  station_id?: string | null;
+  evidence?: Evidence | null;
+}): Evidence {
+  return {
+    ...(row.parameter ? { parameter: row.parameter } : {}),
+    ...(row.station_id ? { station: row.station_id } : {}),
+    ...(row.evidence ?? {}),
+  };
+}
+
 /** Codes that count toward the headline defect rate. Coverage and trust codes never do. */
 export function countsTowardDefectRate(code: string): boolean {
   return REASON_CODES[code]?.countsTowardDefectRate ?? false;

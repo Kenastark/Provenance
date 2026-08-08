@@ -136,9 +136,19 @@ jobs:
             sleep 1
           done
 
-      - name: End-to-end, accessibility, visual and responsive
-        run: pnpm e2e
+      - name: End-to-end, accessibility and responsive
+        run: |
+          pnpm e2e --project=chromium e2e/demo-path.spec.ts e2e/accessibility.spec.ts
+          pnpm e2e --project=mobile
         working-directory: apps/web
+
+      - name: Visual regression, in the pinned Playwright image
+        # Not on the runner: a bare Ubuntu image and the official Playwright image
+        # ship different font sets, so text metrics differ and a baseline generated
+        # in one never matches a run in the other. The baselines are generated and
+        # verified in the same container (`make web-visual-linux` / `-check`), which
+        # is the only way this gate means anything.
+        run: make web-visual-check
 
       - uses: actions/upload-artifact@v4
         if: failure()

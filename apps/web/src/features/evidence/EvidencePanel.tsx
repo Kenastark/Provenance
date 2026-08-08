@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import type { Defect } from "../../api/client";
-import { REASON_CODES } from "../../api/reason-codes";
+import { evidenceFor, REASON_CODES } from "../../api/reason-codes";
 import { useDefects, useReadings, useStations } from "../../api/queries";
 import { DataTable, type Column } from "../../components/DataTable";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
@@ -267,7 +267,7 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
         </p>
 
         <div className="mt-3">
-          <ReasonCodeBadge code={defect.reason_code} evidence={defect.evidence} />
+          <ReasonCodeBadge code={defect.reason_code} evidence={evidenceFor(defect)} />
         </div>
 
         <h4 className="mb-1 mt-4 text-caption uppercase tracking-wide text-text-tertiary">

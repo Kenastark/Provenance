@@ -99,6 +99,22 @@ test.describe("the demo path", () => {
   });
 });
 
+test.describe("no unrendered template reaches an operator", () => {
+  // The reason-code sentences are templates filled from a detector's evidence. A
+  // placeholder the UI could not fill must degrade to an em dash, never to a
+  // literal "{parameter}" - which is precisely what the timeline shipped with,
+  // because R07 keeps the parameter as a *column* rather than in its evidence dict.
+  for (const path of ["/", "/quality", "/timeline", "/evidence", "/audit"]) {
+    test(`${path} renders no raw placeholder`, async ({ page }) => {
+      await gotoRoute(page, path);
+      await page.waitForLoadState("networkidle");
+      const text = await page.locator("body").innerText();
+      const offenders = text.match(/\{[a-z_]+\}/gi) ?? [];
+      expect(offenders, `Unfilled placeholders on ${path}`).toEqual([]);
+    });
+  }
+});
+
 test.describe("theme", () => {
   test("switches between a fully implemented dark and light", async ({ page }) => {
     await gotoRoute(page, "/");

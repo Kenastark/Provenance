@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { QualityStation, Station, TrustComponent } from "../../api/client";
-import { sortCodesBySeverity } from "../../api/reason-codes";
+import { evidenceFor, sortCodesBySeverity } from "../../api/reason-codes";
 import { useDefects, useReadings, useTrust, useTrustSeries } from "../../api/queries";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { Sparkline } from "../../components/Sparkline";
@@ -271,10 +271,7 @@ function StationDetailBody({
           <ul className="m-0 list-none space-y-2 p-0" data-testid="station-coverage-facts">
             {coverageFacts.data.map((fact) => (
               <li key={`${fact.reason_code}-${fact.parameter}`}>
-                <ReasonCodeBadge
-                  code={fact.reason_code}
-                  evidence={{ parameter: fact.parameter, ...fact.evidence }}
-                />
+                <ReasonCodeBadge code={fact.reason_code} evidence={evidenceFor(fact)} />
               </li>
             ))}
           </ul>

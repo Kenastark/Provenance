@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ProvEvent } from "../../api/client";
-import { reasonCode, renderReasonSentence, severityTone } from "../../api/reason-codes";
+import { evidenceFor, reasonCode, severityTone } from "../../api/reason-codes";
+import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { useEvents } from "../../api/queries";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { formatTimestamp, toDate } from "../../lib/format";
@@ -204,9 +205,17 @@ export function EventTimeline() {
                     {event.verdict ?? "pending adjudication"}
                   </span>
                 </div>
-                <p className="mt-1 text-body text-text-secondary">
-                  {renderReasonSentence(event.reason_code, event.evidence)}
-                </p>
+                {/* The headline above *is* the rendered sentence, computed by the
+                    audit engine. Repeating it here would say the same thing twice;
+                    the code chip carries the registry key and the full sentence in
+                    its accessible name. */}
+                <div className="mt-1">
+                  <ReasonCodeBadge
+                    code={event.reason_code}
+                    variant="code"
+                    evidence={evidenceFor(event)}
+                  />
+                </div>
                 <p className="mt-1 text-caption text-text-tertiary">
                   {event.station_id} · {event.parameter} · {formatTimestamp(event.timestamp_utc)} ·{" "}
                   {event.severity}
