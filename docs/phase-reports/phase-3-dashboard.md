@@ -105,6 +105,14 @@ Specific gate items worth calling out:
    WebKit iPhone profile. What is under test is layout at 390px, and one engine means
    one browser download in CI and one set of visual baselines.
 
+9. **Visual baselines are committed for two platforms.** macOS and Linux rasterise
+   text differently enough that one platform's baseline can never match the other's
+   run — the first CI attempt failed all eight visual tests with "a snapshot doesn't
+   exist" while the 37 functional e2e tests passed. Playwright already names
+   snapshots per platform, so both sets are committed and `make web-visual-linux`
+   regenerates the Linux set inside the official Playwright image, the same way CI
+   consumes it.
+
 ### Flag for review
 
 **1. Trust reason codes have no machine-readable evidence, and it shows on screen.**
@@ -154,7 +162,17 @@ CI and for not inventing geography, but it does mean the demo shows the network'
 tile source — it is a one-line change and it would make the map considerably more
 persuasive.
 
-**6. The DEMO CHECKPOINT 3 backup capture is only partly done.** Eight committed
-visual-regression baselines are screen captures of the real demo build in both
-themes, so there is a visual record. A recorded screen *capture* of the demo being
-driven is a human task and has not been done.
+**6. `make demo` did not start the API, and I only caught it at the end.** It brought
+up Postgres, loaded and audited the corpus, and opened the dashboard against
+nothing — the compose `api` service sits behind the `app` profile and was never
+started, so every screen would have rendered its empty state. Fixed (`make api`,
+`make api-bg`, `make demo-stop`), but it is worth noting *how* it survived: I had
+been running the API by hand all session, so every screen I looked at worked. The
+end-to-end suite has the same blind spot — CI starts the API in its own step, so the
+suite cannot catch a broken `make demo`. Something should exercise the documented
+command itself.
+
+**7. The DEMO CHECKPOINT 3 backup capture is only partly done.** Sixteen committed
+visual-regression baselines (four screens × two themes × two platforms) are screen
+captures of the real demo build, so there is a visual record. A recorded screen
+*capture* of the demo being driven is a human task and has not been done.
