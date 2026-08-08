@@ -144,16 +144,45 @@ demo-data: demo-corpus ## schema, demo corpus, audit - everything but the server
 	$(VENV)/bin/prov db load --source $(DEMO_DIR)
 	$(VENV)/bin/prov audit run --data $(DEMO_DIR) --out reports
 
+API_PID := .demo-api.pid
+
+.PHONY: api
+api: ## run the API in the foreground
+	$(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
+	  --host 127.0.0.1 --port 8000 --reload
+
+.PHONY: api-bg
+api-bg: ## start the API in the background (writes $(API_PID))
+	@if curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1; then \
+	  echo "API already listening on :8000"; \
+	else \
+	  $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
+	    --host 127.0.0.1 --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
+	  for i in $$(seq 1 40); do \
+	    curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; \
+	  done; \
+	  curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 \
+	    && echo "API listening on :8000 (pid $$(cat $(API_PID)), log .demo-api.log)" \
+	    || { echo "API failed to start; see .demo-api.log"; exit 1; }; \
+	fi
+
 .PHONY: demo
-demo: ## one command: stack up, demo corpus loaded, audit run, dashboard open
+demo: ## one command: stack up, demo corpus loaded and audited, API up, dashboard open
 	$(MAKE) up
 	$(MAKE) demo-data
-	cd apps/web && pnpm install --no-frozen-lockfile && pnpm build
+	$(MAKE) api-bg
+	cd apps/web && pnpm install --no-frozen-lockfile
 	@echo ""
-	@echo "  Dashboard : http://localhost:5173   (run 'make web' if it is not already up)"
+	@echo "  Dashboard : http://localhost:5173"
 	@echo "  API docs  : http://localhost:8000/docs"
+	@echo "  Stop with : make demo-stop"
 	@echo ""
 	$(MAKE) web
+
+.PHONY: demo-stop
+demo-stop: ## stop the background API and the local stack
+	@if [ -f $(API_PID) ]; then kill $$(cat $(API_PID)) 2>/dev/null || true; rm -f $(API_PID); fi
+	$(MAKE) down
 
 .PHONY: web
 web: ## run the dashboard dev server
