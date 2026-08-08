@@ -32,9 +32,10 @@ green_sentinel:
   location_format: "<name> (<lat>, <lon>)"
   location_status: confirmed
   # zone_type (urban/suburban/industrial/background) has NO source column in the
-  # export — the only columns are timestamp/Location/parameter/value/unit. It is left
-  # null pending a curated station->zone mapping. Do NOT infer it from the data.
-  zone_type_source: none              # status: unresolved (flag-review escalation)
+  # export — the only columns are timestamp/Location/parameter/value/unit. It is
+  # populated from the CURATED, PROVISIONAL config/station_zones.yaml (human
+  # classification from site names/coordinates), never inferred from the readings.
+  zone_type_source: config/station_zones.yaml   # curated, provisional (needs expert sign-off)
   parameter_column: "Mérőeszköz"     # confirmed; holds the measured parameter name
   value_column: "érték"              # confirmed; the numeric reading
   unit_column: "mértékegység"        # confirmed; the declared unit string

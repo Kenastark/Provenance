@@ -5,6 +5,17 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Changed
+- Phase-2 flag-review escalation decisions (both Option A):
+  - **Trust weights endorsed.** `trust_weights.yaml → status: endorsed` (project lead,
+    2026-08-08), backed by real-event evidence: on the real export the weights drop
+    DEB-KER11's trust 0.577 → 0.275 at the 4100.7 µg/m³ PM10 event (T04), recovering
+    once it leaves the window. Endorsement ≠ logistic refit; the compressed real-data
+    distribution and "discrimination lives in the series" caveat are recorded in the
+    config and in methodology **v1.2** (supersedes v1.1).
+  - **zone_type populated** from a curated, provisional `config/station_zones.yaml`
+    (16 stations classified urban/suburban/industrial/background from site names, each
+    with a rationale + confidence, `status: provisional`). Never inferred from
+    readings; fixtures stay null.
 - Phase-2 flag-review resolutions:
   - Trust scores are persisted as a **daily series** across the ingest window, not a
     single instant, so `/v1/trust/{id}?series=true` returns a real trajectory

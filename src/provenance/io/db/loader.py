@@ -165,6 +165,9 @@ def _insert_stations(
     batch_id: str,
     station_meta: dict[str, StationLocation],
 ) -> None:
+    from provenance.config.loading import load_station_zones
+
+    zones = load_station_zones()
     matrix = coverage.coverage_matrix
     for station in coverage.stations:
         cov = (
@@ -179,10 +182,10 @@ def _insert_stations(
                 name=None if meta is None else meta.name,
                 lat=None if meta is None else meta.lat,
                 lon=None if meta is None else meta.lon,
-                # zone_type has no source in the Green Sentinel export (its only
-                # columns are timestamp/Location/parameter/value/unit); left null
-                # pending a curated station→zone mapping (see flag-review escalation).
-                zone_type=None,
+                # zone_type has no source column in the export; it comes from the
+                # curated, provisional station_zones.yaml. Stations not in that map
+                # (e.g. the synthetic fixtures) stay null — never invented.
+                zone_type=zones.get(station),
                 coverage=cov,
                 ingest_batch_id=batch_id,
             )
