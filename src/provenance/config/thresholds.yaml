@@ -4,42 +4,99 @@
 # limit, an instrument specification, or a statistical convention. A threshold
 # without a justification is a magic number, and a judge will ask about it.
 #
-# Phase 1 fills in the real values. The entries below are placeholders and are
-# marked as such so nothing accidentally ships pretending to be calibrated.
+# Bounds are instrument-plausible AMBIENT ceilings, not regulatory limits. They
+# are set so that a genuine physical impossibility trips R07/R08 while normal
+# pollution episodes do not. Parameter keys and unit strings match the observed
+# schema exactly (see schema_assumptions.yaml) - never an assumed spelling.
 
-version: 0
-status: placeholder   # -> set to "calibrated" once phase 1 confirms against real data
+version: 1
+status: calibrated
 
 physical_bounds:
-  # units must match the observed unit string from the data, not an assumption
-  # min/max are instrument-plausible ambient ranges, not regulatory thresholds
-  PM10:  { min: 0.0, max: null, unit: null, basis: "TBC in phase 1" }
-  PM2.5: { min: 0.0, max: null, unit: null, basis: "TBC in phase 1" }
+  # Air quality (declared unit µg/m3 in the export)
+  PM10:    { min: 0.0,   max: 2000.0,    unit: "µg/m3",   basis: "Extreme Saharan-dust ambient PM10 tops ~1000-1500 µg/m3; 2000 is a hard sensor ceiling. The 4100.7 reading at KER11 exceeds it." }
+  PM2.5:   { min: 0.0,   max: 1000.0,    unit: "µg/m3",   basis: "PM2.5 is a subset of PM10; worst wildfire-smoke ambient ~1000 µg/m3." }
+  CO:      { min: 0.0,   max: 100000.0,  unit: "µg/m3",   basis: "~87 ppm; acute urban CO. Ambient rarely exceeds 10000 µg/m3." }
+  NO2:     { min: 0.0,   max: 1000.0,    unit: "µg/m3",   basis: "Acute NO2 ceiling; ambient episodes stay under ~200 µg/m3." }
+  "NO":    { min: 0.0,   max: 1000.0,    unit: "µg/m3",   basis: "Roadside NO ceiling; left-censored at a detection floor (see detection_limit)." }
+  NOx:     { min: 0.0,   max: 2000.0,    unit: "µg/m3",   basis: "Sum of NO + NO2 expressed as NO2; roadside ceiling." }
+  O3:      { min: 0.0,   max: 1000.0,    unit: "µg/m3",   basis: "Extreme photochemical smog ~600 µg/m3; 1000 is a hard ceiling." }
+  TVOC:    { min: 0.0,   max: 20000.0,   unit: "µg/m3",   basis: "Total VOC sensor full-scale for ambient monitoring." }
+  # CO2 is DECLARED µg/m3 but the value range is ppm; see unit_inference below.
+  CO2:     { min: 300.0, max: 10000.0,   unit: "ppm",     basis: "Ambient CO2 300-2000 ppm; poorly ventilated interiors reach ~5000 ppm. Bounds evaluated after unit correction to ppm." }
+  # Meteorology / physical
+  Humidity: { min: 0.0,  max: 100.0,     unit: "percent", basis: "Relative humidity is a fraction; >100% is physically impossible for a non-supersaturated sensor." }
+  Pressure: { min: 870.0, max: 1085.0,   unit: "mbar",    basis: "Record sea-level pressure extremes are 870-1085 mbar." }
+  Wind_Speed:     { min: 0.0, max: 200.0, unit: "km/h",   basis: "Surface wind; 200 km/h exceeds any Debrecen-basin gust on record." }
+  Wind_Direction: { min: 0.0, max: 360.0, unit: "degrees", basis: "Compass bearing wraps at 360 degrees." }
+  # Groundwater
+  WaterLevel:   { min: 0.0,  max: 100.0, unit: "m",       basis: "Depth-to-water for these wells sits 1-14 m; 100 m is a hard ceiling." }
+  WaterTemp:    { min: -5.0, max: 40.0,  unit: "celsius", basis: "Shallow groundwater temperature; never near freezing or 40 C in this basin." }
+  Conductivity: { min: 0.0,  max: 50.0,  unit: "mS/cm",   basis: "Fresh groundwater <5 mS/cm; 50 covers brackish contamination without admitting sensor faults." }
+  # Noise
+  "LAEQ nappali":   { min: 20.0, max: 140.0, unit: "dB", basis: "Ambient LAeq day; 140 dB is the threshold of physical pain / sensor full-scale." }
+  "LAEQ éjszakai":  { min: 20.0, max: 140.0, unit: "dB", basis: "Ambient LAeq night; same sensor full-scale." }
 
 cross_parameter:
-  # PM2.5 is a strict subset of PM10 by definition, so pm25 <= pm10 always holds
+  # R09. PM2.5 is a strict subset of PM10 by definition, so pm25 <= pm10 always holds.
   pm25_le_pm10:
     enabled: true
     tolerance: 0.0
     basis: "definitional: PM2.5 particles are a subset of PM10 particles"
 
-zero_variance:
-  # R12. Consecutive identical readings before a series is called frozen.
-  min_consecutive_hours: null
-  basis: "TBC in phase 1 - must be longer than the longest legitimate flat period observed"
-
-comm_gap:
-  # R02. Consecutive absent hours before absence is called communication failure.
-  min_consecutive_hours: null
-  basis: "TBC in phase 1"
-
-step_change:
-  # R14. EWMA/CUSUM control chart parameters.
-  ewma_lambda: null
-  cusum_k: null
-  cusum_h: null
-  basis: "TBC in phase 1 - standard SPC starting points, then tuned against known events"
+unit_inference:
+  # R10. A declared unit is inconsistent when the value range matches a different
+  # unit. Confirmed case: CO2 declared µg/m3 where 690-1634 is unmistakably ppm
+  # (as µg/m3, ambient CO2 would be ~700,000-3,000,000).
+  CO2:
+    declared_unit: "µg/m3"
+    inferred_unit: "ppm"
+    inferred_range: { min: 300.0, max: 10000.0 }
+    conversion_note: "Values are ppm mislabelled as µg/m3; flagged, not silently converted."
+    basis: "CO2 in µg/m3 at ambient concentration is ~1.8 g/m3 (>1e6 µg/m3); observed values are 3 orders of magnitude too small for the declared unit."
 
 detection_limit:
-  # R11. Per-parameter instrument detection limits, for left-censored handling.
-  NO: { limit: null, unit: null, basis: "TBC - read from instrument documentation" }
+  # R11. Per-parameter instrument detection limits. A run of readings pinned at
+  # the floor is left-censored (>= this many identical floor values), not a
+  # measurement, and must be modelled as censored downstream.
+  min_consecutive_hours: 6
+  parameters:
+    "NO": { limit: 0.7, unit: "µg/m3", basis: "Confirmed floor: 2413 NO readings sit at exactly 0.7 µg/m3, the instrument detection limit." }
+
+zero_variance:
+  # R12. A maximal run of bit-identical consecutive readings this long is a frozen
+  # sensor. The 23 frozen series in the corpus hold one value across ~700 hours.
+  min_consecutive_hours: 24
+  basis: "No parameter in this network legitimately holds a bit-identical value for a full 24h; genuine sensors resolve at least last-digit noise across a day."
+
+low_variance:
+  # R13. Degradation is judged RELATIVE TO PEERS, not by an absolute cutoff, so a
+  # parameter that is genuinely stable everywhere (e.g. groundwater temperature)
+  # does not trip. A covered series whose standard deviation falls below this
+  # fraction of the network-median standard deviation for the same parameter is
+  # abnormally flat and flagged as degraded.
+  degraded_fraction: 0.10
+  min_peers: 3
+  basis: "A sensor with under 10% of its peers' variability is degraded relative to the network; a uniformly stable parameter has a low median too, so its normal sensors are not flagged."
+
+comm_gap:
+  # R02. A run of absent hours this long is a communication failure, not a single
+  # lost sample.
+  min_consecutive_hours: 6
+  basis: "Six consecutive missed hourly transmissions is beyond routine sample loss and indicates the station stopped reporting."
+
+step_change:
+  # R14. EWMA/CUSUM control chart. Standard SPC starting values (Montgomery,
+  # Introduction to Statistical Quality Control): k=0.5 sigma detects a 1-sigma
+  # shift; h=5 sigma gives in-control ARL ~= 465.
+  ewma_lambda: 0.3
+  cusum_k: 0.5
+  cusum_h: 5.0
+  min_points: 24
+  basis: "Montgomery SPC defaults; tuned to flag sustained shifts, not transient spikes."
+
+sensor_dead:
+  # R21. A cumulative traffic counter that never increments across this many
+  # consecutive intervals is silently dead. Two Enclod counters are dead this way.
+  dead_min_consecutive_intervals: 672
+  basis: "672 fifteen-minute intervals is one week of zero throughput on a roadside counter that should never be idle that long."

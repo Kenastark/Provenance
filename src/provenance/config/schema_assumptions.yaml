@@ -5,33 +5,64 @@
 # silently coercing. `prov schema observe` writes the observed schema next to
 # this file so the two can be diffed.
 #
-# Rule: never invent a field name here. If a name is unknown, leave it null and
-# let phase 1 fill it in from the data.
+# Rule: never invent a field name here. Names below were CONFIRMED by reading the
+# real Green Sentinel export at phase 1 (`prov schema observe`), not assumed.
 
-version: 0
-status: unconfirmed
+version: 1
+status: confirmed
 
 green_sentinel:
-  cadence: hourly              # inferred: 149,683 rows fits 16 stations x ~13 params x 720 hours
-  window_days: 30
-  expected_stations: 16        # confirmed: 16 land stations (+ 2 surface-water points)
-  timestamp_column: null
-  station_column: null
-  parameter_column: null
-  value_column: null
-  unit_column: null
+  cadence: hourly              # confirmed: timestamps step hourly, format YYYY-MM-DD-HH-MM
+  window_days: 30              # confirmed: 2026-05-21 00:00 -> 2026-06-19 11:00 UTC
+  expected_stations: 16        # confirmed: DEB-KER 01-15 and 18 (16 land stations)
+  # One workbook per (station, domain); domain is encoded in the file name.
+  # Hungarian domain tokens, confirmed from the export:
+  file_domains:
+    Levego: air               # "air"
+    Felszin_alatti_viz: groundwater   # "subsurface water"
+    Zaj: noise                # "noise"
+  sheet_name: export           # confirmed: single sheet named "export" in every workbook
+  # Column names are Hungarian and were read from the files, not invented:
+  timestamp_column: timestamp        # confirmed; format "%Y-%m-%d-%H-%M"
+  location_column: Location          # confirmed; carries site name + "(lat, lon)"
+  parameter_column: "Mérőeszköz"     # confirmed; holds the measured parameter name
+  value_column: "érték"              # confirmed; the numeric reading
+  unit_column: "mértékegység"        # confirmed; the declared unit string
+  station_from: filename             # station id is the DEB-KERnn prefix of the file name
+  # Parameters observed in the export (do not invent others; fail on unknown):
+  known_parameters:
+    - CO
+    - CO2
+    - Conductivity
+    - Humidity
+    - LAEQ nappali
+    - "LAEQ éjszakai"
+    - "NO"
+    - NO2
+    - NOx
+    - O3
+    - PM10
+    - PM2.5
+    - Pressure
+    - TVOC
+    - WaterLevel
+    - WaterTemp
+    - Wind_Direction
+    - Wind_Speed
   known_structural_absences:
-    - { station: KER15, missing: wind, note: "station carries no wind sensors" }
-    - { station: KER02, missing: groundwater, note: "no groundwater source file" }
+    - { station: DEB-KER15, missing: Wind_Direction, note: "station carries no wind sensors" }
+    - { station: DEB-KER15, missing: Wind_Speed, note: "station carries no wind sensors" }
+    - { station: DEB-KER02, missing: groundwater, note: "no Felszin_alatti_viz source file" }
 
 enclod_traffic:
   cadence: 15min
-  counters: 42                 # directional roadside counters on industrial corridors
-  window_months: 16
   cumulative: true             # counters are cumulative and must be differenced, reset-aware
+  # Enclod archive CSVs, one per month under "DKV databases/Enclod archive data".
+  # Columns discovered at load time; status stays unconfirmed until read.
   timestamp_column: null
   counter_column: null
   value_column: null
+  status: unconfirmed
 
 weather:
   source: HungaroMet

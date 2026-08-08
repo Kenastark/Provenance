@@ -1,0 +1,36 @@
+{
+  "expected_counts": {
+    "R01": 17,
+    "R02": 1,
+    "R03": 2,
+    "R07": 3,
+    "R08": 2,
+    "R09": 4,
+    "R10": 336,
+    "R11": 8,
+    "R12": 336,
+    "R13": 336,
+    "R14": 1,
+    "R18": 1,
+    "R19": 2
+  },
+  "n_days": 14,
+  "n_parameters": 6,
+  "n_stations": 4,
+  "notes": {
+    "R01": "the 12h outage hours also count as absent",
+    "R02": "one 12h outage on NO@STA-04",
+    "R03": "2 duplicate (station,parameter,hour) rows on WaterTemp@STA-01",
+    "R07": "3 PM10 values at 3000 µg/m3 (> 2000 max) at STA-03",
+    "R08": "2 WaterTemp values at -10 C (< -5 min) at STA-03",
+    "R09": "4 hours of PM2.5 > PM10 at STA-01",
+    "R10": "whole CO2 series at STA-02 mislabelled µg/m3",
+    "R11": "8h run at the 0.7 µg/m3 NO floor at STA-01",
+    "R12": "WaterLevel@STA-01 frozen for the whole record",
+    "R13": "PM10@STA-04 near-flat relative to peer stations",
+    "R14": "one sustained +15 µg/m3 step in NO@STA-02",
+    "R18": "NO absent entirely from STA-03 (a network-standard sensor)",
+    "R19": "both groundwater parameters absent from STA-04 (whole source)"
+  },
+  "seed": 20260907
+}

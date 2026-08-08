@@ -1,6 +1,6 @@
 [project]
 name = "provenance"
-version = "0.0.1"
+version = "0.1.0"
 description = "An AI trust layer for environmental sensor networks."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -11,6 +11,7 @@ dependencies = [
     "pandas>=2.2",
     "pyarrow>=16.0",
     "numpy>=1.26",
+    "openpyxl>=3.1",
     "pandera>=0.20",
     "typer>=0.12",
     "rich>=13.7",
@@ -51,10 +52,19 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "PTH", "RUF"]
-ignore = ["E501"]
+# N812: `from provenance.schema import canonical as C` is a deliberate, repo-wide
+# alias for the canonical column-name namespace; the uppercase C reads as a
+# constant namespace, not a class.
+ignore = ["E501", "N812"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG"]
+# Detectors implement a fixed Protocol signature (frame, ctx); some do not use
+# both arguments, which is correct, not dead code.
+"src/provenance/detectors/**" = ["ARG002"]
+# B008: `typer.Option(...)` in a parameter default is Typer's documented idiom for
+# declaring CLI options; it is evaluated once at import, not per call.
+"src/provenance/cli/main.py" = ["B008"]
 
 # ----------------------------------------------------------------------------
 [tool.mypy]
@@ -71,6 +81,7 @@ ignore_missing_imports = true
 # ----------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra --strict-markers --cov=src/provenance --cov-report=term-missing --cov-fail-under=85 -m 'not needs_docker and not slow'"
 markers = [
     "unit: fast, isolated tests",

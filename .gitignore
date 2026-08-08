@@ -50,3 +50,11 @@ apps/web/test-results/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+
+# ---- claude code ----
+# settings.json is committed - it is project policy (see CLAUDE.md).
+# settings.local.json is per-machine (accumulated "don't ask again" approvals)
+# and must never be committed, since it can silently widen what auto-approves
+# on someone else's clone.
+.claude/settings.local.json

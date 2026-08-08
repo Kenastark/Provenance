@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provenance audit &mdash; {{ r.meta.data_checksum }}</title>
+<style>
+{{ tokens_css }}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  background: var(--prov-bg);
+  color: var(--prov-text);
+  font-family: var(--prov-font-ui);
+  font-size: var(--prov-size-body);
+  line-height: var(--prov-lh-body);
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: var(--prov-space-7) var(--prov-space-5); }
+h1, h2, h3 { font-family: var(--prov-font-display); color: var(--prov-text); margin: 0 0 var(--prov-space-3); }
+h1 { font-size: var(--prov-size-display-l); line-height: var(--prov-lh-display-l); }
+h2 { font-size: var(--prov-size-heading); line-height: var(--prov-lh-heading); margin-top: var(--prov-space-7); border-bottom: 2px solid var(--prov-border); padding-bottom: var(--prov-space-2); }
+h3 { font-size: var(--prov-size-subhead); margin-top: var(--prov-space-5); }
+.sub { color: var(--prov-text-tertiary); font-size: var(--prov-size-caption); font-family: var(--prov-font-mono); }
+.sub code { color: var(--prov-text-secondary); }
+a { color: var(--prov-interactive); }
+
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--prov-space-4); margin: var(--prov-space-5) 0; }
+.tile { background: var(--prov-surface); border: 1px solid var(--prov-border); border-radius: var(--prov-radius-lg); padding: var(--prov-space-4); }
+.tile .label { font-size: var(--prov-size-caption); color: var(--prov-text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
+.tile .value { font-family: var(--prov-font-display); font-size: var(--prov-size-display-l); line-height: 1.1; margin-top: var(--prov-space-2); font-variant-numeric: var(--prov-numeric-table); }
+.tile .value.alert { color: var(--prov-state-fault); }
+.tile .foot { font-size: var(--prov-size-caption); color: var(--prov-text-tertiary); margin-top: var(--prov-space-1); }
+
+.definition { background: var(--prov-blue-100); border-left: 3px solid var(--prov-interactive); border-radius: var(--prov-radius-md); padding: var(--prov-space-3) var(--prov-space-4); color: var(--prov-text-secondary); font-size: var(--prov-size-body); }
+
+table { border-collapse: collapse; width: 100%; margin: var(--prov-space-3) 0; font-size: var(--prov-size-data); font-variant-numeric: var(--prov-numeric-table); }
+.scroll { overflow-x: auto; }
+th, td { text-align: left; padding: var(--prov-space-2) var(--prov-space-3); border-bottom: 1px solid var(--prov-border); vertical-align: top; }
+th { color: var(--prov-text-tertiary); text-transform: uppercase; font-size: var(--prov-size-micro); letter-spacing: 0.04em; }
+td.num, th.num { text-align: right; }
+tbody tr:hover { background: var(--prov-surface-hover); }
+
+.pill { display: inline-block; padding: 1px var(--prov-space-2); border-radius: var(--prov-radius-md); font-size: var(--prov-size-micro); font-family: var(--prov-font-mono); border: 1px solid transparent; }
+.sev-critical { background: var(--prov-red-100); color: var(--prov-state-fault); border-color: var(--prov-red-500); }
+.sev-high { background: var(--prov-amber-100); color: var(--prov-amber-700); border-color: var(--prov-amber-500); }
+.sev-medium { background: var(--prov-slate-100); color: var(--prov-text-secondary); }
+.sev-low, .sev-info { background: var(--prov-slate-100); color: var(--prov-text-tertiary); }
+.no-count { color: var(--prov-state-verified); font-family: var(--prov-font-mono); font-size: var(--prov-size-micro); }
+
+.evidence { font-family: var(--prov-font-mono); font-size: var(--prov-size-micro); color: var(--prov-text-secondary); white-space: pre-wrap; word-break: break-word; }
+details { margin: var(--prov-space-1) 0; }
+summary { cursor: pointer; color: var(--prov-interactive); font-size: var(--prov-size-caption); }
+pre { background: var(--prov-slate-100); border-radius: var(--prov-radius-md); padding: var(--prov-space-4); overflow-x: auto; font-family: var(--prov-font-mono); font-size: var(--prov-size-micro); color: var(--prov-text-secondary); }
+footer { margin-top: var(--prov-space-8); color: var(--prov-text-tertiary); font-size: var(--prov-size-caption); border-top: 1px solid var(--prov-border); padding-top: var(--prov-space-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Provenance audit</h1>
+  <div class="sub">
+    generated {{ r.meta.generated_at }} &middot;
+    code <code>{{ r.meta.code_version }}</code> &middot;
+    config <code>{{ r.meta.config_hash }}</code> &middot;
+    data <code>{{ r.meta.data_checksum }}</code>
+  </div>
+  <div class="sub">window {{ cov.window_start }} &rarr; {{ cov.window_end }}</div>
+
+  <div class="strip">
+    <div class="tile">
+      <div class="label">Readings</div>
+      <div class="value">{{ "{:,}".format(r.meta.n_rows) }}</div>
+      <div class="foot">{{ cov.n_stations }} stations &middot; {{ cov.n_covered_pairs }} covered series</div>
+    </div>
+    <div class="tile">
+      <div class="label">Conventional completeness</div>
+      <div class="value">{{ "%.2f"|format(cov.conventional_completeness_pct) }}%</div>
+      <div class="foot">non-null share &mdash; looks healthy</div>
+    </div>
+    <div class="tile">
+      <div class="label">Defective cells</div>
+      <div class="value alert">{{ "{:,}".format(dr.n_defective_cells) }}</div>
+      <div class="foot">of {{ "{:,}".format(dr.n_covered_cells) }} covered cells</div>
+    </div>
+    <div class="tile">
+      <div class="label">Defect rate</div>
+      <div class="value alert">{{ "%.2f"|format(dr.percent) }}%</div>
+      <div class="foot">grid completeness {{ "%.2f"|format(cov.grid_completeness_pct) }}%</div>
+    </div>
+  </div>
+
+  <div class="definition">{{ dr.definition }}</div>
+
+  <h2>Defects by reason code</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Severity</th><th>Counts?</th><th class="num">Count</th></tr></thead>
+    <tbody>
+    {% for code in r.defects_by_code|sort %}
+      {% set rc = codes[code] %}
+      <tr>
+        <td><code>{{ code }}</code></td>
+        <td>{{ rc.name }}</td>
+        <td>{{ rc.category }}</td>
+        <td><span class="pill sev-{{ rc.severity }}">{{ rc.severity }}</span></td>
+        <td>{% if rc.counts_toward_defect_rate %}yes{% else %}<span class="no-count">coverage</span>{% endif %}</td>
+        <td class="num">{{ "{:,}".format(r.defects_by_code[code]) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Coverage</h2>
+  <p class="sub">Four quantities kept strictly separate. Structural absences are excluded from the defect rate.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Quantity</th><th class="num">Cells</th></tr></thead>
+    <tbody>
+      <tr><td>Observed</td><td class="num">{{ "{:,}".format(cov.n_observed_cells) }}</td></tr>
+      <tr><td>Absent (R01)</td><td class="num">{{ "{:,}".format(cov.n_absent_cells) }}</td></tr>
+      <tr><td>Covered = observed + absent</td><td class="num">{{ "{:,}".format(cov.n_covered_cells) }}</td></tr>
+      <tr><td>Structurally excluded</td><td class="num">{{ "{:,}".format(cov.n_structurally_excluded_cells) }}</td></tr>
+      <tr><td>Expected = covered + structural</td><td class="num">{{ "{:,}".format(cov.n_expected_cells) }}</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Structural absences <span class="sub">coverage facts, not defects</span></h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Station</th><th>Parameter</th><th>Domain</th><th>Code</th><th class="num">Excluded cells</th></tr></thead>
+    <tbody>
+    {% for s in r.structural_absences %}
+      <tr><td>{{ s.station_id }}</td><td>{{ s.parameter }}</td><td>{{ s.domain }}</td><td><code>{{ s.reason_code }}</code></td><td class="num">{{ "{:,}".format(s.excluded_cells) }}</td></tr>
+    {% else %}
+      <tr><td colspan="5">None.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Notable events</h2>
+  <p class="sub">Ranked by physical severity, then magnitude. Each carries the evidence that flagged it.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th class="num">#</th><th>Code</th><th>Station</th><th>Parameter</th><th>Timestamp (UTC)</th><th>What &amp; evidence</th></tr></thead>
+    <tbody>
+    {% for e in r.notable_events %}
+      <tr>
+        <td class="num">{{ e.rank }}</td>
+        <td><span class="pill sev-{{ e.severity }}">{{ e.reason_code }}</span></td>
+        <td>{{ e.station_id }}</td>
+        <td>{{ e.parameter }}</td>
+        <td>{{ e.timestamp_utc }}</td>
+        <td>
+          {{ e.headline }}
+          <details><summary>evidence</summary><div class="evidence">{% for k, v in e.evidence.items() %}{{ k }}: {{ v }}
+{% endfor %}</div></details>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">None.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Defects by station</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Station</th><th class="num">Defective flags</th></tr></thead>
+    <tbody>
+    {% for station in r.defects_by_station|sort %}
+      <tr><td>{{ station }}</td><td class="num">{{ "{:,}".format(r.defects_by_station[station]) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Appendix: thresholds used</h2>
+  <p class="sub">Every value the detectors depended on, with its cited basis. This is the answer to &ldquo;how did you get that number?&rdquo;</p>
+  <pre>{{ r.thresholds | tojson(indent=2) }}</pre>
+
+  <footer>
+    Provenance &mdash; AI trust layer for environmental data. Statistics-only audit (B1). No machine learning in this report.
+  </footer>
+
+</div>
+</body>
+</html>

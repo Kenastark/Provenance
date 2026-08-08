@@ -108,6 +108,19 @@ Logo assets are in `design/logo/`. The mark's three artwork values
     make demo         # stack + fixtures + audit + dashboard
     prov codes list   # the reason-code registry
 
+## Permissions
+
+`.claude/settings.json` is committed project policy, not a personal preference
+file. Routine local commands (tests, lint, `git status`/`add`/`commit`, `make`)
+run without prompting. `git push`, `git tag`, and `gh pr create`/`merge` always
+prompt, by explicit `ask` rule - this holds even if an unrelated `allow` rule is
+later broadened, because deny and ask both take precedence over allow. Do not
+edit the `ask` list to remove push/tag/PR entries. `.claude/settings.local.json`
+is per-machine, gitignored, and accumulates "don't ask again" approvals for
+things like individual read-only commands - it must never override the four
+gated actions above.
+
+
 ## Layering
 
     io -> schema -> grid -> detectors -> audit -> trust -> graph -> models -> explain
@@ -118,13 +131,66 @@ check, because conventions decay under deadline pressure and tests do not.
 
 ## Working agreements
 
-- Branch `phase-N-<slug>` off main, PR into main, squash merge, tag on main.
+- Branch `phase-N-<slug>` off main. At the end of a phase, **you** (Claude Code)
+  push the branch, open the PR, merge it, and tag main — see "Ending a phase"
+  below. Do not wait for the person to do this manually unless they say so.
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`).
 - Every PR: tests for new behaviour, coverage held, `CHANGELOG.md` entry, docs
   updated as a new version file, no data-derived constants.
 - Any decision expensive to reverse gets an ADR in `docs/decisions/` before the
   code lands.
 - Do not skip a phase's test gate to reach the next phase faster.
+
+## Ending a phase
+
+Once the test gate in a phase prompt passes, run the full flow yourself in the
+same session — do not stop and ask the person to run these commands by hand:
+
+    git add -A
+    git commit -m "feat: <what this phase built>"
+    git push -u origin <branch>
+    gh pr create --fill
+    gh pr merge --squash --delete-branch
+    git checkout main && git pull
+    git tag vX.Y.Z -m "<phase description>"
+    git push --tags
+
+`git push`, `gh pr create`, `gh pr merge`, and `git tag` are deliberately **not**
+on the permissions allowlist in `.claude/settings.json` — each one triggers your
+own native confirmation prompt. That prompt firing is expected and correct; it
+is the checkpoint before anything leaves the machine or becomes part of the
+permanent history. Proceed once approved. If any of these are denied, stop and
+tell the person why rather than finding a workaround.
+
+Never use `--force` on a push, and never merge with `--admin` to bypass a
+required check. If a required CI check is red, fix it - do not force the merge.
+
+## Phase reports
+
+At the end of every phase - including the phase 0 verification pass - write a
+short report to `docs/phase-reports/phase-N-<slug>.md`:
+
+    ## Phase N - <name>
+    Date, branch, tag.
+
+    ### What was built
+    Two or three sentences.
+
+    ### Test gate
+    What ran, what passed, coverage if relevant.
+
+    ### Deviations from the prompt
+    Anything you did differently than instructed, and why. "None" is a fine
+    answer.
+
+    ### Flag for review
+    Anything you are unsure about, disagree with, or think a human should look
+    at before the next phase builds on it. "Nothing" is a fine answer, but an
+    empty section that always says "nothing" is a sign the report has stopped
+    being useful - be honest here even when the news is boring or awkward.
+
+Print the same content as your final chat message too - do not make the person
+open a file to find out whether the phase went cleanly.
 
 ## Never do this
 
