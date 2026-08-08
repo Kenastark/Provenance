@@ -45,7 +45,7 @@ Chromium:
   every screen reachable, a station openable from the quality table without a mouse,
   visible focus ring asserted from computed style.
 - **Visual regression**: map, station detail, quality monitor, timeline — both
-  themes, eight committed baselines.
+  themes, on both macOS and Linux: sixteen committed baselines.
 - **Responsive**: five routes at 390px, asserting both that the page does not scroll
   sideways and that no element escapes the viewport unclipped.
 
