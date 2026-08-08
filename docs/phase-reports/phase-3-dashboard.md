@@ -126,6 +126,15 @@ every code in the registry, and by an e2e that scans all five routes for a visib
 brace. Worth dwelling on: 45 tests were green while this was on screen, because
 every one of them asserted what *should* be there and none asserted what should not.
 
+The visual-regression suite should have caught it and did not, for a second reason
+worth recording: the pixel tolerance was `maxDiffPixelRatio: 0.02`, roughly 26,000
+pixels at this viewport — enough to absorb a whole paragraph. Removing the
+timeline's duplicated sentence changed the render and `--update-snapshots` left the
+baseline untouched, because the comparison still "passed". It is now 0.002 with a
+per-pixel threshold for antialiasing, and all sixteen baselines were regenerated
+from scratch. A screenshot gate loose enough to miss a line of text is worse than
+none, because it is reassuring.
+
 **1. Trust reason codes have no machine-readable evidence, and it shows on screen.**
 This is the one that most deserves a look. The trust engine computes the numbers
 behind T02, T03 and T05, but they reach the API as prose in `notes` and
