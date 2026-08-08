@@ -4,6 +4,53 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Fixed
+- **Trust Score: `HealthConf` was a constant zero for every station.** It summed one
+  severity weight per defect *flag row*, and detectors flag every defective cell, so
+  load scaled with window length and flag volume rather than with how broken a
+  station was. Measured on the real export it ranged 8.7e-25 .. 5.8e-88 across all
+  sixteen stations - w1 (35% of the score) contributed nothing, uniformly, and no
+  test noticed, because the phase gates (`perfect > 0.95`, `frozen < 0.5`) are
+  satisfied by saturation exactly as well as by calibration. Load is now the
+  severity-weighted **fraction** of a station's cells that are defective, bounded by
+  1.0 by construction; `decay_scale` moves 3.0 -> 0.3 with the unit change. The
+  real-data range is now 0.468 .. 0.793. See
+  `docs/trust-score-methodology-v1.1-bounded-health-load.md`.
+- **R14 STEP_CHANGE reported the wrong instant and the wrong size.** Reading the
+  changepoint off the CUSUM crossing put it inside the *stable* stretch, because
+  standardising against the whole-series mean makes the pre-shift half look like a
+  sustained deviation in its own right. On the fixture's known +15.0 step at hour
+  168, it reported hour 11 and a magnitude of 6.798, and labelled the rise
+  "downward". Detection (CUSUM, unchanged) is now separated from localisation (the
+  split maximising the difference of means), and the injected step is recovered
+  exactly. The ambiguous `direction` field is removed in favour of
+  `signed_magnitude`, `level_before` and `level_after`. No defect count changes. See
+  `docs/audit-methodology-v1.1-step-change-localisation.md`.
+
+### Added
+- `detectors/episodes.py`: collapses per-cell flags into distinct fault episodes
+  (maximal runs of one code on one series, at that series' own cadence). Used to
+  explain a trust score in operator terms - "31 active fault(s) spoiling 41.6% of
+  readings".
+- Trust tests now assert *discrimination*, not just threshold crossing: `HealthConf`
+  must rank clean above spiked above frozen with a usable spread, load must not
+  scale with window length, and a station losing one parameter must stay more
+  trusted than one wholly frozen. These are the properties the existing gates could
+  not see.
+- Golden recovery asserts R14's injected step *size and instant*, not only that one
+  R14 fired. A count-only assertion could not see the localisation bug, and did not.
+- ADR 0005: the Enclod canonical mapping - a counter (`uuid`) is a station, a vehicle
+  class is a parameter - with the reset discrepancy against the competition brief
+  recorded as an open question and a plan rather than a footnote.
+
+### Changed
+- `schema_assumptions.yaml` v2: the Enclod block's `counter_column` / `value_column`
+  keys described a narrow file shape that does not exist. The real archive is wide
+  (one row per counter-tick, ten cumulative measure columns, 42 counters, ~1.53M
+  rows); the observed schema is now recorded as such. Per-source `status` gains
+  `observed` - columns known, parse not written - and only `confirmed` opens the
+  adapter gate, pinned by a test so a config edit alone can never route callers into
+  code that does not exist.
 
 ## [0.2.0] - 2026-08-08
 ### Added

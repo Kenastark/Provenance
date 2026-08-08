@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from provenance.detectors.base import REASON_CODE, SEVERITY
+from provenance.detectors.episodes import defect_episodes
 from provenance.grid.coverage import CoverageModel
 from provenance.schema import canonical as C
 from provenance.trust.score import TrustComponent
@@ -33,15 +34,35 @@ def _window_mask(ts: pd.Series, at: pd.Timestamp, window_hours: int) -> pd.Serie
 
 def health_conf(
     defects: pd.DataFrame,
+    coverage: CoverageModel,
     station_id: str,
     at: pd.Timestamp,
     cfg: dict[str, Any],
 ) -> _ComponentResult:
-    """Confidence from active defects in the trailing window, weighted by severity.
+    """Confidence that this station's recent output is sound.
 
-    HealthConf = exp(-load / scale), where load is the severity-weighted count of
-    defect-counting flags on this station in the window. Clean → 1.0; a run of
-    critical flags drives it toward 0.
+    ``HealthConf = exp(-load / scale)``, where load is the **severity-weighted
+    fraction of the station's cells that are defective** in the window::
+
+        load = Σ_defective-cells worst_severity(cell) / covered_cells
+
+    The unit is a fraction, so load is bounded by the worst severity weight (1.0)
+    however long the window and however many flags fired. That boundedness is the
+    whole point. v1.0 summed one severity weight per *flag row*, so a week-long
+    freeze cost ~168 units where a momentary fault cost one; on the real network
+    that drove HealthConf to ~1e-30 for all sixteen stations and silently removed
+    35% of the trust score from play. Summing per *episode* fixes the freeze but
+    not the general case: a station with a hundred scattered outages still
+    accumulates a load in the tens and floors just the same.
+
+    "How much of this station's output is spoiled?" is bounded by construction and
+    is also the question an operator actually has. A cell counts once at its worst
+    severity however many codes fired on it — the same discipline the defect rate
+    uses, for the same reason.
+
+    Complementarity is deliberate: a lone impossible reading barely moves this
+    term, because :func:`physical_plausibility` already vetoes to zero on it. This
+    component measures *extent*; that one measures whether anything is impossible.
     """
     hcfg = cfg["health"]
     severity_weights: dict[str, float] = hcfg["severity_weights"]
@@ -49,25 +70,71 @@ def health_conf(
     window_hours = int(hcfg["window_hours"])
 
     reason_codes: list[str] = []
-    load = 0.0
-    n_active = 0
-    if not defects.empty:
-        rows = defects[defects[C.STATION_ID] == station_id]
-        if not rows.empty:
-            in_window = rows[_window_mask(rows[C.TIMESTAMP], at, window_hours)]
-            for _, r in in_window.iterrows():
-                load += float(severity_weights.get(str(r[SEVERITY]), 0.2))
-                n_active += 1
+    covered = _covered_cells_in_window(coverage, station_id, at, window_hours)
+    n_episodes = 0
+    n_cells = 0
+    weighted_cells = 0.0
+
+    rows = defects[defects[C.STATION_ID] == station_id] if not defects.empty else defects
+    if not rows.empty:
+        rows = rows[rows[REASON_CODE].isin(_fault_codes())]
+    if not rows.empty:
+        rows = rows[_window_mask(rows[C.TIMESTAMP], at, window_hours)]
+    if not rows.empty:
+        # One entry per (parameter, timestamp) cell, carrying its worst severity.
+        cell_severity = (
+            rows.assign(_w=[float(severity_weights.get(str(s), 0.2)) for s in rows[SEVERITY]])
+            .groupby([C.PARAMETER, C.TIMESTAMP])["_w"]
+            .max()
+        )
+        n_cells = len(cell_severity)
+        weighted_cells = float(cell_severity.sum())
+        n_episodes = len(defect_episodes(rows, coverage))
+
+    load = (weighted_cells / covered) if covered else 0.0
     value = float(np.exp(-load / scale)) if scale > 0 else (1.0 if load == 0 else 0.0)
-    if n_active:
+    if n_episodes:
         reason_codes.append("T01")
+    spoiled = round(100.0 * min(n_cells / covered, 1.0), 1) if covered else 0.0
     return (
         TrustComponent(
-            name="HealthConf", value=value, weight=0.0, detail=f"{n_active} active flags"
+            name="HealthConf",
+            value=value,
+            weight=0.0,
+            detail=f"{n_episodes} active fault(s) spoiling {spoiled}% of readings",
         ),
         reason_codes,
         [],
     )
+
+
+def _fault_codes() -> frozenset[str]:
+    """Codes that are faults. Coverage facts (R18/R19) are not, and never load."""
+    from provenance.config import reason_codes as rc
+
+    return frozenset(code.code for code in rc.defect_codes())
+
+
+def _covered_cells_in_window(
+    coverage: CoverageModel, station_id: str, at: pd.Timestamp, window_hours: int
+) -> int:
+    """How many cells this station is expected to produce in the trailing window.
+
+    The denominator for "how much of this station's output is spoiled". Computed
+    arithmetically from each series' cadence rather than by enumerating ticks, so
+    a long window stays cheap.
+    """
+    start = at - pd.Timedelta(hours=window_hours)
+    total = 0
+    for (station, _), grid in coverage.series_grids.items():
+        if station != station_id:
+            continue
+        lo = max(grid.start, start + grid.cadence)
+        hi = min(grid.end, at)
+        if hi < lo:
+            continue
+        total += int((hi - lo) / grid.cadence) + 1
+    return total
 
 
 def imputation_uncertainty(

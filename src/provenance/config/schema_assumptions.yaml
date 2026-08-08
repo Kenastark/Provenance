@@ -7,8 +7,16 @@
 #
 # Rule: never invent a field name here. Names below were CONFIRMED by reading the
 # real Green Sentinel export at phase 1 (`prov schema observe`), not assumed.
+#
+# Per-source `status` takes one of three values:
+#   unconfirmed - nobody has looked; adapters must refuse to parse.
+#   observed    - the real columns have been read and written down here, but the
+#                 canonical mapping is not implemented yet. Adapters STILL refuse:
+#                 knowing the shape is not the same as having parsed it.
+#   confirmed   - observed AND mapped AND parsed. Adapters may read.
+# Only `confirmed` opens the gate in io/ingest/*.read().
 
-version: 1
+version: 2
 status: confirmed
 
 green_sentinel:
@@ -58,11 +66,51 @@ enclod_traffic:
   cadence: 15min
   cumulative: true             # counters are cumulative and must be differenced, reset-aware
   # Enclod archive CSVs, one per month under "DKV databases/Enclod archive data".
-  # Columns discovered at load time; status stays unconfirmed until read.
-  timestamp_column: null
-  counter_column: null
-  value_column: null
-  status: unconfirmed
+  #
+  # STATUS: observed, not confirmed. The columns below were read from the real
+  # archive (17 monthly files, ~1,533,668 rows, 42 counters). The canonical
+  # mapping is DECIDED (see docs/decisions/0005-enclod-canonical-mapping.md) but
+  # not implemented, so io/ingest/enclod.py still refuses to parse. Flipping this
+  # to `confirmed` is the same change that wires the parse in - not a config edit
+  # on its own.
+  status: observed
+  # The file is WIDE, not long: one row per (counter, 15-minute tick), carrying a
+  # cumulative total for each vehicle class in its own column. The single
+  # `counter_column` / `value_column` keys this block used to declare assumed a
+  # narrow shape that does not exist; they are replaced by the pair below.
+  timestamp_column: time            # observed; ISO-8601 with a trailing Z
+  counter_id_column: uuid           # observed; 42 distinct values = the 42 counters
+  counter_name_column: nick         # observed; e.g. "47.towards.Debrecen.far.IN"
+  latitude_column: lat              # observed
+  longitude_column: lng             # observed
+  # Cumulative measure columns, stable across 2025-02 .. 2026-05 (16 files).
+  measure_columns:
+    - "cars_60+"
+    - vans_opposite_direction
+    - "vans_0-30"
+    - "vans_30-60"
+    - "vans_60+"
+    - trucks_opposite_direction
+    - "trucks_0-30"
+    - "trucks_30-60"
+    - "trucks_60+"
+    - uncategorized
+  # Unit is NOT declared anywhere in the source. Differencing a cumulative count
+  # yields vehicles per 15-minute interval; that label is derived, not observed,
+  # and is recorded here rather than invented at the call site (standing rule 2).
+  derived_unit: vehicles/15min
+  known_structural_absences:
+    - { file: "2025/01.csv", missing: all_measure_columns,
+        note: "carries only time/uuid/nick/lat/lng - a coverage fact (R19-shaped), not a defect" }
+    - { class: cars, present: ["cars_60+"],
+        note: "cars carries only the 60+ bucket; vans and trucks each carry four. Asymmetry is in the source, not in our read." }
+  # Confirmed by profiling, and NOT yet reconciled with the competition brief:
+  observed_quality_notes:
+    duplicate_timestamps: "9,724 on cars_60+ alone across the 42 counters"
+    nonmonotonic_runs: "63 on cars_60+"
+    resets_found: 0            # brief expects ~80-96 per column; see ADR 0005
+    dead_counters_found: 0     # brief expects 2; only cars_60+ was swept
+    completeness_range: "0.24 .. 0.99 per counter"
 
 weather:
   source: HungaroMet

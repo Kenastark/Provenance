@@ -5,6 +5,17 @@ recalibration, a sensor swap, a mounting knocked loose. Unlike a spike it does n
 return, so a simple threshold misses it; a CUSUM accumulates small persistent
 deviations until they are unmistakable. Parameters are the SPC standard (Montgomery):
 k = 0.5 sigma, h = 5 sigma, giving an in-control ARL of ~465.
+
+**Detection and localisation are separate steps, deliberately.** The CUSUM answers
+*did the level shift?*; it does not answer *where*. Standardising against the
+whole-series mean makes the pre-shift half of a stepped series look like a
+sustained deviation in its own right, so the arm that crosses first is often the
+one describing the stable period, and it crosses while still inside it. Reading a
+timestamp or a direction off that crossing reports the wrong instant and can call
+a rise a fall. Once the CUSUM has signalled, the changepoint is therefore located
+separately, by the split that maximises the difference of means either side of it -
+the standard single-changepoint estimator - and the shift is reported as a signed
+difference between those two levels, which cannot contradict itself.
 """
 
 from __future__ import annotations
@@ -16,6 +27,23 @@ import pandas as pd
 
 from provenance.detectors.base import AuditContext, defect_frame, make_row
 from provenance.schema import canonical as C
+
+
+def _locate_step(values: np.ndarray) -> tuple[int, float, float]:
+    """Locate the changepoint: the split maximising the difference of means.
+
+    Returns ``(index, level_before, level_after)`` where ``index`` is the first
+    reading at the new level. O(n) via a cumulative sum, so it stays cheap on a
+    150k-row corpus.
+    """
+    n = len(values)
+    csum = np.cumsum(values)
+    total = float(csum[-1])
+    k = np.arange(1, n, dtype="float64")
+    before = csum[:-1] / k
+    after = (total - csum[:-1]) / (n - k)
+    split = int(np.argmax(np.abs(after - before))) + 1
+    return split, float(before[split - 1]), float(after[split - 1])
 
 
 class StepChangeDetector:
@@ -90,18 +118,20 @@ class StepChangeDetector:
             c_pos = max(0.0, c_pos + z[i] - k)
             c_neg = max(0.0, c_neg - z[i] - k)
             if c_pos > h or c_neg > h:
-                direction = "upward" if c_pos > h else "downward"
-                magnitude = round(abs(float(values[i]) - mean), 4)
+                split, before, after = _locate_step(values)
+                shift = round(after - before, 4)
                 return [
                     make_row(
                         self.code,
                         str(station),
                         str(parameter),
-                        ts[i],
+                        ts[split],
                         ctx,
-                        direction=direction,
-                        magnitude=magnitude,
+                        magnitude=abs(shift),
+                        signed_magnitude=shift,
                         unit=unit,
+                        level_before=round(before, 4),
+                        level_after=round(after, 4),
                         baseline_mean=round(mean, 4),
                     )
                 ]

@@ -1,7 +1,7 @@
 # Provenance audit
 
 - Code version: `0.2.0`
-- Config hash: `4e82d99631fe8099`
+- Config hash: `e6b65844f8e93cc2`
 - Data checksum: `0bd9c4dcc414f379`
 - Window: 2026-05-01T00:00:00 to 2026-05-14T23:00:00
 
@@ -68,7 +68,7 @@
 | 11 | R12 | STA-01 | WaterLevel | 2026-05-01T02:00:00 | Reading has not changed for 14d - likely a frozen sensor. |
 | 12 | R12 | STA-01 | WaterLevel | 2026-05-01T03:00:00 | Reading has not changed for 14d - likely a frozen sensor. |
 | 13 | R12 | STA-01 | WaterLevel | 2026-05-01T04:00:00 | Reading has not changed for 14d - likely a frozen sensor. |
-| 14 | R14 | STA-02 | NO | 2026-05-01T11:00:00 | The series shifted by 6.798 µg/m3 and did not return. |
+| 14 | R14 | STA-02 | NO | 2026-05-08T00:00:00 | The series shifted by 15.0 µg/m3 and did not return. |
 
 ## Defects by station
 

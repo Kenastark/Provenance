@@ -44,7 +44,7 @@ def compute_trust(
     at = pd.Timestamp(at)
     w = weights_cfg["weights"]
 
-    health, rc_h, notes_h = comp.health_conf(defects, station_id, at, weights_cfg)
+    health, rc_h, notes_h = comp.health_conf(defects, coverage, station_id, at, weights_cfg)
     imput, rc_i, notes_i = comp.imputation_uncertainty(coverage, station_id, at, weights_cfg)
     cross, rc_c, notes_c = comp.cross_sensor_consistency(
         frame, coverage, station_id, at, weights_cfg

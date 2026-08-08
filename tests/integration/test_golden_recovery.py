@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pandas as pd
+import pytest
+
 from provenance.audit.orchestrator import run_audit
 
 _FIXED_NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -49,6 +52,29 @@ def _counting_codes(result) -> set[str]:
 
     counting = {rc.code for rc in reason_codes.defect_codes()}
     return {c for c in result.defects_by_code if c in counting}
+
+
+def test_step_change_recovers_the_injected_shift_exactly(synthetic_corpus) -> None:
+    """R14 must recover the injected step's size *and* its instant.
+
+    The ledger injects a single +15.0 µg/m3 shift into NO@STA-02 at the halfway
+    hour. Locating the changepoint off the CUSUM crossing put this at hour 11 —
+    inside the stable pre-shift stretch — and reported a magnitude of 6.798, the
+    distance from the whole-series mean at an arbitrary point. Both numbers were
+    wrong while the flag count was right, which is exactly the kind of error a
+    count-only assertion cannot see.
+    """
+    frame, ledger = synthetic_corpus
+    result = run_audit(frame, now=_FIXED_NOW)
+    steps = [e for e in result.notable_events if e.reason_code == "R14"]
+    assert len(steps) == 1, steps
+    step = steps[0]
+
+    injected_hour = (ledger.n_days * 24) // 2
+    expected_at = pd.Timestamp("2026-05-01T00:00:00") + pd.Timedelta(hours=injected_hour)
+    assert step.timestamp_utc == expected_at.isoformat()
+    assert step.evidence["signed_magnitude"] == pytest.approx(15.0, abs=1e-6)
+    assert step.evidence["magnitude"] == pytest.approx(15.0, abs=1e-6)
 
 
 def test_defect_rate_within_unit_interval(synthetic_corpus) -> None:

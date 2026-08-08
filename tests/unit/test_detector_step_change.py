@@ -15,7 +15,24 @@ def test_r14_flags_sustained_shift(make_frame, make_ctx) -> None:
     assert list(out["reason_code"]) == ["R14"]
     # The shift is detected exactly once; its magnitude is real (not zero).
     assert out.iloc[0]["evidence"]["magnitude"] > 0
-    assert out.iloc[0]["evidence"]["direction"] in {"upward", "downward"}
+
+
+def test_r14_signed_magnitude_agrees_with_the_direction_of_the_step(make_frame, make_ctx) -> None:
+    """The evidence must not contradict the data it describes.
+
+    A `direction` string derived from which CUSUM arm crossed first could call an
+    upward step "downward"; a signed shift is read off the values themselves.
+    """
+    up = make_frame(series_rows("S1", "NO", [10.0] * 40 + [30.0] * 40))
+    down = make_frame(series_rows("S1", "NO", [30.0] * 40 + [10.0] * 40))
+
+    up_ev = StepChangeDetector().detect(up, make_ctx(up)).iloc[0]["evidence"]
+    down_ev = StepChangeDetector().detect(down, make_ctx(down)).iloc[0]["evidence"]
+
+    assert up_ev["signed_magnitude"] > 0, up_ev
+    assert down_ev["signed_magnitude"] < 0, down_ev
+    assert "direction" not in up_ev, "the ambiguous label must be gone, not merely wrong"
+    assert up_ev["magnitude"] == abs(up_ev["signed_magnitude"])
 
 
 def test_r14_negative_on_stationary_series(make_frame, make_ctx) -> None:
