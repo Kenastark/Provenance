@@ -128,9 +128,13 @@ jobs:
         run: make demo-data
 
       - name: Start the API
+        # 0.0.0.0, not 127.0.0.1: the visual-regression step runs the browser inside
+        # a container and reaches back through the Docker bridge, which a
+        # loopback-only listener refuses. On an ephemeral runner this binds nothing
+        # that outlives the job.
         run: |
           .venv/bin/python -m uvicorn provenance.api.app:create_app --factory \
-            --host 127.0.0.1 --port 8000 &
+            --host 0.0.0.0 --port 8000 &
           for _ in $(seq 1 40); do
             curl -sf http://127.0.0.1:8000/healthz && break
             sleep 1

@@ -85,6 +85,12 @@ define run_visual_in_container
 	  --add-host=host.docker.internal:host-gateway \
 	  $(PLAYWRIGHT_IMAGE) \
 	  bash -lc 'set -e; corepack enable pnpm >/dev/null 2>&1 || true; \
+	    curl -sf "$$VITE_API_BASE_URL/healthz" >/dev/null || { \
+	      echo "The API is not reachable at $$VITE_API_BASE_URL from inside the"; \
+	      echo "container. Start it with: make api-bg  (and make demo-data first)."; \
+	      echo "On Linux the API must bind 0.0.0.0, not 127.0.0.1, or the Docker"; \
+	      echo "bridge cannot reach it. Without data every screenshot is blank."; \
+	      exit 1; }; \
 	    mkdir -p /build && cp -r /host/. /build/; \
 	    rm -rf /build/node_modules /build/dist /build/test-results /build/playwright-report; \
 	    cd /build && pnpm install --no-frozen-lockfile --silent; \
