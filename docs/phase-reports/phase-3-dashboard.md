@@ -28,8 +28,8 @@ All green.
 |---|---|
 | Backend `make check` (lint, mypy strict, pytest) | 267 passed, 92.08% coverage (gate 88%) |
 | Frontend lint + typecheck | clean |
-| Vitest component tests | 139 passed across 12 files |
-| Frontend coverage on `apps/web/src` | **94.58%** lines / 83.53% branches (gate 80%) |
+| Vitest component tests | 149 passed across 13 files |
+| Frontend coverage on `apps/web/src` | **94.71%** lines / 84.39% branches (gate 80%) |
 | Playwright end-to-end | 45 passed |
 | API client drift check | current |
 
