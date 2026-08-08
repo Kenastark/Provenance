@@ -39,6 +39,7 @@ apps/web/.vite/
 apps/web/coverage/
 apps/web/playwright-report/
 apps/web/test-results/
+apps/web/*.tsbuildinfo
 
 # ---- env & local ----
 .env

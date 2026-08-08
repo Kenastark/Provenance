@@ -4,6 +4,22 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Changed
+- Phase-2 flag-review resolutions:
+  - Trust scores are persisted as a **daily series** across the ingest window, not a
+    single instant, so `/v1/trust/{id}?series=true` returns a real trajectory
+    (`trust_weights.yaml → scoring`). Superseding methodology doc
+    `trust-score-methodology-v1.1-invariants-and-series.md`.
+  - Station **name and coordinates** now populate from the Green Sentinel `Location`
+    column (verified real format `"<name> (lat, lon)"`, parsed by
+    `io/loaders.parse_location`, failing loudly otherwise); the PostGIS `geom` point
+    is now a STORED generated column derived from lat/lon. `zone_type` stays null —
+    it has no source in the export (recorded in `schema_assumptions.yaml`).
+  - `quality/summary.last_reading_at` now reports the real per-station max reading
+    time instead of null.
+  - The engineering-judgement trust formulas are pinned by invariant tests
+    (`tests/unit/test_trust_invariants.py`): HealthConf monotonicity, plausibility
+    ceiling-softening, Trust = weighted sum, scoring-instant cadence/cap/anchor.
 
 ## [0.2.0] - 2026-08-08
 ### Added

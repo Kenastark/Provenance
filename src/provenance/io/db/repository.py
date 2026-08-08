@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from provenance.io.db import models as m
@@ -177,10 +177,20 @@ async def coverage_facts_for_audit_run(
     return (await session.scalars(stmt)).all()
 
 
+async def last_reading_at_by_station(session: AsyncSession) -> dict[str, datetime]:
+    """The most recent reading timestamp for each station, from the readings table."""
+    stmt = select(m.Reading.station_id, func.max(m.Reading.timestamp_utc)).group_by(
+        m.Reading.station_id
+    )
+    rows = (await session.execute(stmt)).all()
+    return {str(station): ts for station, ts in rows if ts is not None}
+
+
 async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, Any]]:
     """Per-station Data Quality Monitor payload for a given run."""
     stations = (await session.scalars(select(m.Station).order_by(m.Station.station_id))).all()
     defects = await defects_for_audit_run(session, run_id)
+    last_reading = await last_reading_at_by_station(session)
     trust_rows = (
         await session.scalars(select(m.TrustScore).where(m.TrustScore.audit_run_id == run_id))
     ).all()
@@ -206,7 +216,9 @@ async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, 
                 "trust": None if ts is None else ts.trust,
                 "flag_count": flags_by_station.get(s.station_id, 0),
                 "n_parameters": len(s.coverage),
-                "last_reading_at": _last_reading_at(s),
+                "last_reading_at": (
+                    last_reading[s.station_id].isoformat() if s.station_id in last_reading else None
+                ),
                 "components": [] if ts is None else list(ts.components),
                 "reason_codes": [] if ts is None else list(ts.reason_codes),
             }
@@ -219,11 +231,4 @@ def _component_value(trust: m.TrustScore, name: str) -> float | None:
         if c.get("name") == name:
             value = c.get("value")
             return None if value is None else float(value)
-    return None
-
-
-def _last_reading_at(_station: m.Station) -> str | None:
-    # Placeholder until per-station last-calibration metadata lands; the coverage
-    # matrix carries counts, not timestamps, so this is reported as unknown rather
-    # than invented.
     return None

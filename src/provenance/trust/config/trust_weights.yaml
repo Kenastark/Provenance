@@ -76,3 +76,14 @@ risk:
   basis: >-
     SeverityVsThreshold scales risk by how far the worst active defect's severity
     sits above nominal; PopulationExposure is a stub of 1.0 pending GTFS ridership.
+
+scoring:
+  # How trust is persisted over time. A load scores each station at a fixed cadence
+  # across the ingest window, not just at the final instant, so /v1/trust/{id}?series
+  # returns a real trajectory rather than a single point. The trailing window of each
+  # component still governs how much history each score sees.
+  cadence_hours: 24            # one score per station per day
+  max_points: 120              # safety cap on scores per station per load
+  basis: >-
+    Daily cadence matches the operator cadence for a data-quality review and keeps a
+    30-day load to ~30 scores per station. max_points bounds the cost of a long load.

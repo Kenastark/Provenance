@@ -1,7 +1,7 @@
 # Provenance audit
 
 - Code version: `0.2.0`
-- Config hash: `4e82d99631fe8099`
+- Config hash: `277499b1c4b9aef3`
 - Data checksum: `0bd9c4dcc414f379`
 - Window: 2026-05-01T00:00:00 to 2026-05-14T23:00:00
 

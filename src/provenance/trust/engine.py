@@ -113,3 +113,25 @@ def _dedupe(codes: list[str]) -> list[str]:
 def latest_timestamp(frame: pd.DataFrame) -> pd.Timestamp:
     """The most recent reading time in the frame — the default scoring instant."""
     return pd.Timestamp(frame[C.TIMESTAMP].max())
+
+
+def scoring_instants(
+    frame: pd.DataFrame, *, cadence_hours: int = 24, max_points: int = 120
+) -> list[pd.Timestamp]:
+    """The timestamps at which to score a station across the ingest window.
+
+    Anchored on the most recent reading and stepped backwards at ``cadence_hours``
+    to the first reading, capped at ``max_points`` (keeping the most recent), then
+    returned in ascending order. This is what turns the trust series from a single
+    point into a real trajectory (flag-review resolution for standing rule 9's
+    "series" endpoint).
+    """
+    end = latest_timestamp(frame)
+    start = pd.Timestamp(frame[C.TIMESTAMP].min())
+    step = pd.Timedelta(hours=max(1, cadence_hours))
+    instants: list[pd.Timestamp] = []
+    t = end
+    while t >= start and len(instants) < max_points:
+        instants.append(t)
+        t = t - step
+    return sorted(set(instants))
