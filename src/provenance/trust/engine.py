@@ -91,12 +91,19 @@ def compute_trust(
 
 
 def _weighted(c: TrustComponent, weight: float) -> TrustComponent:
+    """Re-stamp a component with its elicited weight, carrying everything else.
+
+    ``evidence`` has to be copied across explicitly: this rebuilds the frozen
+    dataclass field by field, so anything omitted here is silently dropped between
+    the component that measured it and the score that reports it.
+    """
     return TrustComponent(
         name=c.name,
         value=c.value,
         weight=weight,
         is_placeholder=c.is_placeholder,
         detail=c.detail,
+        evidence=dict(c.evidence),
     )
 
 

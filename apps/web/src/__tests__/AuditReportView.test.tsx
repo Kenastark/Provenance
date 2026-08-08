@@ -77,9 +77,18 @@ describe("AuditReportView", () => {
   });
 
   it("calls a zero-defect run a result rather than an empty screen", async () => {
+    // A defect-free run is one whose *summary* records no defects. Emptying the
+    // ledger alone no longer models that, because the breakdown reads the engine's
+    // tally rather than counting rows.
     renderWithProviders(<AuditReportView />, {
       route: "/audit",
-      routes: { "/v1/defects": page([]) },
+      routes: {
+        "/v1/audit/runs/run-2026-05-15": {
+          run: fixtures.auditRun({ n_defective_cells: 0, defect_rate: 0 }),
+          summary: { defects_by_code: {} },
+        },
+        "/v1/defects": page([]),
+      },
     });
     expect(await screen.findByTestId("empty-state")).toHaveTextContent(/is a result/i);
   });
@@ -99,5 +108,29 @@ describe("AuditReportView", () => {
     const select = await screen.findByTestId("audit-run-select");
     await user.selectOptions(select, "run-older");
     await waitFor(() => expect(screen.getByTestId("audit-headline")).toHaveTextContent("10"));
+  });
+});
+
+describe("the breakdown counts every defect, not one page of them", () => {
+  it("reads the engine's own per-code tally from the stored run summary", async () => {
+    // The ledger endpoint pages at 500. On the demo corpus that already truncates:
+    // R10 is 336 in the engine's tally but only 145 rows reach the first page, and
+    // seven codes never appear at all. Counting the page is counting the wrong set.
+    renderWithProviders(<AuditReportView />, { route: "/audit" });
+    await waitFor(() => expect(screen.getAllByTestId("data-table-row").length).toBeGreaterThan(0));
+
+    const rows = screen.getAllByTestId("data-table-row");
+    const byCode = Object.fromEntries(rows.map((row) => [row.dataset.rowKey, row.textContent]));
+
+    expect(byCode["R10"]).toContain("336");
+    expect(byCode["R12"]).toContain("336");
+    // Codes that fall past the first page of the ledger must still be listed.
+    expect(Object.keys(byCode).sort()).toEqual(["R07", "R09", "R10", "R12", "R18"]);
+  });
+
+  it("does not claim truncation when it used the authoritative tally", async () => {
+    renderWithProviders(<AuditReportView />, { route: "/audit" });
+    await waitFor(() => expect(screen.getAllByTestId("data-table-row").length).toBeGreaterThan(0));
+    expect(screen.queryByText(/truncated at the API/i)).not.toBeInTheDocument();
   });
 });

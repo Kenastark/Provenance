@@ -72,7 +72,17 @@ export function EvidencePanel() {
         header: "Code",
         isRowHeader: true,
         sortValue: (defect) => defect.reason_code,
-        render: (defect) => <ReasonCodeBadge code={defect.reason_code} variant="code" />,
+        // The dense chip still needs the row's evidence: its tooltip and its
+        // screen-reader text are the full sentence, and without this they read
+        // "Value of — — exceeds the physical maximum for —" beside a row that
+        // holds every one of those numbers.
+        render: (defect) => (
+          <ReasonCodeBadge
+            code={defect.reason_code}
+            variant="code"
+            evidence={evidenceFor(defect)}
+          />
+        ),
       },
       {
         key: "station",

@@ -119,3 +119,34 @@ describe("EvidencePanel", () => {
     expect(await screen.findByText(/That absence is the defect/i)).toBeInTheDocument();
   });
 });
+
+describe("the dense code chip is not a downgrade", () => {
+  it("carries the row's filled sentence in its tooltip and screen-reader text", async () => {
+    // The sentence sites were fixed when the placeholder leak was found; the code
+    // chip in the defect table was not, so it read "Value of — — exceeds the
+    // physical maximum for —" next to a row holding every one of those numbers.
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    await waitFor(() => expect(screen.getAllByTestId("data-table-row").length).toBe(3));
+
+    const row = screen
+      .getAllByTestId("data-table-row")
+      .find((candidate) => candidate.dataset.rowKey === "1")!;
+    const chip = within(row).getByTestId("reason-code-badge");
+
+    expect(chip).toHaveAttribute(
+      "title",
+      "Value of 3000 µg/m3 exceeds the physical maximum for PM10.",
+    );
+    expect(within(chip).getByText(/^R07: Value of 3000 µg\/m3/)).toBeInTheDocument();
+  });
+
+  it("still degrades to an em dash where a tally has no single row to draw on", async () => {
+    // The audit report's per-code tally aggregates many defects, so there is no one
+    // evidence dict to attach. An em dash is correct there - what must never appear
+    // is a brace.
+    const { renderReasonSentenceParts } = await import("../api/reason-codes");
+    const { text } = renderReasonSentenceParts("R07", {});
+    expect(text).toContain("—");
+    expect(text).not.toMatch(/[{}]/);
+  });
+});

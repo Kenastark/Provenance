@@ -135,3 +135,38 @@ describe("StationDetailPanel", () => {
     expect(screen.getByTestId("empty-state")).toHaveTextContent(/No station selected/i);
   });
 });
+
+describe("trust reason codes render as sentences, not templates", () => {
+  it("fills every trust placeholder from the score's own evidence", async () => {
+    renderPanel();
+    const reasons = await screen.findByTestId("station-reason-codes");
+
+    // Before the engine carried its figures, T03 read "disagreement with —
+    // neighbouring station(s)" and leaned on the component detail underneath.
+    expect(
+      within(reasons).getByText(/Trust is reduced by disagreement with 4 neighbouring station\(s\)/i),
+    ).toBeInTheDocument();
+    expect(within(reasons).queryByText(/—/)).not.toBeInTheDocument();
+    expect(within(reasons).queryByTestId("reason-code-detail")).not.toBeInTheDocument();
+  });
+
+  it("still shows the component detail for a score written before evidence existed", async () => {
+    renderPanel({
+      routes: {
+        "/v1/trust/STA-01": fixtures.trustScore({
+          reason_codes: ["T03"],
+          // An older row: components and codes, but no figures.
+          evidence: {},
+          components: fixtures.trustComponents.map((c) => ({ ...c, evidence: {} })),
+        }),
+      },
+    });
+
+    const reasons = await screen.findByTestId("station-reason-codes");
+    expect(within(reasons).getByTestId("reason-code-detail")).toHaveTextContent(
+      "3 parameter(s) compared to peers",
+    );
+    // Degraded, but never a raw brace.
+    expect(within(reasons).queryByText(/[{}]/)).not.toBeInTheDocument();
+  });
+});

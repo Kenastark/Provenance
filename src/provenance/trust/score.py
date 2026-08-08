@@ -22,6 +22,14 @@ class TrustComponent:
     is_placeholder: bool = False
     """True for terms that are not yet backed by a calibrated model (imputation)."""
     detail: str = ""
+    evidence: dict[str, Any] = field(default_factory=dict)
+    """The figures behind this term, keyed by the placeholder names the reason-code
+    sentences use.
+
+    ``detail`` is prose for a human; this is the same information in a form a
+    renderer can substitute. Keeping only the prose is what made the dashboard show
+    "Trust is reduced by disagreement with — neighbouring station(s)": the engine
+    had counted the neighbours and then thrown the count away."""
 
     @property
     def contribution(self) -> float:
@@ -35,6 +43,7 @@ class TrustComponent:
             "contribution": self.contribution,
             "is_placeholder": self.is_placeholder,
             "detail": self.detail,
+            "evidence": dict(self.evidence),
         }
 
 
@@ -77,6 +86,18 @@ class TrustScore:
     alone (graceful degradation, standing rule 6)."""
     notes: list[str] = field(default_factory=list)
 
+    @property
+    def evidence(self) -> dict[str, Any]:
+        """Every component's figures, merged — the substitution map for a sentence.
+
+        Component names are distinct and their evidence keys are the placeholder
+        names of the codes they justify, so the merge is unambiguous.
+        """
+        merged: dict[str, Any] = {}
+        for component in self.components:
+            merged.update(component.evidence)
+        return merged
+
     def __post_init__(self) -> None:
         if not self.components:
             raise ValueError("a trust score cannot render without its component breakdown")
@@ -95,4 +116,5 @@ class TrustScore:
             "risk": self.risk.to_dict(),
             "degraded": self.degraded,
             "notes": list(self.notes),
+            "evidence": self.evidence,
         }

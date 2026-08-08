@@ -221,9 +221,18 @@ async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, 
                 ),
                 "components": [] if ts is None else list(ts.components),
                 "reason_codes": [] if ts is None else list(ts.reason_codes),
+                "evidence": {} if ts is None else _merged_evidence(ts),
             }
         )
     return out
+
+
+def _merged_evidence(trust: m.TrustScore) -> dict[str, Any]:
+    """The components' figures, merged - the map a reason-code sentence renders with."""
+    merged: dict[str, Any] = {}
+    for c in trust.components:
+        merged.update(c.get("evidence") or {})
+    return merged
 
 
 def _component_value(trust: m.TrustScore, name: str) -> float | None:

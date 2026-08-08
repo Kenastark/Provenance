@@ -163,11 +163,14 @@ demo-data: demo-corpus ## schema, demo corpus, audit - everything but the server
 	$(VENV)/bin/prov audit run --data $(DEMO_DIR) --out reports
 
 API_PID := .demo-api.pid
+# Loopback locally. CI overrides it to 0.0.0.0 so the browser running inside the
+# pinned Playwright container can reach back through the Docker bridge.
+API_HOST ?= 127.0.0.1
 
 .PHONY: api
 api: ## run the API in the foreground
 	$(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
-	  --host 127.0.0.1 --port 8000 --reload
+	  --host $(API_HOST) --port 8000 --reload
 
 .PHONY: api-bg
 api-bg: ## start the API in the background (writes $(API_PID))
@@ -175,7 +178,7 @@ api-bg: ## start the API in the background (writes $(API_PID))
 	  echo "API already listening on :8000"; \
 	else \
 	  $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
-	    --host 127.0.0.1 --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
+	    --host $(API_HOST) --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
 	  for i in $$(seq 1 40); do \
 	    curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; \
 	  done; \

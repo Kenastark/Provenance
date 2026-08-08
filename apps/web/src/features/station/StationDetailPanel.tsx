@@ -110,6 +110,19 @@ function StationDetailBody({
   );
   const components = score?.components ?? qualityRow?.components ?? [];
 
+  // The engine's own figures, keyed by the placeholder names the reason-code
+  // sentences use. Falls back to merging them off the components for a score
+  // written before the API carried them, and finally to the quality row's flag
+  // count so T01 at least renders.
+  const trustEvidence = useMemo(() => {
+    const served = score?.evidence ?? qualityRow?.evidence;
+    if (served && Object.keys(served).length > 0) return served;
+    const merged: Record<string, unknown> = {};
+    for (const component of components) Object.assign(merged, component.evidence ?? {});
+    if (Object.keys(merged).length > 0) return merged;
+    return { n_defects: qualityRow?.flag_count };
+  }, [score, qualityRow, components]);
+
   const parameters = useMemo(() => {
     const coverage = station?.coverage ?? {};
     return Object.keys(coverage).sort();
@@ -179,7 +192,7 @@ function StationDetailBody({
                 <li key={code}>
                   <ReasonCodeBadge
                     code={code}
-                    evidence={{ n_defects: qualityRow?.flag_count }}
+                    evidence={trustEvidence}
                     detail={detailFor(code, components)}
                   />
                 </li>

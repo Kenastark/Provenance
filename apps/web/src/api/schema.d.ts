@@ -260,6 +260,10 @@ export interface components {
             contribution: number;
             /** Detail */
             detail: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
             /** Is Placeholder */
             is_placeholder: boolean;
             /** Name */
@@ -389,6 +393,10 @@ export interface components {
         QualityStationOut: {
             /** Components */
             components?: components["schemas"]["ComponentOut"][];
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
             /** Flag Count */
             flag_count: number;
             /** Health */
@@ -486,6 +494,10 @@ export interface components {
              * @default false
              */
             degraded: boolean;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
             /** Notes */
             notes?: string[];
             /** Reason Codes */
