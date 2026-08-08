@@ -27,10 +27,16 @@ export default defineConfig({
   expect: {
     timeout: 15_000,
     toHaveScreenshot: {
-      // Map tiles and antialiasing differ a little between machines and GPUs. A
-      // small tolerance keeps the snapshots meaningful without making them a
-      // source of false failures on someone else's laptop.
-      maxDiffPixelRatio: 0.02,
+      // Tight on purpose. The first version of this allowed 2% of pixels to differ,
+      // which is roughly 26,000 pixels at this viewport - enough to swallow a whole
+      // line of text. A baseline that cannot notice a sentence disappearing is not
+      // a gate, it is decoration.
+      //
+      // `threshold` still absorbs per-pixel antialiasing differences, and the Linux
+      // baselines are generated and verified inside one pinned image, so there is
+      // no cross-environment noise left to tolerate.
+      maxDiffPixelRatio: 0.002,
+      threshold: 0.2,
       animations: "disabled",
       caret: "hide",
     },
