@@ -36,12 +36,14 @@ schema_app = typer.Typer(help="Observe and record the input schema.", no_args_is
 audit_app = typer.Typer(help="Run the audit and render its report.", no_args_is_help=True)
 fixtures_app = typer.Typer(help="Generate the seeded synthetic corpus.", no_args_is_help=True)
 codes_app = typer.Typer(help="Inspect the reason-code registry.", no_args_is_help=True)
+db_app = typer.Typer(help="Manage the database schema and load data.", no_args_is_help=True)
 
 app.add_typer(data_app, name="data")
 app.add_typer(schema_app, name="schema")
 app.add_typer(audit_app, name="audit")
 app.add_typer(fixtures_app, name="fixtures")
 app.add_typer(codes_app, name="codes")
+app.add_typer(db_app, name="db")
 
 console = Console()
 
@@ -189,6 +191,50 @@ def fixtures_make(
 
     paths = write_corpus(out, seed=seed, n_days=days)
     console.print(f"[green]Wrote[/green] {paths['corpus']} and {paths['ledger']}")
+
+
+# ------------------------------------------------------------------------- db
+@db_app.command("upgrade")
+def db_upgrade() -> None:
+    """Bring the database schema up to head (Alembic on Postgres, ORM on SQLite)."""
+    from provenance.io.db import migrate
+
+    migrate.upgrade()
+    console.print("[green]Schema at head.[/green]")
+
+
+@db_app.command("reset")
+def db_reset(
+    yes: bool = typer.Option(False, "--yes", help="Confirm the destructive rebuild."),
+) -> None:
+    """Drop every table and rebuild the schema. Destructive."""
+    from provenance.io.db import migrate
+
+    if not yes:
+        console.print("[red]Refusing to reset without --yes (this drops all data).[/red]")
+        raise typer.Exit(code=1)
+    migrate.reset()
+    console.print("[green]Schema reset and at head.[/green]")
+
+
+@db_app.command("load")
+def db_load(
+    source: Path = typer.Option(_DATA_DEFAULT, "--source", help="Data drop to load."),
+) -> None:
+    """Load a data drop into the database, idempotently."""
+    from provenance.io.db import migrate
+
+    report = migrate.load(source)
+    if report.already_loaded:
+        console.print(
+            f"[yellow]Already loaded[/yellow] (batch {report.ingest_batch_id}); nothing changed."
+        )
+        return
+    console.print(
+        f"[green]Loaded[/green] {report.readings_inserted:,} readings, "
+        f"{report.defects_inserted:,} defects, {report.trust_scores_inserted:,} trust scores "
+        f"(run {report.audit_run_id})."
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

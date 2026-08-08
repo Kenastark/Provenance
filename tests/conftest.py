@@ -10,12 +10,14 @@ Two rules this file enforces:
 
 from __future__ import annotations
 
+import asyncio
 import random
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
 import pandas as pd
 import pytest
+import pytest_asyncio
 
 SEED = 20260907
 
@@ -68,6 +70,51 @@ def make_ctx() -> Callable[[pd.DataFrame], object]:
         return AuditContext(thresholds=load_thresholds(), coverage=build_coverage(frame))
 
     return _factory
+
+
+@pytest.fixture(scope="session")
+def loaded_db(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
+    """A SQLite database file with the fixture corpus loaded once for the session.
+
+    Built synchronously so it is available to both async API fixtures and the
+    schemathesis module. Tests are read-only against it, so sharing is safe and
+    avoids re-auditing per test.
+    """
+    from provenance.fixtures.generator import generate
+    from provenance.io.db.engine import create_all, make_engine, make_sessionmaker
+    from provenance.io.db.loader import load_frame
+
+    db_path = tmp_path_factory.mktemp("db") / "provenance.db"
+    url = f"sqlite+aiosqlite:///{db_path}"
+
+    async def _build() -> str:
+        engine = make_engine(url)
+        await create_all(engine)
+        sm = make_sessionmaker(engine)
+        frame, _ = generate()
+        async with sm() as session:
+            report = await load_frame(session, frame, source="fixtures", path="tests/fixtures")
+        await engine.dispose()
+        return report.audit_run_id
+
+    run_id = asyncio.run(_build())
+    return {"url": url, "run_id": run_id}
+
+
+@pytest_asyncio.fixture
+async def api_client(loaded_db: dict[str, str]) -> AsyncIterator[object]:
+    """An httpx AsyncClient bound to the app over the loaded SQLite database."""
+    import httpx
+
+    from provenance.api.app import create_app
+    from provenance.io.db.engine import make_engine
+
+    engine = make_engine(loaded_db["url"])
+    app = create_app(engine=engine)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        yield client
+    await engine.dispose()
 
 
 @pytest.fixture
