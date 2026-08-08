@@ -1,0 +1,14 @@
+# Pins the pnpm workspace root to apps/web.
+#
+# Without this file pnpm walks *up* the filesystem looking for a workspace root
+# and will happily adopt an unrelated pnpm-workspace.yaml sitting in a developer's
+# home directory, at which point every install in this repo fails with
+# "packages field missing or empty". Declaring the root here stops the search at
+# apps/web, so the frontend installs identically on any machine regardless of what
+# is above the checkout.
+#
+# apps/web is the only Node package in the repo, so it is both the workspace root
+# and its single member. `pnpm add` therefore needs `-w`; `pnpm install`, which is
+# what CI and the Dockerfile run, is unaffected.
+packages:
+  - "."

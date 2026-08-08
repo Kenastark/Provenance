@@ -25,6 +25,17 @@ green_sentinel:
   # Column names are Hungarian and were read from the files, not invented:
   timestamp_column: timestamp        # confirmed; format "%Y-%m-%d-%H-%M"
   location_column: Location          # confirmed; carries site name + "(lat, lon)"
+  # Location format CONFIRMED by reading all 16 workbooks at the phase-2 flag review:
+  # "<site name> (<lat>, <lon>)" with decimal degrees, latitude first (Debrecen is
+  # ~47.5 N, ~21.6 E). Parsed by io/loaders.parse_location, which fails loudly on any
+  # other shape. Example: "ÉNYGÖ, BMW körút (47.577175, 21.502204)".
+  location_format: "<name> (<lat>, <lon>)"
+  location_status: confirmed
+  # zone_type (urban/suburban/industrial/background) has NO source column in the
+  # export — the only columns are timestamp/Location/parameter/value/unit. It is
+  # populated from the CURATED, PROVISIONAL config/station_zones.yaml (human
+  # classification from site names/coordinates), never inferred from the readings.
+  zone_type_source: config/station_zones.yaml   # curated, provisional (needs expert sign-off)
   parameter_column: "Mérőeszköz"     # confirmed; holds the measured parameter name
   value_column: "érték"              # confirmed; the numeric reading
   unit_column: "mértékegység"        # confirmed; the declared unit string

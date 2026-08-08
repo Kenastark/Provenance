@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" width="640" height="160" role="img" aria-label="Provenance">
+  <title>Provenance</title>
+  <defs>
+    <linearGradient id="pvh" gradientUnits="userSpaceOnUse" x1="24" y1="14" x2="176" y2="186">
+      <stop offset="0" stop-color="#031436"/>
+      <stop offset="0.42" stop-color="#0B52C4"/>
+      <stop offset="1" stop-color="#06B49A"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(20,20) scale(0.6)">
+    <circle cx="100" cy="100" r="76" fill="none" stroke="url(#pvh)" stroke-width="2.4"/>
+    <g stroke="url(#pvh)" stroke-width="2.8" stroke-linecap="round">
+      <line x1="100" y1="64" x2="100" y2="37"/>
+      <line x1="131.18" y1="82" x2="154.56" y2="68.5"/>
+      <line x1="131.18" y1="118" x2="154.56" y2="131.5"/>
+      <line x1="100" y1="136" x2="100" y2="163"/>
+      <line x1="68.82" y1="118" x2="45.44" y2="131.5"/>
+      <line x1="68.82" y1="82" x2="45.44" y2="68.5"/>
+    </g>
+    <g fill="url(#pvh)">
+      <circle cx="100" cy="24" r="13"/><circle cx="165.82" cy="62" r="13"/>
+      <circle cx="165.82" cy="138" r="13"/><circle cx="100" cy="176" r="13"/>
+      <circle cx="34.18" cy="138" r="13"/><circle cx="34.18" cy="62" r="13"/>
+      <circle cx="100" cy="100" r="36"/>
+    </g>
+    <path d="M84 100.5 L95.5 112 L117 88.5" fill="none" stroke="#FFFFFF" stroke-width="8.5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- Wordmark: geometric sans, title case. MUST be converted to outlines before
+       this file is used as a final asset - it currently depends on a webfont. -->
+  <text x="160" y="93" font-family="Poppins, Montserrat, 'Space Grotesk', Inter, sans-serif"
+        font-size="54" font-weight="600" fill="#031436">Provenance</text>
+</svg>

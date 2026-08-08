@@ -37,10 +37,12 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
     # Station geometry: the PostGIS point the ORM carries only as lat/lon floats.
-    op.execute("ALTER TABLE stations ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326)")
+    # A STORED generated column keeps geom in lock-step with lat/lon on every insert
+    # and update, so populating coordinates is enough — there is no separate write
+    # path that could leave geom stale. NULL coordinates yield a NULL point.
     op.execute(
-        "UPDATE stations SET geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326) "
-        "WHERE lon IS NOT NULL AND lat IS NOT NULL"
+        "ALTER TABLE stations ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326) "
+        "GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(lon, lat), 4326)) STORED"
     )
 
     # Hypertables. The partition column is part of each table's primary key, so

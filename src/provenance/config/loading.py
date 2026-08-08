@@ -17,6 +17,7 @@ import yaml
 _CONFIG_DIR = Path(__file__).resolve().parent
 THRESHOLDS_PATH = _CONFIG_DIR / "thresholds.yaml"
 SCHEMA_ASSUMPTIONS_PATH = _CONFIG_DIR / "schema_assumptions.yaml"
+STATION_ZONES_PATH = _CONFIG_DIR / "station_zones.yaml"
 
 
 @lru_cache(maxsize=1)
@@ -31,6 +32,20 @@ def load_schema_assumptions() -> dict[str, Any]:
     """Everything the loaders assume about the input files."""
     data: dict[str, Any] = yaml.safe_load(SCHEMA_ASSUMPTIONS_PATH.read_text(encoding="utf-8"))
     return data
+
+
+@lru_cache(maxsize=1)
+def load_station_zones() -> dict[str, str]:
+    """Curated station_id -> zone_type map (provisional; see station_zones.yaml).
+
+    Human curation, not a measurement: the export carries no zone column. Returns a
+    flat ``{station_id: zone}`` map; stations absent from the file (e.g. the synthetic
+    fixtures) get no zone, and the caller leaves ``zone_type`` null rather than
+    inventing one.
+    """
+    data: dict[str, Any] = yaml.safe_load(STATION_ZONES_PATH.read_text(encoding="utf-8"))
+    stations = data.get("stations", {}) or {}
+    return {str(sid): str(spec["zone"]) for sid, spec in stations.items()}
 
 
 def config_hash() -> str:

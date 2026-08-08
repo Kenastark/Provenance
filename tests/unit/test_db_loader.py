@@ -99,3 +99,32 @@ async def test_events_have_null_verdict_until_phase_four(
     events = (await session.scalars(select(m.Event))).all()
     assert events  # the fixture has notable events
     assert all(e.verdict is None for e in events)
+
+
+async def test_station_metadata_populates_name_and_coordinates(
+    session: AsyncSession, synthetic_corpus: tuple
+) -> None:
+    from provenance.io.loaders import StationLocation
+
+    frame, _ = synthetic_corpus
+    meta = {
+        "STA-01": StationLocation("STA-01", "Test Site One", 47.53, 21.62),
+        "STA-02": StationLocation("STA-02", "Test Site Two", 47.55, 21.60),
+    }
+    await load_frame(session, frame, source="fixtures", path="tests/fixtures", station_meta=meta)
+    s1 = await session.get(m.Station, "STA-01")
+    assert s1 is not None and s1.name == "Test Site One"
+    assert (s1.lat, s1.lon) == (47.53, 21.62)
+    # A station absent from the metadata keeps null coordinates — never invented.
+    s3 = await session.get(m.Station, "STA-03")
+    assert s3 is not None and s3.lat is None and s3.lon is None and s3.name is None
+
+
+async def test_station_metadata_defaults_to_null_without_metadata(
+    session: AsyncSession, synthetic_corpus: tuple
+) -> None:
+    frame, _ = synthetic_corpus
+    await load_frame(session, frame, source="fixtures", path="tests/fixtures")
+    stations = (await session.scalars(select(m.Station))).all()
+    assert stations
+    assert all(s.lat is None and s.lon is None for s in stations)

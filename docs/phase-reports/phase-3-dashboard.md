@@ -1,0 +1,198 @@
+## Phase 3 - Dashboard v1
+
+Date: 2026-08-08
+Branch: `phase-3-dashboard`
+Tag: `v0.3.0`
+
+### What was built
+
+The operator dashboard (`apps/web`): five screens — network map, data quality
+monitor, event timeline, evidence panel, audit report — on Vite + React 18 + TS
+strict, TanStack Query, React Router, MapLibre GL, Recharts, and Tailwind configured
+to read the design tokens. Everything the frontend knows about the backend is
+generated and drift-checked rather than restated: the OpenAPI types, the reason-code
+registry with its operator sentences, and the numeric design tokens the UI branches
+on. `make demo` is one command that brings up the stack, loads an 18-station
+synthetic corpus, audits it, and opens the dashboard.
+
+Three things had to be fixed in the layers below to make the screen work at all: the
+API had no CORS (so a browser client on another origin got nothing from a perfectly
+healthy backend), the fixture corpus had no coordinates (so the map had nowhere to
+put a marker), and the fixture generator was fixed at four stations.
+
+### Test gate
+
+All green.
+
+| Gate | Result |
+|---|---|
+| Backend `make check` (lint, mypy strict, pytest) | 267 passed, 92.08% coverage (gate 88%) |
+| Frontend lint + typecheck | clean |
+| Vitest component tests | 152 passed across 13 files |
+| Frontend coverage on `apps/web/src` | **94.71%** lines / 84.39% branches (gate 80%) |
+| Playwright end-to-end | 51 passed (28 functional + a11y, 7 responsive, 8 visual, 8 placeholder guards) |
+| API client drift check | current |
+
+The e2e covers what the prompt asked for and runs against the real stack —
+TimescaleDB, the demo corpus, the audit, the API, and the built dashboard in
+Chromium:
+
+- **Demo path**: load map → every station in the API has a marker → click one →
+  detail panel shows a reason code as a sentence → open evidence → defect table
+  renders with the detector's numbers.
+- **axe-core** on all five routes in **both** themes: zero critical violations.
+- **Keyboard-only traversal**: skip link is the first tab stop and lands on `<main>`,
+  every screen reachable, a station openable from the quality table without a mouse,
+  visible focus ring asserted from computed style.
+- **Visual regression**: map, station detail, quality monitor, timeline — both
+  themes, on both macOS and Linux: sixteen committed baselines.
+- **Responsive**: five routes at 390px, asserting both that the page does not scroll
+  sideways and that no element escapes the viewport unclipped.
+
+Specific gate items worth calling out:
+
+- The trust chip cannot render without a reason code, tested three ways: the prop is
+  a non-empty tuple so omitting it does not compile (asserted with `@ts-expect-error`),
+  and the component throws at runtime for data TypeScript never saw.
+- `lib/queue.ts` exports no send function, and a test asserts that by inspecting the
+  module's exports. Standing rule 5 as a test, not a comment.
+
+### Deviations from the prompt
+
+1. **Branched off the phase-2 tip, not off `main`.** The working tree was on
+   `phase-2-flag-review`, which carried two unmerged commits (`e875973`, `ece7a06`)
+   that phase 3 directly depends on — station lat/lon, `last_reading_at`, and the
+   trust series are what the map, the quality table, and the sparklines are built
+   from. Branching off `main` would have produced a dashboard with no coordinates and
+   no trajectories. Those two commits therefore ride in this PR alongside phase 3.
+   `v0.2.0` remains tagged where it was, at the phase-2 merge.
+
+2. **"18 markers present" is asserted against the API, not against the literal 18.**
+   Standing rule 1 says never hardcode a number the data should produce. The e2e
+   fetches the station list and asserts the marker count equals what the API returns;
+   the demo corpus is generated with 18 stations so that number is 18 in practice.
+
+3. **The demo corpus is a separate corpus, not the test corpus.** `tests/fixtures`
+   stays at four stations and its golden ledger is untouched. `prov fixtures make
+   --stations N` appends *clean* stations beyond the four the injection layout
+   targets, so the expected flag counts are unchanged by station count, and `make
+   demo` asks for 18.
+
+4. **Fixture stations carry generated coordinates.** The canonical parquet has no
+   `Location` column and the loader will not invent one, so `write_corpus` now emits a
+   `stations.json` sidecar and the loader reads it when present. These are fixture
+   coordinates for fixture stations (`STA-nn`) on a lattice anchored at the one
+   confirmed real coordinate in the repo; they make no claim about the real network,
+   whose coordinates still come only from parsing the real export.
+
+5. **A reversed lockup was added.** The approved horizontal lockup inks its wordmark
+   in the brand's near-black, which is invisible on the dark theme — and dark is the
+   default. `provenance-lockup-horizontal-reversed.svg` is the same artwork with only
+   the wordmark's ink swapped for `--prov-white`, generated by a script and asserted
+   geometry-identical to the original by a brand test. The palette is unchanged.
+
+6. **CORS was added to the API.** Not in the prompt, but the dashboard cannot read
+   anything without it. It is an explicit allow-list (`PROVENANCE_CORS_ORIGINS`),
+   never `*`, because the API authenticates with a header key.
+
+7. **`apps/web/pnpm-workspace.yaml` was added.** pnpm walks *up* the filesystem for a
+   workspace root and had adopted an unrelated `pnpm-workspace.yaml` in the
+   developer's home directory, which made every install in this repo fail. Pinning the
+   root at `apps/web` stops the search. `pnpm add` now needs `-w`; `pnpm install`,
+   which is what CI and the Dockerfile run, is unaffected.
+
+8. **The mobile Playwright project runs Chromium at a 390px viewport**, not the
+   WebKit iPhone profile. What is under test is layout at 390px, and one engine means
+   one browser download in CI and one set of visual baselines.
+
+9. **Visual baselines are committed for two platforms.** macOS and Linux rasterise
+   text differently enough that one platform's baseline can never match the other's
+   run — the first CI attempt failed all eight visual tests with "a snapshot doesn't
+   exist" while the 37 functional e2e tests passed. Playwright already names
+   snapshots per platform, so both sets are committed and `make web-visual-linux`
+   regenerates the Linux set inside the official Playwright image, the same way CI
+   consumes it.
+
+### Flag for review
+
+**0. A raw `{placeholder}` reached the event timeline, and only a screenshot caught
+it.** R07's detector stores `value`, `limit`, `unit`, `basis` — but not the
+parameter, which is a *column* on the row rather than part of the evidence dict. The
+timeline rendered the evidence dict alone and printed "Value of {value} {unit}
+exceeds the physical maximum for {parameter}." to the screen, on the one product
+whose entire claim is that it does not show you numbers you cannot trust. Fixed by
+merging the row's own columns into the evidence (`evidenceFor`), by a unit test over
+every code in the registry, and by an e2e that scans all five routes for a visible
+brace. Worth dwelling on: 45 tests were green while this was on screen, because
+every one of them asserted what *should* be there and none asserted what should not.
+
+The visual-regression suite should have caught it and did not, for a second reason
+worth recording: the pixel tolerance was `maxDiffPixelRatio: 0.02`, roughly 26,000
+pixels at this viewport — enough to absorb a whole paragraph. Removing the
+timeline's duplicated sentence changed the render and `--update-snapshots` left the
+baseline untouched, because the comparison still "passed". It is now 0.002 with a
+per-pixel threshold for antialiasing, and all sixteen baselines were regenerated
+from scratch. A screenshot gate loose enough to miss a line of text is worse than
+none, because it is reassuring.
+
+**1. Trust reason codes have no machine-readable evidence, and it shows on screen.**
+This is the one that most deserves a look. The trust engine computes the numbers
+behind T02, T03 and T05, but they reach the API as prose in `notes` and
+`components[].detail` rather than as an evidence dict, so the UI cannot fill the
+sentence templates. T01 it can fill (from `flag_count`); the others render as, for
+example, *"Trust is reduced by disagreement with — neighbouring station(s)"* with the
+component's detail line underneath supplying the real figure. That em dash is honest
+— it never invents a number — but it is not good writing, and an operator reading it
+aloud in a meeting would stumble. Adding an `evidence: dict` to the trust score
+payload (engine → DB JSON → `TrustScoreOut`) would close it properly. It needs a
+migration, which is why I did not do it inside a frontend phase.
+
+**2. `scripts/gen_frontend_contract.py` mirrors the reason-code registry into
+TypeScript.** It is generated and drift-checked, so it cannot silently diverge — but
+it is still a second copy of the project's most load-bearing table, and the check only
+fires if someone runs CI. If the registry is ever edited on a branch that does not
+touch `apps/web/**`, the `paths:` filter on the frontend workflow means the contract
+job does not run. I added `src/provenance/config/reason_codes.py` and
+`src/provenance/api/**` to the workflow's `pull_request` paths to cover this, but a
+path filter is a weaker guarantee than a job that always runs. Worth deciding whether
+the contract check should move into the always-on backend workflow.
+
+**3. Uptime and last-calibration are derived in the frontend.** The API serves
+neither, so the quality monitor computes uptime as 1 − (R01 absent cells ÷ expected
+cells) and takes the newest R15 discontinuity as the calibration epoch. Both are
+honest and both state their derivation on screen next to the number, but business
+logic in a presentation layer is exactly the kind of thing that drifts from the
+engine's own definition. If either becomes load-bearing for the pitch, it should move
+into the audit engine and be served.
+
+**4. The defect ledger is truncated at the API's 500-row page limit.** The audit
+report's per-code breakdown counts the rows it fetched, which on the real corpus
+(where R10 and R12 alone are in the thousands) is a lower bound. The screen says so
+when it happens, and the run header's totals are computed over every row, so the
+headline defect rate is correct — but the breakdown table is not, and on stage that
+is a table someone might point at. Cursor pagination exists; the view should follow
+it.
+
+**5. The basemap ships no tiles.** Recorded as ADR 0005. Out of the box the map is a
+token-coloured ground with a real graticule and correctly-positioned stations, and
+`VITE_MAP_STYLE_URL` swaps in a real basemap. This is the right default for offline
+CI and for not inventing geography, but it does mean the demo shows the network's
+*shape* rather than its relationship to streets an operator recognises. Before the
+4 September submission, someone should decide whether to point the demo at a real
+tile source — it is a one-line change and it would make the map considerably more
+persuasive.
+
+**6. `make demo` did not start the API, and I only caught it at the end.** It brought
+up Postgres, loaded and audited the corpus, and opened the dashboard against
+nothing — the compose `api` service sits behind the `app` profile and was never
+started, so every screen would have rendered its empty state. Fixed (`make api`,
+`make api-bg`, `make demo-stop`), but it is worth noting *how* it survived: I had
+been running the API by hand all session, so every screen I looked at worked. The
+end-to-end suite has the same blind spot — CI starts the API in its own step, so the
+suite cannot catch a broken `make demo`. Something should exercise the documented
+command itself.
+
+**7. The DEMO CHECKPOINT 3 backup capture is only partly done.** Sixteen committed
+visual-regression baselines (four screens × two themes × two platforms) are screen
+captures of the real demo build, so there is a visual record. A recorded screen
+*capture* of the demo being driven is a human task and has not been done.

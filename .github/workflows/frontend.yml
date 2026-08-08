@@ -3,9 +3,19 @@ name: frontend
 on:
   push:
     branches: [main]
-    paths: ["apps/web/**", ".github/workflows/frontend.yml"]
+    paths:
+      - "apps/web/**"
+      - "design/**"
+      - "scripts/gen_frontend_contract.py"
+      - ".github/workflows/frontend.yml"
   pull_request:
-    paths: ["apps/web/**", ".github/workflows/frontend.yml"]
+    paths:
+      - "apps/web/**"
+      - "design/**"
+      - "scripts/gen_frontend_contract.py"
+      - "src/provenance/api/**"
+      - "src/provenance/config/reason_codes.py"
+      - ".github/workflows/frontend.yml"
 
 jobs:
   web:
@@ -23,7 +33,130 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
+
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test -- --run
+      - name: Unit tests with the coverage gate
+        run: pnpm test:coverage
+      - run: pnpm build
+
+  contract:
+    # The generated API client is checked in so the frontend builds without Python.
+    # This job proves it still matches the backend: if a route, a schema, a reason
+    # code, or a design token changed without the client being regenerated, the
+    # dashboard would describe a system that no longer exists.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --no-frozen-lockfile
+        working-directory: apps/web
+
+      - name: Frontend contract is current
+        run: .venv/bin/python scripts/gen_frontend_contract.py --check
+      - name: Generated types are current
+        run: |
+          cd apps/web && pnpm gen:types
+          git diff --exit-code -- src/api/schema.d.ts
+      - name: Reversed lockup is current
+        run: .venv/bin/python scripts/gen_reversed_lockup.py --check
+
+  e2e:
+    # The end-to-end suite runs against the real stack: TimescaleDB, the demo
+    # corpus, the audit, the API, and the built dashboard in a real browser. It is
+    # the only place MapLibre's WebGL, real focus order, and the axe-core scan of a
+    # composed page can be exercised.
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: provenance
+          POSTGRES_PASSWORD: provenance
+          POSTGRES_DB: provenance
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U provenance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://provenance:provenance@localhost:5432/provenance
+      VITE_API_BASE_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --no-frozen-lockfile
+        working-directory: apps/web
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Load the demo corpus and audit it
+        run: make demo-data
+
+      - name: Start the API
+        # 0.0.0.0, not 127.0.0.1: the visual-regression step runs the browser inside
+        # a container and reaches back through the Docker bridge, which a
+        # loopback-only listener refuses. On an ephemeral runner this binds nothing
+        # that outlives the job.
+        run: |
+          .venv/bin/python -m uvicorn provenance.api.app:create_app --factory \
+            --host 0.0.0.0 --port 8000 &
+          for _ in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8000/healthz && break
+            sleep 1
+          done
+
+      - name: End-to-end, accessibility and responsive
+        run: |
+          pnpm e2e --project=chromium e2e/demo-path.spec.ts e2e/accessibility.spec.ts
+          pnpm e2e --project=mobile
+        working-directory: apps/web
+
+      - name: Visual regression, in the pinned Playwright image
+        # Not on the runner: a bare Ubuntu image and the official Playwright image
+        # ship different font sets, so text metrics differ and a baseline generated
+        # in one never matches a run in the other. The baselines are generated and
+        # verified in the same container (`make web-visual-linux` / `-check`), which
+        # is the only way this gate means anything.
+        run: make web-visual-check
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore
