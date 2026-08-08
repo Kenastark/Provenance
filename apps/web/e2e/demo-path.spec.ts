@@ -86,10 +86,19 @@ test.describe("the demo path", () => {
   test("events are listed and none claims a verdict", async ({ page }) => {
     await gotoRoute(page, "/timeline");
     const verdicts = page.getByTestId("event-verdict");
-    const count = await verdicts.count();
-    for (let index = 0; index < count; index += 1) {
-      await expect(verdicts.nth(index)).toHaveText("pending adjudication");
-    }
+
+    // Snapshotting count() and then walking nth() races the list: the time window
+    // resolves from the data and refilters the events, so an index can stop
+    // resolving mid-loop. It is also vacuous if the count is zero at the moment it
+    // is read. Wait for a settled, non-empty list, then read every label at once.
+    await expect(verdicts.first()).toBeVisible();
+    await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+
+    const labels = await verdicts.allTextContents();
+    expect(labels.length, "the demo corpus must produce events to inspect").toBeGreaterThan(0);
+    expect(new Set(labels.map((label) => label.trim()))).toEqual(
+      new Set(["pending adjudication"]),
+    );
   });
 
   test("the quality monitor lists every station in the run", async ({ page }) => {
