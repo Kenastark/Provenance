@@ -2,7 +2,7 @@
 
 - Code version: `0.1.0`
 - Config hash: `4e82d99631fe8099`
-- Data checksum: `5d007486a1d3390d`
+- Data checksum: `0bd9c4dcc414f379`
 - Window: 2026-05-01T00:00:00 to 2026-05-14T23:00:00
 
 ## Headline
@@ -58,10 +58,10 @@
 | 1 | R07 | STA-03 | PM10 | 2026-05-01T12:00:00 | Value of 3000.0 µg/m3 exceeds the physical maximum for PM10. |
 | 2 | R07 | STA-03 | PM10 | 2026-05-02T12:00:00 | Value of 3000.0 µg/m3 exceeds the physical maximum for PM10. |
 | 3 | R07 | STA-03 | PM10 | 2026-05-13T12:00:00 | Value of 3000.0 µg/m3 exceeds the physical maximum for PM10. |
-| 4 | R09 | STA-01 | PM2.5 | 2026-05-01T10:00:00 | PM2.5 (24.607695154586736) exceeds PM10 (19.607695154586736), which is physically impossible. |
-| 5 | R09 | STA-01 | PM2.5 | 2026-05-03T22:00:00 | PM2.5 (24.607695154586736) exceeds PM10 (19.607695154586736), which is physically impossible. |
-| 6 | R09 | STA-01 | PM2.5 | 2026-05-06T10:00:00 | PM2.5 (24.60769515458673) exceeds PM10 (19.60769515458673), which is physically impossible. |
-| 7 | R09 | STA-01 | PM2.5 | 2026-05-08T22:00:00 | PM2.5 (24.607695154586764) exceeds PM10 (19.607695154586764), which is physically impossible. |
+| 4 | R09 | STA-01 | PM2.5 | 2026-05-01T10:00:00 | PM2.5 (24.6077) exceeds PM10 (19.6077), which is physically impossible. |
+| 5 | R09 | STA-01 | PM2.5 | 2026-05-03T22:00:00 | PM2.5 (24.6077) exceeds PM10 (19.6077), which is physically impossible. |
+| 6 | R09 | STA-01 | PM2.5 | 2026-05-06T10:00:00 | PM2.5 (24.6077) exceeds PM10 (19.6077), which is physically impossible. |
+| 7 | R09 | STA-01 | PM2.5 | 2026-05-08T22:00:00 | PM2.5 (24.6077) exceeds PM10 (19.6077), which is physically impossible. |
 | 8 | R02 | STA-04 | NO | 2026-05-09T12:00:00 | No readings for 12h - the station stopped transmitting. |
 | 9 | R12 | STA-01 | WaterLevel | 2026-05-01T00:00:00 | Reading has not changed for 14d - likely a frozen sensor. |
 | 10 | R12 | STA-01 | WaterLevel | 2026-05-01T01:00:00 | Reading has not changed for 14d - likely a frozen sensor. |

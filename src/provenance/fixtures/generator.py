@@ -32,6 +32,17 @@ _Present = dict[tuple[str, str], np.ndarray]
 
 _HOUR = pd.Timedelta(hours=1)
 
+# Values are quantised to 4 decimals before hashing. np.sin differs in its last
+# ULP across CPU architectures, and that tiny difference would otherwise leak into
+# the row hash and make the corpus checksum non-portable (arm64 dev vs x86 CI).
+# Rounding well above that noise floor makes the synthetic corpus bit-identical
+# everywhere - and real sensors report far coarser precision than this anyway.
+_QUANTISE_DECIMALS = 4
+
+
+def _quantise(value: float) -> float:
+    return round(float(value), _QUANTISE_DECIMALS)
+
 
 @dataclass(frozen=True, slots=True)
 class ParamSpec:
@@ -229,7 +240,7 @@ def _materialise(
                 rows_station.append(real_station)
                 rows_param.append(parameter)
                 rows_ts.append(times[int(hix)])
-                rows_val.append(float(val))
+                rows_val.append(_quantise(val))
                 rows_unit.append(units[(station, parameter)])
                 rows_src.append(f"{real_station}_water.csv")
             continue
@@ -241,7 +252,7 @@ def _materialise(
             rows_station.append(station)
             rows_param.append(parameter)
             rows_ts.append(times[int(hix)])
-            rows_val.append(float(values[hix]))
+            rows_val.append(_quantise(values[hix]))
             rows_unit.append(unit)
             rows_src.append(src)
 
