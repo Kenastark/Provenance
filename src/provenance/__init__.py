@@ -8,6 +8,6 @@ The package is organised as a pipeline. Read it in this order:
 upstream of them. `tests/architecture` enforces that.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = ["__version__"]

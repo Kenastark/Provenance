@@ -5,6 +5,49 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-08
+### Added
+- Persistence layer (`io/db/`): SQLAlchemy 2.0 async ORM for stations, parameters,
+  readings, defects, audit_runs, coverage_facts, trust_scores, events, and
+  ingest_batches. Every persisted row carries the `ingest_batch_id` / `audit_run_id`
+  that produced it — provenance of the data is the schema.
+- Alembic migrations against TimescaleDB + PostGIS: `readings` and `trust_scores`
+  are hypertables chunked by day; `stations` carries a `geometry(Point,4326)`
+  column. The ORM stays portable (SQLite for the fast test path); the
+  Postgres-specific DDL lives in the migration and is proven by a Dockerised
+  up/down/up round-trip test.
+- Idempotent loader keyed on the data checksum: re-loading the same file changes
+  nothing (asserted by test). `prov db upgrade`, `prov db load`, `prov db reset`.
+- Trust Score v1 (`trust/`), statistics-only, implementing §7.8:
+  `Trust = w1·HealthConf + w2·(1−ImputationUncertainty) + w3·CrossSensorConsistency
+  + w4·PhysicalPlausibility`. Weights in `config/trust_weights.yaml`, elicited and
+  documented as pending a logistic refit. ImputationUncertainty is an explicit,
+  flagged placeholder. `Risk = Trust × SeverityVsThreshold × PopulationExposure`
+  with PopulationExposure stubbed at 1.0 and flagged, not silently defaulted.
+- A `TrustScore` cannot be constructed without its component breakdown and a reason
+  code; `TrustScoreOut` requires both non-empty; an architecture test proves no
+  response model exposes a station trust value without them (standing rule 9).
+- Trust reason codes T00–T05 in the registry (category `trust`, non-counting).
+- FastAPI application (`api/`), async, auto OpenAPI: stations, readings (raw and
+  quality-flagged), defects, trust (point-in-time and series), quality summary,
+  events (verdict null until Phase 4), audit runs, the regulator-facing
+  audit-trail export (CSV + JSON, reproducible and reconciled), and healthz/readyz/
+  version. Cursor pagination, RFC 7807 problem responses, structured request
+  logging with a request id, and API-key auth with three roles
+  (operator/researcher/public_read).
+- Ingestion abstraction (`io/ingest/`): an `IngestAdapter` Protocol with the
+  Green Sentinel adapter fully wired and Enclod/HungaroMet/GTFS as discover-only
+  adapters that fail loudly while their schemas are unconfirmed. A streaming adapter
+  can be added with zero changes downstream (ADR 0003).
+- Tests: trust component units, the perfect-station >0.95 / frozen-station <0.5
+  gate, an endpoint × role auth matrix, pagination traversal invariants, byte-for-
+  byte audit-trail reproducibility with defect-count reconciliation, a schemathesis
+  fuzz asserting no endpoint 5xxs, idempotent-load, and Dockerised migration and
+  full-stack integration tests. Coverage gate raised to 88%.
+- ADR 0003 (ingestion abstraction), ADR 0004 (API-key auth now, OIDC deferred to
+  phase 7), `docs/api/README.md` with worked curl examples, and
+  `docs/trust-score-methodology-v1.0.md`.
+
 ## [0.1.0] - 2026-08-08
 ### Added
 - The statistics-only audit engine (B1) — the demo's opening block and the

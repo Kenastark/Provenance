@@ -42,6 +42,10 @@ class Category(StrEnum):
     COVERAGE = "coverage"
     """A fact about what the network measures. Never a defect."""
 
+    TRUST = "trust"
+    """An explanation attached to a trust score. Never a defect: these say *why* a
+    score is what it is, so a score is never a bare number (standing rule 9)."""
+
 
 class Severity(StrEnum):
     INFO = "info"
@@ -278,6 +282,66 @@ _REGISTRY: tuple[ReasonCode, ...] = (
         Severity.INFO,
         counts=False,
         notes="Confirmed: KER02 has no groundwater file.",
+    ),
+    # ------------------------------------------- trust explanations: NOT defects
+    # A trust score always carries at least one of these, so it is never a bare
+    # number. They explain which component drove the score (standing rule 9).
+    _c(
+        "T00",
+        "TRUST_NOMINAL",
+        "All trust components are within their nominal range.",
+        Category.TRUST,
+        Severity.INFO,
+        counts=False,
+        phase=2,
+    ),
+    _c(
+        "T01",
+        "TRUST_LOW_HEALTH",
+        "Trust is reduced by {n_defects} active defect(s) in the trailing window.",
+        Category.TRUST,
+        Severity.MEDIUM,
+        counts=False,
+        phase=2,
+    ),
+    _c(
+        "T02",
+        "TRUST_IMPUTATION_PLACEHOLDER",
+        "Imputation uncertainty is a placeholder ({pct}% of readings absent); no "
+        "imputation model exists yet.",
+        Category.TRUST,
+        Severity.INFO,
+        counts=False,
+        phase=2,
+        notes="This term is explicitly a placeholder until the phase-5 imputation model lands.",
+    ),
+    _c(
+        "T03",
+        "TRUST_CROSS_SENSOR_DISAGREEMENT",
+        "Trust is reduced by disagreement with {n} neighbouring station(s).",
+        Category.TRUST,
+        Severity.MEDIUM,
+        counts=False,
+        phase=2,
+    ),
+    _c(
+        "T04",
+        "TRUST_IMPLAUSIBLE_VALUE",
+        "Trust is reduced by readings near or beyond their physical bounds.",
+        Category.TRUST,
+        Severity.HIGH,
+        counts=False,
+        phase=2,
+    ),
+    _c(
+        "T05",
+        "TRUST_INSUFFICIENT_NEIGHBOURS",
+        "Cross-sensor consistency is unavailable: fewer than {min_peers} comparable "
+        "neighbours were found.",
+        Category.TRUST,
+        Severity.INFO,
+        counts=False,
+        phase=2,
     ),
 )
 

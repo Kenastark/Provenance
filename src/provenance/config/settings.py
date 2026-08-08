@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     data_raw: Path = Field(default=REPO_ROOT / "data" / "raw", alias="PROVENANCE_DATA_RAW")
     reports_dir: Path = Field(default=REPO_ROOT / "reports", alias="PROVENANCE_REPORTS_DIR")
 
+    api_keys_json: str = Field(default="", alias="PROVENANCE_API_KEYS")
+    """Optional JSON ``{api_key: role}`` map. Empty means use the local-dev keys in
+    ``api/auth.py``. Full OIDC is deferred to phase 7 (ADR 0004)."""
+
     random_seed: int = 20260907
     """Global seed. Every run of every pipeline is reproducible from this."""
 
