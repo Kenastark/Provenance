@@ -185,12 +185,21 @@ def fixtures_make(
     out: Path = typer.Option(REPO_ROOT / "tests" / "fixtures", "--out", help="Output directory."),
     seed: int = typer.Option(20260907, "--seed", help="Corpus seed."),
     days: int = typer.Option(14, "--days", help="Days of hourly data."),
+    stations: int = typer.Option(
+        4,
+        "--stations",
+        min=4,
+        help="Station count. The four injected stations are always present; extra ones are clean.",
+    ),
 ) -> None:
     """Generate the seeded synthetic corpus used by the test suite."""
     from provenance.fixtures.generator import write_corpus
 
-    paths = write_corpus(out, seed=seed, n_days=days)
-    console.print(f"[green]Wrote[/green] {paths['corpus']} and {paths['ledger']}")
+    paths = write_corpus(out, seed=seed, n_days=days, n_stations=stations)
+    console.print(
+        f"[green]Wrote[/green] {paths['corpus']}, {paths['ledger']} and {paths['stations']} "
+        f"({stations} stations)"
+    )
 
 
 # ------------------------------------------------------------------------- db

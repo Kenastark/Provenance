@@ -65,6 +65,50 @@ _PARAMS: tuple[ParamSpec, ...] = (
 )
 _STATIONS = ("STA-01", "STA-02", "STA-03", "STA-04")
 
+# The four injected stations. Every reason code is placed on one of these, so the
+# ledger is unchanged no matter how many extra clean stations a caller asks for.
+_INJECTED_STATIONS = 4
+
+# Synthetic coordinates for synthetic stations.
+#
+# The dashboard's map needs somewhere to put a marker, and the fixture corpus is a
+# canonical parquet with no Location column - so coordinates are generated here
+# rather than read. These are FIXTURE coordinates for FIXTURE stations (STA-nn) and
+# make no claim about the real network: the real DEB-KERnn coordinates are parsed
+# from the export's Location column at load time and never come from this file.
+#
+# The lattice is anchored on the one confirmed real coordinate in the repository
+# (DEB-KER01 at 47.577175, 21.502204, recorded in schema_assumptions.yaml) so a
+# fixture network lands over Debrecen at a plausible scale, which is what makes the
+# map legible in a demo. Deterministic: station n always gets the same point.
+_FIXTURE_ANCHOR_LAT = 47.577175
+_FIXTURE_ANCHOR_LON = 21.502204
+_FIXTURE_SPACING_DEG = 0.018
+
+
+def station_ids(n_stations: int = len(_STATIONS)) -> tuple[str, ...]:
+    """``STA-01`` … ``STA-nn``. The first four carry every injected defect."""
+    if n_stations < _INJECTED_STATIONS:
+        raise ValueError(
+            f"The injection layout needs at least {_INJECTED_STATIONS} stations; got {n_stations}."
+        )
+    return tuple(f"STA-{i:02d}" for i in range(1, n_stations + 1))
+
+
+def station_locations(n_stations: int = len(_STATIONS)) -> dict[str, dict[str, Any]]:
+    """Deterministic synthetic site names and coordinates, laid out on a lattice."""
+    out: dict[str, dict[str, Any]] = {}
+    for index, station in enumerate(station_ids(n_stations)):
+        row, column = divmod(index, 5)
+        out[station] = {
+            "name": f"Synthetic site {station}",
+            # Latitude decreases down the lattice; both are rounded so the sidecar is
+            # byte-stable across platforms (standing rule 8).
+            "lat": round(_FIXTURE_ANCHOR_LAT - row * _FIXTURE_SPACING_DEG, 6),
+            "lon": round(_FIXTURE_ANCHOR_LON + column * _FIXTURE_SPACING_DEG, 6),
+        }
+    return out
+
 
 @dataclass
 class Ledger:
@@ -109,30 +153,40 @@ def _baseline(spec: ParamSpec, station_ix: int, t: np.ndarray) -> np.ndarray:
 
 
 def generate(
-    *, seed: int = 20260907, n_days: int = 14, inject: bool = True
+    *,
+    seed: int = 20260907,
+    n_days: int = 14,
+    inject: bool = True,
+    n_stations: int = len(_STATIONS),
 ) -> tuple[pd.DataFrame, Ledger]:
     """Build the synthetic corpus and its ledger.
 
     ``inject=False`` returns a perfectly clean corpus (used to prove the baseline
     trips no detector and to test R09's zero-flag property).
+
+    ``n_stations`` appends additional *clean* stations beyond the four the injection
+    layout targets. The ledger's expected counts are therefore unchanged by it - the
+    golden recovery test keeps the default four - while `make demo` can ask for a
+    network the size of the real one so the dashboard's map has something to show.
     """
     if inject and n_days < 14:
         raise ValueError(
             "The injection layout places defects at fixed hour offsets up to ~300, "
             "so an injected corpus needs n_days >= 14. Use inject=False for smaller sizes."
         )
+    stations = station_ids(n_stations)
     hours = n_days * 24
     t = np.arange(hours)
     start = pd.Timestamp("2026-05-01T00:00:00")
     times = pd.DatetimeIndex([start + i * _HOUR for i in range(hours)])
-    ledger = Ledger(n_stations=len(_STATIONS), n_parameters=len(_PARAMS), n_days=n_days, seed=seed)
+    ledger = Ledger(n_stations=len(stations), n_parameters=len(_PARAMS), n_days=n_days, seed=seed)
 
     by_key: dict[tuple[str, str], np.ndarray] = {}
     units: dict[tuple[str, str], str] = {}
     present: dict[tuple[str, str], np.ndarray] = {}  # boolean mask of present hours
 
-    pm10_index = {s: _baseline(_PARAMS[0], i, t) for i, s in enumerate(_STATIONS)}
-    for i, station in enumerate(_STATIONS):
+    pm10_index = {s: _baseline(_PARAMS[0], i, t) for i, s in enumerate(stations)}
+    for i, station in enumerate(stations):
         for spec in _PARAMS:
             if spec.name == "PM2.5":
                 values = 0.45 * pm10_index[station]  # subset of PM10 by construction
@@ -150,7 +204,9 @@ def generate(
 
 
 def _inject(by_key: _ByKey, units: _Units, present: _Present, ledger: Ledger, hours: int) -> None:
-    sta_a, sta_b, sta_c, sta_d = _STATIONS
+    # Every injection lands on one of the first four stations, so extra clean
+    # stations never shift the ledger.
+    sta_a, sta_b, sta_c, sta_d = _STATIONS[:_INJECTED_STATIONS]
 
     # R01 ROW_ABSENT: 5 scattered interior hours removed from CO2 at station A.
     for h in (30, 60, 90, 120, 150):
@@ -278,15 +334,36 @@ def _domain_for(parameter: str) -> str:
     return "air"
 
 
-def write_corpus(out_dir: Path, *, seed: int = 20260907, n_days: int = 14) -> dict[str, Path]:
-    """Materialise the corpus and ledger to ``out_dir`` for the test suite / CLI."""
+def write_corpus(
+    out_dir: Path,
+    *,
+    seed: int = 20260907,
+    n_days: int = 14,
+    n_stations: int = len(_STATIONS),
+) -> dict[str, Path]:
+    """Materialise the corpus, ledger and station sidecar to ``out_dir``.
+
+    ``stations.json`` is the fixture equivalent of the Green Sentinel ``Location``
+    column: the canonical parquet has no place for a site name or a coordinate, and
+    the loader will not invent one. Writing it here means the dashboard's map works
+    against fixtures without any code path guessing where a station is.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    frame, ledger = generate(seed=seed, n_days=n_days)
-    paths = {"corpus": out_dir / "corpus.parquet", "ledger": out_dir / "ledger.json"}
+    frame, ledger = generate(seed=seed, n_days=n_days, n_stations=n_stations)
+    paths = {
+        "corpus": out_dir / "corpus.parquet",
+        "ledger": out_dir / "ledger.json",
+        "stations": out_dir / "stations.json",
+    }
     frame.to_parquet(paths["corpus"], index=False)
     paths["ledger"].write_text(
         json.dumps(ledger.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    paths["stations"].write_text(
+        json.dumps(station_locations(n_stations), indent=2, sort_keys=True, ensure_ascii=False)
+        + "\n",
         encoding="utf-8",
     )
     return paths

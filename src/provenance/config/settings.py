@@ -41,6 +41,22 @@ class Settings(BaseSettings):
     """Optional JSON ``{api_key: role}`` map. Empty means use the local-dev keys in
     ``api/auth.py``. Full OIDC is deferred to phase 7 (ADR 0004)."""
 
+    cors_origins: str = Field(
+        default="http://localhost:5173,http://localhost:4173",
+        alias="PROVENANCE_CORS_ORIGINS",
+    )
+    """Comma-separated origins allowed to call the API from a browser.
+
+    The dashboard is a browser client on a different origin to the API, so without
+    this every request fails preflight and the screens render empty. The default
+    covers the two local ports the frontend uses (Vite dev and Vite preview) and
+    nothing else — this is an allow-list, never ``*``, because the API accepts an
+    API key header and a wildcard origin would let any page on the internet spend
+    an operator's credentials."""
+
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     random_seed: int = 20260907
     """Global seed. Every run of every pipeline is reproducible from this."""
 

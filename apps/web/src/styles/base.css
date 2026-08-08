@@ -1,47 +1,233 @@
-*,
-*::before,
-*::after { box-sizing: border-box; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body {
-  margin: 0;
-  background: var(--prov-bg);
-  color: var(--prov-text);
-  font-family: var(--prov-font-ui);
-  font-size: var(--prov-size-body);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
+/* ==========================================================================
+   Base layer.
+
+   Every value here is a token reference. There is not a single literal colour or
+   type size in this file, and src/__tests__/no-inline-hex.test.ts enforces that
+   for the whole of src/ - styles/tokens.css is the only place a raw colour is
+   allowed to exist.
+   ========================================================================== */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  /* A fixed-height operations shell: the top bar is fixed and every panel below it
+     scrolls inside its own container. The page itself must never scroll sideways -
+     a dense table that pushes the whole document wide takes the navigation off
+     screen with it, which is how a 390px layout stops being usable.
+
+     `position: relative` is not decoration: `overflow: hidden` on a *statically*
+     positioned element does not clip absolutely-positioned descendants, so without
+     it the clip silently does nothing for exactly the elements most likely to
+     overflow. */
+  #root {
+    position: relative;
+    overflow: hidden;
+  }
+
+  body {
+    margin: 0;
+    background: var(--prov-bg);
+    color: var(--prov-text);
+    font-family: var(--prov-font-ui);
+    font-size: var(--prov-size-body);
+    line-height: var(--prov-lh-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--prov-font-display);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  /* A visible focus ring everywhere, on every theme. Keyboard traversal is part
+     of the quality floor, not an accessibility afterthought. */
+  :focus-visible {
+    outline: 2px solid var(--prov-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--prov-radius-sm);
+  }
+
+  /* Anywhere numbers stack vertically this is mandatory, so digits align. */
+  table,
+  .prov-numeric {
+    font-variant-numeric: var(--prov-numeric-table);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
-.bar {
-  display: flex;
-  align-items: center;
-  gap: var(--prov-space-3);
-  height: 56px;
-  padding: 0 var(--prov-space-4);
-  background: var(--prov-bg-raised);
-  border-bottom: 1px solid var(--prov-border);
-}
+@layer components {
+  /* Skip link: the first tab stop on every route. */
+  .prov-skip-link {
+    position: absolute;
+    left: var(--prov-space-3);
+    top: calc(var(--prov-space-3) * -6);
+    z-index: 60;
+    padding: var(--prov-space-2) var(--prov-space-3);
+    background: var(--prov-surface);
+    color: var(--prov-interactive);
+    border: 1px solid var(--prov-border-strong);
+    border-radius: var(--prov-radius-md);
+    transition: top var(--prov-duration-fast) var(--prov-ease);
+  }
 
-.wordmark {
-  font-family: var(--prov-font-display);
-  font-weight: 600;
-  font-size: 18px;
-}
+  .prov-skip-link:focus {
+    top: var(--prov-space-3);
+  }
 
-.descriptor {
-  color: var(--prov-text-tertiary);
-  font-size: var(--prov-size-caption);
-}
+  .prov-panel {
+    background: var(--prov-surface);
+    border: 1px solid var(--prov-border);
+    border-radius: var(--prov-radius-lg);
+  }
 
-.stage { padding: var(--prov-space-6); max-width: 60ch; }
-h1 { font-family: var(--prov-font-display); font-size: var(--prov-size-display-l); }
-p { color: var(--prov-text-secondary); }
+  /* Blue is the only interactive colour. A green or amber button would break the
+     code an operator is learning to read at a glance on the map. */
+  .prov-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--prov-space-2);
+    height: var(--prov-row-height);
+    padding: 0 var(--prov-space-3);
+    border-radius: var(--prov-radius-md);
+    border: 1px solid var(--prov-border-strong);
+    background: var(--prov-surface);
+    color: var(--prov-text);
+    font-size: var(--prov-size-body);
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+      background var(--prov-duration-fast) var(--prov-ease),
+      border-color var(--prov-duration-fast) var(--prov-ease);
+  }
 
-:focus-visible {
-  outline: 2px solid var(--prov-focus-ring);
-  outline-offset: 2px;
-}
+  .prov-button:hover:not(:disabled) {
+    background: var(--prov-surface-hover);
+    border-color: var(--prov-interactive);
+  }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .prov-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .prov-button--primary {
+    background: var(--prov-interactive);
+    border-color: var(--prov-interactive);
+    color: var(--prov-text-inverse);
+  }
+
+  .prov-button--primary:hover:not(:disabled) {
+    background: var(--prov-interactive-hover);
+    border-color: var(--prov-interactive-hover);
+  }
+
+  .prov-input {
+    height: var(--prov-row-height);
+    padding: 0 var(--prov-space-2);
+    border-radius: var(--prov-radius-md);
+    border: 1px solid var(--prov-border-strong);
+    background: var(--prov-bg-raised);
+    color: var(--prov-text);
+    font-family: inherit;
+    font-size: var(--prov-size-body);
+  }
+
+  .prov-input::placeholder {
+    color: var(--prov-text-tertiary);
+  }
+
+  /* State surfaces. Green, amber and red mean state and nothing else. */
+  .prov-state-verified {
+    color: var(--prov-state-verified);
+  }
+  .prov-state-degraded {
+    color: var(--prov-state-degraded);
+  }
+  .prov-state-fault {
+    color: var(--prov-state-fault);
+  }
+  .prov-state-unknown {
+    color: var(--prov-state-unknown);
+  }
+
+  .prov-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--prov-size-data);
+    line-height: var(--prov-lh-data);
+  }
+
+  .prov-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--prov-bg-raised);
+    border-bottom: 1px solid var(--prov-border-strong);
+    text-align: left;
+    font-weight: 600;
+    color: var(--prov-text-secondary);
+    white-space: nowrap;
+  }
+
+  .prov-table td {
+    border-bottom: 1px solid var(--prov-border);
+    height: var(--prov-row-height);
+  }
+
+  .prov-table tbody tr:hover td {
+    background: var(--prov-surface-hover);
+  }
+
+  .prov-table tbody tr[aria-selected="true"] td {
+    background: var(--prov-surface-hover);
+    box-shadow: inset 2px 0 0 0 var(--prov-interactive);
+  }
+
+  /* MapLibre's own chrome, restyled onto the tokens. */
+  .maplibregl-ctrl-group {
+    background: var(--prov-surface) !important;
+    border: 1px solid var(--prov-border) !important;
+  }
+
+  .maplibregl-ctrl-group button + button {
+    border-top: 1px solid var(--prov-border) !important;
+  }
+
+  .maplibregl-ctrl-attrib {
+    background: var(--prov-bg-raised) !important;
+    color: var(--prov-text-tertiary) !important;
+    font-size: var(--prov-size-micro) !important;
+  }
+
+  .maplibregl-ctrl-attrib a {
+    color: var(--prov-text-secondary) !important;
+  }
 }

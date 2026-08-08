@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from provenance import __version__
@@ -29,6 +30,7 @@ from provenance.api.routers import (
     stations,
     trust,
 )
+from provenance.config.settings import get_settings
 from provenance.io.db.engine import make_engine, make_sessionmaker
 
 _ROUTERS = (
@@ -70,6 +72,18 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.sessionmaker = sessionmaker
 
+    # The dashboard runs on its own origin, so without CORS every browser request
+    # fails preflight and the screens render empty against a perfectly healthy API.
+    # An explicit allow-list, never "*": the API authenticates with a header key,
+    # and a wildcard origin would let any page spend an operator's credentials.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_settings().cors_origin_list(),
+        allow_credentials=False,
+        allow_methods=["GET", "OPTIONS"],
+        allow_headers=["X-API-Key", "Accept", "Content-Type"],
+        expose_headers=["X-Request-ID"],
+    )
     app.add_middleware(RequestContextMiddleware)
     install_error_handlers(app)
     for router in _ROUTERS:

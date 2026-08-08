@@ -1,0 +1,426 @@
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceArea,
+  ResponsiveContainer,
+  Scatter,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { Defect } from "../../api/client";
+import { REASON_CODES } from "../../api/reason-codes";
+import { useDefects, useReadings, useStations } from "../../api/queries";
+import { DataTable, type Column } from "../../components/DataTable";
+import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
+import { EmptyState, ErrorState, LoadingState, NotYetComputed } from "../../components/States";
+import { formatMeasurement, formatTimestamp, toDate } from "../../lib/format";
+import { useWindowState } from "../../lib/windowContext";
+
+/**
+ * Why a particular reading is wrong.
+ *
+ * The reason-code sentence, the detector's own evidence numbers, the raw series
+ * around the flagged point with the flagged region marked, and the neighbouring
+ * stations that contradict it. This screen is the argument; everything else in the
+ * dashboard is navigation to it.
+ *
+ * SHAP (phase 5) and attention (phase 6) get explicit empty slots rather than being
+ * hidden, so the finished shape is visible and nobody is tempted to fill them early.
+ */
+
+const CONTEXT_HOURS = 24;
+
+export function EvidencePanel() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stationFilter = searchParams.get("station") ?? undefined;
+  const codeFilter = searchParams.get("code") ?? undefined;
+  const selectedId = searchParams.get("defect");
+  const { resolved } = useWindowState();
+  const [severityFilter, setSeverityFilter] = useState<string>("");
+
+  const defects = useDefects({
+    station: stationFilter,
+    code: codeFilter,
+    severity: severityFilter || undefined,
+    start: resolved.start,
+    end: resolved.end,
+  });
+  const stations = useStations();
+
+  const rows = defects.data ?? [];
+  const selected = useMemo(
+    () => rows.find((defect) => String(defect.id) === selectedId) ?? rows[0] ?? null,
+    [rows, selectedId],
+  );
+
+  const setParam = (key: string, value: string | null) =>
+    setSearchParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    });
+
+  const columns: Column<Defect>[] = useMemo(
+    () => [
+      {
+        key: "code",
+        header: "Code",
+        isRowHeader: true,
+        sortValue: (defect) => defect.reason_code,
+        render: (defect) => <ReasonCodeBadge code={defect.reason_code} variant="code" />,
+      },
+      {
+        key: "station",
+        header: "Station",
+        sortValue: (defect) => defect.station_id,
+        render: (defect) => <span className="font-mono">{defect.station_id}</span>,
+      },
+      {
+        key: "parameter",
+        header: "Parameter",
+        sortValue: (defect) => defect.parameter,
+        render: (defect) => defect.parameter,
+      },
+      {
+        key: "when",
+        header: "Timestamp (UTC)",
+        sortValue: (defect) => defect.timestamp_utc,
+        render: (defect) => formatTimestamp(defect.timestamp_utc),
+      },
+      {
+        key: "severity",
+        header: "Severity",
+        sortValue: (defect) => defect.severity,
+        render: (defect) => defect.severity,
+      },
+      {
+        key: "counts",
+        header: "Counts toward rate",
+        sortValue: (defect) => (defect.counts_toward_rate ? 1 : 0),
+        render: (defect) =>
+          defect.counts_toward_rate ? (
+            "yes"
+          ) : (
+            <span className="text-text-tertiary" title="Coverage facts are excluded from both the numerator and the denominator.">
+              no — coverage
+            </span>
+          ),
+      },
+    ],
+    [],
+  );
+
+  if (defects.isLoading || stations.isLoading) return <LoadingState label="Loading defects" />;
+  if (defects.error) {
+    return <ErrorState error={defects.error} what="load the defect ledger" onRetry={defects.refetch} />;
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+      <header className="flex flex-wrap items-end gap-3">
+        <div className="flex-1">
+          <h2 className="text-heading">Evidence</h2>
+          <p className="text-caption text-text-tertiary">
+            {rows.length} flagged cell{rows.length === 1 ? "" : "s"} in the{" "}
+            {resolved.label.toLowerCase()} window.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-caption text-text-tertiary">
+          <span>Station</span>
+          <select
+            className="prov-input"
+            value={stationFilter ?? ""}
+            onChange={(event) => setParam("station", event.target.value || null)}
+            data-testid="evidence-station-filter"
+          >
+            <option value="">All</option>
+            {(stations.data ?? []).map((station) => (
+              <option key={station.station_id} value={station.station_id}>
+                {station.station_id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-caption text-text-tertiary">
+          <span>Code</span>
+          <select
+            className="prov-input"
+            value={codeFilter ?? ""}
+            onChange={(event) => setParam("code", event.target.value || null)}
+            data-testid="evidence-code-filter"
+          >
+            <option value="">All</option>
+            {Object.values(REASON_CODES)
+              .filter((code) => code.category !== "trust")
+              .map((code) => (
+                <option key={code.code} value={code.code}>
+                  {code.code} — {code.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-caption text-text-tertiary">
+          <span>Severity</span>
+          <select
+            className="prov-input"
+            value={severityFilter}
+            onChange={(event) => setSeverityFilter(event.target.value)}
+            data-testid="evidence-severity-filter"
+          >
+            <option value="">All</option>
+            {["critical", "high", "medium", "low", "info"].map((severity) => (
+              <option key={severity} value={severity}>
+                {severity}
+              </option>
+            ))}
+          </select>
+        </label>
+      </header>
+
+      {rows.length === 0 ? (
+        <div className="prov-panel">
+          <EmptyState
+            title="No defects match these filters"
+            description="Clear a filter, widen the time window, or load a data drop with `make demo`. An empty ledger with data loaded means the audit found nothing here — which is itself a result."
+          />
+        </div>
+      ) : (
+        <>
+          <div className="prov-panel overflow-hidden" data-testid="defect-table">
+            <DataTable
+              rows={rows}
+              columns={columns}
+              rowKey={(defect) => String(defect.id)}
+              caption="Flagged cells from the latest audit run"
+              selectedKey={selected ? String(selected.id) : null}
+              onRowActivate={(defect) => setParam("defect", String(defect.id))}
+              initialSort={{ key: "when", direction: "desc" }}
+              maxBodyHeight={320}
+            />
+          </div>
+
+          {selected && <DefectEvidence defect={selected} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function DefectEvidence({ defect }: { defect: Defect }) {
+  const at = toDate(defect.timestamp_utc);
+  const start = at ? new Date(at.getTime() - CONTEXT_HOURS * 3600_000).toISOString() : null;
+  const end = at ? new Date(at.getTime() + CONTEXT_HOURS * 3600_000).toISOString() : null;
+
+  const stations = useStations();
+  const target = useReadings({
+    stationId: defect.station_id,
+    parameter: defect.parameter,
+    start,
+    end,
+    limit: 200,
+  });
+
+  // The neighbours this reading contradicts: every other station that carries the
+  // same parameter. Which of them are *physically connected* is a phase-4 question
+  // (that is what the wind-conditioned graph answers); until then the honest claim
+  // is "other stations measuring the same thing at the same time".
+  const neighbourIds = useMemo(
+    () =>
+      (stations.data ?? [])
+        .filter(
+          (station) =>
+            station.station_id !== defect.station_id &&
+            Object.prototype.hasOwnProperty.call(station.coverage ?? {}, defect.parameter),
+        )
+        .map((station) => station.station_id)
+        .slice(0, 3),
+    [stations.data, defect],
+  );
+
+  const unit = target.data?.[0]?.unit ?? null;
+
+  const chartData = useMemo(() => {
+    return (target.data ?? []).map((reading) => ({
+      t: reading.timestamp_utc,
+      label: formatTimestamp(reading.timestamp_utc),
+      value: reading.value,
+      flagged: reading.timestamp_utc === defect.timestamp_utc ? reading.value : null,
+    }));
+  }, [target.data, defect.timestamp_utc]);
+
+  return (
+    <section className="flex flex-col gap-4" aria-label={`Evidence for defect ${defect.id}`} data-testid="defect-evidence">
+      <div className="prov-panel p-4">
+        <h3 className="text-subhead">
+          {defect.station_id} · {defect.parameter}
+        </h3>
+        <p className="mt-1 text-caption text-text-tertiary">
+          {formatTimestamp(defect.timestamp_utc)} · severity {defect.severity} ·{" "}
+          {defect.counts_toward_rate
+            ? "counts toward the defect rate"
+            : "coverage fact, excluded from the defect rate"}
+        </p>
+
+        <div className="mt-3">
+          <ReasonCodeBadge code={defect.reason_code} evidence={defect.evidence} />
+        </div>
+
+        <h4 className="mb-1 mt-4 text-caption uppercase tracking-wide text-text-tertiary">
+          Detector evidence
+        </h4>
+        {Object.keys(defect.evidence ?? {}).length === 0 ? (
+          <p className="text-caption text-text-tertiary">
+            This detector recorded no numeric evidence beyond the flag itself.
+          </p>
+        ) : (
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption" data-testid="evidence-numbers">
+            {Object.entries(defect.evidence).map(([key, value]) => (
+              <div key={key} className="contents">
+                <dt className="text-text-tertiary">{key}</dt>
+                <dd className="prov-numeric m-0 font-mono text-text">
+                  {typeof value === "number" ? formatMeasurement(value) : String(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+
+      {/* ------------------------------------------------------ the series */}
+      <div className="prov-panel p-4">
+        <h4 className="mb-2 text-subhead">
+          Raw series, ±{CONTEXT_HOURS}h around the flag
+        </h4>
+        {target.isLoading && <LoadingState label="Loading the series" />}
+        {target.error && (
+          <ErrorState error={target.error} what="load the raw series" onRetry={target.refetch} />
+        )}
+        {target.data && target.data.length === 0 && (
+          <EmptyState
+            title="No readings around this flag"
+            description="The flagged cell is an absence: there is no series to draw because nothing was recorded here. That absence is the defect."
+          />
+        )}
+        {target.data && target.data.length > 0 && (
+          <div style={{ width: "100%", height: 220 }} data-testid="evidence-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                <CartesianGrid stroke="var(--prov-chart-grid)" strokeDasharray="2 4" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: "var(--prov-text-tertiary)" }}
+                  stroke="var(--prov-chart-grid)"
+                  minTickGap={48}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "var(--prov-text-tertiary)" }}
+                  stroke="var(--prov-chart-grid)"
+                  width={56}
+                  label={
+                    unit
+                      ? { value: unit, angle: -90, position: "insideLeft", fontSize: 11 }
+                      : undefined
+                  }
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--prov-surface)",
+                    border: "1px solid var(--prov-border)",
+                    borderRadius: "var(--prov-radius-md)",
+                    fontSize: "var(--prov-size-caption)",
+                  }}
+                />
+                <ReferenceArea
+                  x1={formatTimestamp(defect.timestamp_utc)}
+                  x2={formatTimestamp(defect.timestamp_utc)}
+                  stroke="var(--prov-state-fault)"
+                  strokeOpacity={0.9}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="var(--prov-chart-series-1)"
+                  dot={false}
+                  strokeWidth={1.5}
+                  isAnimationActive={false}
+                  connectNulls={false}
+                />
+                <Scatter dataKey="flagged" fill="var(--prov-state-fault)" isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* -------------------------------------------------- the neighbours */}
+      <div className="prov-panel p-4">
+        <h4 className="mb-2 text-subhead">Neighbouring stations measuring {defect.parameter}</h4>
+        {neighbourIds.length === 0 ? (
+          <p className="text-caption text-text-tertiary">
+            No other loaded station carries {defect.parameter}, so this reading has nothing to be
+            contradicted by. That is a coverage fact, not an endorsement.
+          </p>
+        ) : (
+          <ul className="m-0 list-none space-y-3 p-0">
+            {neighbourIds.map((stationId) => (
+              <NeighbourSeries
+                key={stationId}
+                stationId={stationId}
+                parameter={defect.parameter}
+                start={start}
+                end={end}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <NotYetComputed
+        title="Feature attribution (SHAP) for this flag"
+        arrivesIn="the LightGBM fault classifier lands in phase 5"
+      />
+      <NotYetComputed
+        title="Graph attention over neighbouring stations"
+        arrivesIn="the HST-GAT attention overlay lands in phase 6"
+      />
+      <p className="text-caption text-text-tertiary">
+        Adjudication verdict:{" "}
+        <span data-testid="evidence-verdict">pending adjudication (phase 4)</span>. Deciding
+        whether this is a real plume or a sensor fault needs the wind-conditioned graph.
+      </p>
+    </section>
+  );
+}
+
+function NeighbourSeries({
+  stationId,
+  parameter,
+  start,
+  end,
+}: {
+  stationId: string;
+  parameter: string;
+  start: string | null;
+  end: string | null;
+}) {
+  const readings = useReadings({ stationId, parameter, start, end, limit: 200 });
+  const values = (readings.data ?? [])
+    .map((reading) => reading.value)
+    .filter((value): value is number => value !== null);
+  const mean = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  const unit = readings.data?.[0]?.unit ?? null;
+
+  return (
+    <li className="flex items-baseline justify-between gap-3" data-testid="neighbour-series">
+      <span className="font-mono text-body">{stationId}</span>
+      <span className="prov-numeric text-caption text-text-secondary">
+        {values.length} readings · mean {formatMeasurement(mean, unit)}
+      </span>
+    </li>
+  );
+}

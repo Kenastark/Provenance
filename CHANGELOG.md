@@ -4,6 +4,55 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+
+## [0.3.0] - 2026-08-08
+### Added
+- **Dashboard v1** (`apps/web`) — the operator-facing second screen, and the first
+  complete demoable product. Vite + React 18 + TS strict, TanStack Query, React
+  Router, MapLibre GL, Recharts, Tailwind reading the design tokens.
+  - **Network map**: 18 station markers coloured by trust (green > 0.85, amber
+    0.5–0.85, red < 0.5) and *shaped* by trust as well, so colour is never the only
+    channel. Wind vector overlay (circular mean, so the 360/0 wrap does not point
+    the arrow backwards), event glyphs on actively-flagged stations, layer toggles
+    with the wind-conditioned-edge layer built disabled and explained.
+  - **Station detail**: trust score with its component breakdown and its reason
+    codes as plain-language sentences, per-parameter sparklines that break at gaps
+    rather than interpolating, structural-absence coverage notes, and
+    [View evidence] / [Acknowledge] / [Dispatch] — the last two writing to a local
+    queue that has no transport out of the browser (standing rule 5).
+  - **Data quality monitor**: dense, sortable, filterable, virtualised table.
+    Uptime is derived as 1 − (R01 absent cells ÷ expected cells) and the last
+    calibration epoch from the newest R15 discontinuity; both derivations are
+    stated on screen next to the number.
+  - **Event timeline**: events on a time axis, coloured *and* shaped by
+    classification. Every verdict reads "pending adjudication" until phase 4.
+  - **Evidence panel**: reason-code sentence, the detector's own evidence numbers,
+    the raw series ±24h with the flagged point marked, and the neighbouring
+    stations measuring the same parameter. SHAP and attention render as explicit
+    "not yet computed" slots.
+  - **Audit report**: the phase-1 report rendered natively, with the defect-rate
+    definition displayed beside the number and drill-down by reason code.
+- Generated frontend contract (`scripts/gen_frontend_contract.py`): OpenAPI schema,
+  the reason-code registry including every operator sentence, and the numeric design
+  tokens the UI branches on. `--check` is the CI drift gate — nothing about the API,
+  the registry, or the palette is restated by hand in TypeScript.
+- 18-station demo corpus: `prov fixtures make --stations N` appends clean stations
+  beyond the four the injection layout targets, and writes a `stations.json` sidecar
+  carrying synthetic coordinates. `make demo` loads it, audits it, and opens the
+  dashboard; the four-station test corpus and its golden ledger are unchanged.
+- Reversed horizontal lockup (`design/logo/provenance-lockup-horizontal-reversed.svg`),
+  generated from the approved lockup by substituting only the wordmark's ink for
+  `--prov-white`. The approved lockup's near-black wordmark is invisible on the dark
+  theme, which is the default. Geometry equality is asserted by a brand test.
+- CORS on the API (`PROVENANCE_CORS_ORIGINS`, an allow-list, never `*`). The
+  dashboard is a browser client on another origin; without this every request fails
+  preflight and every screen renders empty against a perfectly healthy API.
+- Test gate: 139 Vitest component tests (94% line coverage on `apps/web/src`,
+  gate 80%), and 45 Playwright end-to-end tests covering the demo path, axe-core
+  scans of every route in both themes with zero critical violations, keyboard-only
+  traversal, visual regression baselines for four screens in both themes, and the
+  390px responsive floor.
+
 ### Changed
 - Phase-2 flag-review escalation decisions (both Option A):
   - **Trust weights endorsed.** `trust_weights.yaml → status: endorsed` (project lead,

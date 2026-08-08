@@ -1,0 +1,1763 @@
+{
+  "components": {
+    "schemas": {
+      "AuditRunOut": {
+        "properties": {
+          "code_version": {
+            "title": "Code Version",
+            "type": "string"
+          },
+          "config_hash": {
+            "title": "Config Hash",
+            "type": "string"
+          },
+          "conventional_completeness_pct": {
+            "title": "Conventional Completeness Pct",
+            "type": "number"
+          },
+          "data_checksum": {
+            "title": "Data Checksum",
+            "type": "string"
+          },
+          "defect_rate": {
+            "title": "Defect Rate",
+            "type": "number"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ingest_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingest Batch Id"
+          },
+          "n_covered_cells": {
+            "title": "N Covered Cells",
+            "type": "integer"
+          },
+          "n_defective_cells": {
+            "title": "N Defective Cells",
+            "type": "integer"
+          },
+          "n_rows": {
+            "title": "N Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code_version",
+          "config_hash",
+          "data_checksum",
+          "generated_at",
+          "n_rows",
+          "n_defective_cells",
+          "n_covered_cells",
+          "defect_rate",
+          "conventional_completeness_pct"
+        ],
+        "title": "AuditRunOut",
+        "type": "object"
+      },
+      "ComponentOut": {
+        "properties": {
+          "contribution": {
+            "title": "Contribution",
+            "type": "number"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "is_placeholder": {
+            "title": "Is Placeholder",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "weight",
+          "contribution",
+          "is_placeholder",
+          "detail"
+        ],
+        "title": "ComponentOut",
+        "type": "object"
+      },
+      "DefectOut": {
+        "properties": {
+          "audit_run_id": {
+            "title": "Audit Run Id",
+            "type": "string"
+          },
+          "counts_toward_rate": {
+            "title": "Counts Toward Rate",
+            "type": "boolean"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "audit_run_id",
+          "reason_code",
+          "station_id",
+          "parameter",
+          "timestamp_utc",
+          "severity",
+          "counts_toward_rate",
+          "evidence"
+        ],
+        "title": "DefectOut",
+        "type": "object"
+      },
+      "EventOut": {
+        "properties": {
+          "audit_run_id": {
+            "title": "Audit Run Id",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "headline": {
+            "title": "Headline",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "required": [
+          "id",
+          "audit_run_id",
+          "rank",
+          "category",
+          "reason_code",
+          "station_id",
+          "parameter",
+          "timestamp_utc",
+          "headline",
+          "severity",
+          "evidence"
+        ],
+        "title": "EventOut",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
+      "Page_AuditRunOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRunOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[AuditRunOut]",
+        "type": "object"
+      },
+      "Page_DefectOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DefectOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[DefectOut]",
+        "type": "object"
+      },
+      "Page_EventOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[EventOut]",
+        "type": "object"
+      },
+      "Page_ReadingOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[ReadingOut]",
+        "type": "object"
+      },
+      "Page_StationOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[StationOut]",
+        "type": "object"
+      },
+      "Page_TrustScoreOut_": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrustScoreOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[TrustScoreOut]",
+        "type": "object"
+      },
+      "QualityStationOut": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentOut"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "flag_count": {
+            "title": "Flag Count",
+            "type": "integer"
+          },
+          "health": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health"
+          },
+          "last_reading_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reading At"
+          },
+          "n_parameters": {
+            "title": "N Parameters",
+            "type": "integer"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "trust": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust"
+          },
+          "zone_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Type"
+          }
+        },
+        "required": [
+          "station_id",
+          "zone_type",
+          "health",
+          "trust",
+          "flag_count",
+          "n_parameters",
+          "last_reading_at"
+        ],
+        "title": "QualityStationOut",
+        "type": "object"
+      },
+      "QualitySummaryOut": {
+        "properties": {
+          "audit_run_id": {
+            "title": "Audit Run Id",
+            "type": "string"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/QualityStationOut"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "audit_run_id",
+          "stations"
+        ],
+        "title": "QualitySummaryOut",
+        "type": "object"
+      },
+      "ReadingOut": {
+        "properties": {
+          "instrument_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Id"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          },
+          "reason_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Codes"
+          },
+          "row_hash": {
+            "title": "Row Hash",
+            "type": "string"
+          },
+          "source_file": {
+            "title": "Source File",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "station_id",
+          "parameter",
+          "timestamp_utc",
+          "value",
+          "unit",
+          "source_file",
+          "row_hash"
+        ],
+        "title": "ReadingOut",
+        "type": "object"
+      },
+      "ReadyOut": {
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "database"
+        ],
+        "title": "ReadyOut",
+        "type": "object"
+      },
+      "RiskOut": {
+        "properties": {
+          "population_exposure": {
+            "title": "Population Exposure",
+            "type": "number"
+          },
+          "population_exposure_stubbed": {
+            "title": "Population Exposure Stubbed",
+            "type": "boolean"
+          },
+          "severity_vs_threshold": {
+            "title": "Severity Vs Threshold",
+            "type": "number"
+          },
+          "trust": {
+            "title": "Trust",
+            "type": "number"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "trust",
+          "severity_vs_threshold",
+          "population_exposure",
+          "population_exposure_stubbed"
+        ],
+        "title": "RiskOut",
+        "type": "object"
+      },
+      "StationOut": {
+        "properties": {
+          "coverage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "zone_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Type"
+          }
+        },
+        "required": [
+          "station_id"
+        ],
+        "title": "StationOut",
+        "type": "object"
+      },
+      "TrustScoreOut": {
+        "description": "A trust score, inseparable from its explanation.\n\n``components`` and ``reason_codes`` are required and validated non-empty: a\n``TrustScoreOut`` cannot be constructed as a bare number.",
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentOut"
+            },
+            "minItems": 1,
+            "title": "Components",
+            "type": "array"
+          },
+          "degraded": {
+            "default": false,
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/RiskOut"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          },
+          "trust": {
+            "title": "Trust",
+            "type": "number"
+          }
+        },
+        "required": [
+          "station_id",
+          "timestamp_utc",
+          "trust",
+          "components",
+          "reason_codes",
+          "risk"
+        ],
+        "title": "TrustScoreOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionOut": {
+        "properties": {
+          "config_hash": {
+            "title": "Config Hash",
+            "type": "string"
+          },
+          "git_sha": {
+            "title": "Git Sha",
+            "type": "string"
+          },
+          "model_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Model Versions",
+            "type": "object"
+          },
+          "trust_config_hash": {
+            "title": "Trust Config Hash",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "git_sha",
+          "config_hash",
+          "trust_config_hash",
+          "model_versions"
+        ],
+        "title": "VersionOut",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "The operator-facing trust layer for the Green Sentinel environmental sensor network. Every trust score carries its component breakdown and at least one reason code; no endpoint returns a bare number.",
+    "title": "Provenance API",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readyz",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/audit/runs": {
+      "get": {
+        "operationId": "list_runs_v1_audit_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditRunOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Runs",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/v1/audit/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_v1_audit_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Run V1 Audit Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Run",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/v1/defects": {
+      "get": {
+        "operationId": "list_defects_v1_defects_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "station",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Station"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DefectOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Defects",
+        "tags": [
+          "defects"
+        ]
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "list_events_v1_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "station",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Station"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_EventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Events",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/v1/export/audit-trail": {
+      "get": {
+        "operationId": "audit_trail_v1_export_audit_trail_get",
+        "parameters": [
+          {
+            "description": "Audit run; defaults to the latest.",
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Audit run; defaults to the latest.",
+              "title": "Run Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "pattern": "^(json|csv)$",
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Trail",
+        "tags": [
+          "export"
+        ]
+      }
+    },
+    "/v1/quality/summary": {
+      "get": {
+        "operationId": "quality_summary_v1_quality_summary_get",
+        "parameters": [
+          {
+            "description": "Audit run; defaults to the latest.",
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Audit run; defaults to the latest.",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualitySummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quality Summary",
+        "tags": [
+          "quality"
+        ]
+      }
+    },
+    "/v1/readings": {
+      "get": {
+        "operationId": "list_readings_v1_readings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "station",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Station"
+            }
+          },
+          {
+            "in": "query",
+            "name": "parameter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parameter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "description": "Annotate with audit reason codes.",
+            "in": "query",
+            "name": "quality_flagged",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Annotate with audit reason codes.",
+              "title": "Quality Flagged",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReadingOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Readings",
+        "tags": [
+          "readings"
+        ]
+      }
+    },
+    "/v1/stations": {
+      "get": {
+        "operationId": "list_stations_v1_stations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Stations",
+        "tags": [
+          "stations"
+        ]
+      }
+    },
+    "/v1/stations/{station_id}": {
+      "get": {
+        "operationId": "get_station_v1_stations__station_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "station_id",
+            "required": true,
+            "schema": {
+              "title": "Station Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Station",
+        "tags": [
+          "stations"
+        ]
+      }
+    },
+    "/v1/trust/{station_id}": {
+      "get": {
+        "operationId": "get_trust_v1_trust__station_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "station_id",
+            "required": true,
+            "schema": {
+              "title": "Station Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Return the score history instead of the latest.",
+            "in": "query",
+            "name": "series",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Return the score history instead of the latest.",
+              "title": "Series",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TrustScoreOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Page_TrustScoreOut_"
+                    }
+                  ],
+                  "title": "Response Get Trust V1 Trust  Station Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Trust",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Version",
+        "tags": [
+          "meta"
+        ]
+      }
+    }
+  }
+}

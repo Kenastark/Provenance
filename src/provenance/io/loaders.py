@@ -13,6 +13,7 @@ Standing rules honoured here:
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -171,17 +172,43 @@ def load_data(data_dir: Path) -> pd.DataFrame:
     return load_green_sentinel(data_dir)
 
 
+def _load_station_sidecar(path: Path) -> dict[str, StationLocation]:
+    """Read a fixture ``stations.json``. Fails loudly on a malformed entry."""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, StationLocation] = {}
+    for station_id, entry in raw.items():
+        try:
+            out[station_id] = StationLocation(
+                station_id=station_id,
+                name=str(entry["name"]),
+                lat=float(entry["lat"]),
+                lon=float(entry["lon"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SchemaDriftError(
+                f"{path} entry for {station_id!r} is missing a name/lat/lon. The station "
+                "sidecar is the only source of fixture coordinates, so a malformed entry "
+                "is an error rather than a station quietly losing its position."
+            ) from exc
+    return out
+
+
 def load_station_metadata(data_dir: Path) -> dict[str, StationLocation]:
     """Read one site name + coordinate pair per station from the Green Sentinel drop.
 
-    Cheap: only the ``Location`` column's first row of each workbook is read. Returns
-    an empty map for the fixture corpus (the canonical parquet carries no Location),
-    so the loader populates coordinates for the real export and leaves them null for
-    synthetic data — never inventing a coordinate.
+    Cheap: only the ``Location`` column's first row of each workbook is read.
+
+    A fixture drop has no ``Location`` column, so it may ship a ``stations.json``
+    sidecar instead (written by ``fixtures.generator.write_corpus``). That file is
+    the *only* way synthetic coordinates enter the system: without it a canonical
+    parquet still yields an empty map, and the loader leaves lat/lon null rather
+    than inventing a coordinate.
     """
     data_dir = Path(data_dir)
     if (data_dir / "corpus.parquet").exists():
-        return {}
+        return _load_station_sidecar(data_dir / "stations.json")
     root = find_green_sentinel_root(data_dir)
     if root is None:
         return {}
