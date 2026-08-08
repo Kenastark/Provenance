@@ -65,6 +65,29 @@ web-lint: ## frontend lint + typecheck
 web-e2e: ## Playwright end-to-end suite (needs the stack + demo data)
 	cd apps/web && pnpm e2e
 
+# Visual baselines are per-platform: font rasterisation and antialiasing differ
+# enough between macOS and Linux that a macOS baseline can never match a CI run.
+# Playwright names them accordingly (…-chromium-darwin.png / …-chromium-linux.png)
+# and both sets are committed, so the visual gate is real on a developer's laptop
+# AND in CI. This target regenerates the Linux set inside the official Playwright
+# image so it is byte-comparable with what CI produces. Needs the API running.
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.62.1-noble
+
+.PHONY: web-visual-linux
+web-visual-linux: ## regenerate the Linux visual baselines in Docker (needs the API up)
+	docker run --rm \
+	  -v "$(PWD)/apps/web:/host:ro" \
+	  -v "$(PWD)/apps/web/e2e/visual.spec.ts-snapshots:/out" \
+	  -e VITE_API_BASE_URL=http://host.docker.internal:8000 \
+	  --add-host=host.docker.internal:host-gateway \
+	  $(PLAYWRIGHT_IMAGE) \
+	  bash -lc 'set -e; corepack enable pnpm >/dev/null 2>&1 || true; \
+	    mkdir -p /build && cp -r /host/. /build/; \
+	    rm -rf /build/node_modules /build/dist /build/test-results /build/playwright-report; \
+	    cd /build && pnpm install --no-frozen-lockfile --silent; \
+	    npx playwright test --project=chromium e2e/visual.spec.ts --update-snapshots; \
+	    cp /build/e2e/visual.spec.ts-snapshots/*-linux.png /out/'
+
 .PHONY: web-contract
 web-contract: ## regenerate the frontend's copy of the API contract
 	$(VENV)/bin/python scripts/gen_frontend_contract.py

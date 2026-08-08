@@ -87,6 +87,12 @@ by `scripts/gen_reversed_lockup.py` and asserted geometry-identical by a brand t
     make web           # dashboard dev server alone
     make web-test      # component tests with the coverage gate
     make web-e2e       # Playwright: demo path, a11y, visual, responsive
+    make web-visual-linux   # regenerate the Linux visual baselines (Docker)
+
+Visual baselines are committed per platform (`…-chromium-darwin.png`,
+`…-chromium-linux.png`) because macOS and Linux rasterise text differently; one
+platform's baseline can never match the other's run. Both sets are kept so the
+visual gate is real on a laptop and in CI.
 
 The dashboard talks to `VITE_API_BASE_URL` (default `http://localhost:8000`) with
 `VITE_API_KEY` (default the documented local-dev operator key). A real deployment

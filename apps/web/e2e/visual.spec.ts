@@ -6,8 +6,16 @@ import { gotoRoute, setTheme, settleForSnapshot, waitForMapIdle } from "./suppor
  *
  * The palette is fixed and every colour in the app resolves to a token, so an
  * unintended change to a token shows up here as a diff across several screens at
- * once - which is exactly the signal worth having. Update deliberately with
- * `pnpm e2e:update` and read the diff before accepting it.
+ * once - which is exactly the signal worth having. Update deliberately and read the
+ * diff before accepting it.
+ *
+ * Baselines are per-platform, because font rasterisation and antialiasing differ
+ * enough between macOS and Linux that one platform's baseline can never match the
+ * other's run. Playwright names them accordingly and both sets are committed, so
+ * the gate is real locally *and* in CI:
+ *
+ *     pnpm e2e:update           # this machine's baselines
+ *     make web-visual-linux     # the Linux set, in the official Playwright image
  */
 
 const THEMES = ["dark", "light"] as const;
