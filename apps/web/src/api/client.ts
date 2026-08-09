@@ -179,6 +179,10 @@ export type QualityStation = Schemas["QualityStationOut"];
 export type TrustScore = Schemas["TrustScoreOut"];
 export type TrustComponent = Schemas["ComponentOut"];
 export type Version = Schemas["VersionOut"];
+export type Explain = Schemas["ExplainOut"];
+export type Attribution = Schemas["AttributionOut"];
+export type DeweatherSeries = Schemas["DeweatherSeriesOut"];
+export type DeweatherPoint = Schemas["DeweatherPointOut"];
 
 /** Every list endpoint answers with this envelope. */
 export interface Page<T> {

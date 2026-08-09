@@ -1,6 +1,34 @@
 {
   "components": {
     "schemas": {
+      "AttributionOut": {
+        "properties": {
+          "feature": {
+            "title": "Feature",
+            "type": "string"
+          },
+          "feature_value": {
+            "title": "Feature Value",
+            "type": "number"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "feature",
+          "value",
+          "feature_value",
+          "provenance"
+        ],
+        "title": "AttributionOut",
+        "type": "object"
+      },
       "AuditRunOut": {
         "properties": {
           "code_version": {
@@ -167,6 +195,76 @@
         "title": "DefectOut",
         "type": "object"
       },
+      "DeweatherPointOut": {
+        "properties": {
+          "actual": {
+            "title": "Actual",
+            "type": "number"
+          },
+          "predicted": {
+            "title": "Predicted",
+            "type": "number"
+          },
+          "residual": {
+            "title": "Residual",
+            "type": "number"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp_utc",
+          "actual",
+          "predicted",
+          "residual"
+        ],
+        "title": "DeweatherPointOut",
+        "type": "object"
+      },
+      "DeweatherSeriesOut": {
+        "description": "A station's deweathered series for one pollutant: raw vs weather-predicted vs residual.\n\nThe before/after view (§7.6): ``actual`` is what the sensor reported, ``predicted`` is\nwhat weather and time alone explain, and ``residual`` is what is left — the part\nanomaly detection should see. ``degraded`` is true when no residuals have been stored\n(no model trained), in which case ``series`` is empty and the client says so.",
+        "properties": {
+          "degraded": {
+            "default": false,
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/DeweatherPointOut"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "station_id",
+          "parameter"
+        ],
+        "title": "DeweatherSeriesOut",
+        "type": "object"
+      },
       "EventOut": {
         "properties": {
           "audit_run_id": {
@@ -240,6 +338,142 @@
           "evidence"
         ],
         "title": "EventOut",
+        "type": "object"
+      },
+      "ExplainOut": {
+        "description": "A per-defect explanation. Never a bare score: it always carries a sentence.\n\n``method`` records how the explanation was produced — ``model`` (SHAP over a tree\nmodel), ``rule`` (a deterministic detector decided it), or ``degraded`` (no model\nartefact was available, so the statistics-layer reason is returned instead). When\n``degraded`` is true the ``attributions`` list is empty by construction and the\nresponse says so, per standing rule 6.",
+        "properties": {
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionOut"
+            },
+            "title": "Attributions",
+            "type": "array"
+          },
+          "base_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Value"
+          },
+          "defect_id": {
+            "title": "Defect Id",
+            "type": "integer"
+          },
+          "degraded": {
+            "default": false,
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "fault_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fault Class"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "model_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Model Versions",
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          },
+          "predicted_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Class"
+          },
+          "prediction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction"
+          },
+          "reason_code": {
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "reconstructs": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reconstructs"
+          },
+          "residual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Residual"
+          },
+          "sentence": {
+            "title": "Sentence",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "timestamp_utc": {
+            "title": "Timestamp Utc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "defect_id",
+          "station_id",
+          "parameter",
+          "timestamp_utc",
+          "reason_code",
+          "method",
+          "sentence"
+        ],
+        "title": "ExplainOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1199,6 +1433,59 @@
         ]
       }
     },
+    "/v1/deweather/{station_id}": {
+      "get": {
+        "operationId": "get_deweather_v1_deweather__station_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "station_id",
+            "required": true,
+            "schema": {
+              "title": "Station Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The pollutant to show the deweathered series for.",
+            "in": "query",
+            "name": "parameter",
+            "required": true,
+            "schema": {
+              "description": "The pollutant to show the deweathered series for.",
+              "title": "Parameter",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeweatherSeriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Deweather",
+        "tags": [
+          "deweather"
+        ]
+      }
+    },
     "/v1/events": {
       "get": {
         "operationId": "list_events_v1_events_get",
@@ -1273,6 +1560,50 @@
         "summary": "List Events",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/v1/explain/{defect_id}": {
+      "get": {
+        "operationId": "get_explain_v1_explain__defect_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "defect_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Defect Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Explain",
+        "tags": [
+          "explain"
         ]
       }
     },

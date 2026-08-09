@@ -1,6 +1,8 @@
 import type {
   AuditRun,
   Defect,
+  DeweatherSeries,
+  Explain,
   ProvEvent,
   QualityStation,
   QualitySummary,
@@ -278,3 +280,74 @@ export const windReadings: Reading[] = [
     row_hash: "ws-1",
   }),
 ];
+
+// A model-backed SHAP explanation for defect 1 (STA-03 · PM10). The attributions plus
+// the base value reconstruct the prediction; the sign of each drives the bar direction.
+export const explain: Explain = {
+  defect_id: 1,
+  station_id: "STA-03",
+  parameter: "PM10",
+  timestamp_utc: "2026-05-14T12:00:00",
+  reason_code: "R07",
+  method: "model",
+  fault_class: "physically_impossible",
+  predicted_class: null,
+  sentence:
+    "Driven primarily by the shallow overnight mixing layer (lowered), then wind speed (raised) and humidity (lowered); not day of week.",
+  degraded: false,
+  model_versions: { deweather: "v1-abc12345", fault: "v1-def67890" },
+  base_value: 42.1,
+  prediction: 39.4,
+  residual: 2960.6,
+  reconstructs: true,
+  attributions: [
+    { feature: "boundary_layer_proxy", value: -6.2, feature_value: 0.4, provenance: "proxy" },
+    { feature: "wind_speed", value: 3.1, feature_value: 8.0, provenance: "measured" },
+    { feature: "humidity", value: -1.4, feature_value: 60.0, provenance: "measured" },
+    { feature: "hour_sin", value: 0.8, feature_value: 0.5, provenance: "derived" },
+    { feature: "temperature", value: 0.2, feature_value: 18.0, provenance: "weather_feed" },
+  ],
+  notes: [],
+};
+
+// The degraded explanation the API returns when no model artefact is loaded.
+export const explainDegraded: Explain = {
+  ...explain,
+  method: "degraded",
+  degraded: true,
+  fault_class: null,
+  sentence: "Value of 3000 µg/m3 exceeds the physical maximum for PM10.",
+  base_value: null,
+  prediction: null,
+  residual: null,
+  reconstructs: null,
+  attributions: [],
+  model_versions: {},
+  notes: ["No model artefact was available; this explanation comes from the statistics layer alone."],
+};
+
+// A stored deweathered series for STA-03 · PM10: raw vs weather-predicted vs residual.
+export const deweatherSeries: DeweatherSeries = {
+  station_id: "STA-03",
+  parameter: "PM10",
+  model_version: "v1-abc12345",
+  degraded: false,
+  series: Array.from({ length: 12 }, (_, index) => {
+    const actual = 30 + 8 * Math.sin(index / 2);
+    const predicted = 30 + 6 * Math.sin(index / 2);
+    return {
+      timestamp_utc: `2026-05-14T${String(index).padStart(2, "0")}:00:00`,
+      actual,
+      predicted,
+      residual: actual - predicted,
+    };
+  }),
+};
+
+export const deweatherDegraded: DeweatherSeries = {
+  station_id: "STA-03",
+  parameter: "PM10",
+  model_version: null,
+  degraded: true,
+  series: [],
+};

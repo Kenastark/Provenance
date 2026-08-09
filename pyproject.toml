@@ -26,6 +26,13 @@ dependencies = [
     "psycopg[binary]>=3.1",
     "aiosqlite>=0.20",
     "scipy>=1.13",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.3",
+    "shap>=0.46",
+    # shap pulls in numba/llvmlite; pin numba modern so the resolver never falls
+    # back to an ancient llvmlite that predates Python 3.12 (it will otherwise, when
+    # a newer numpy is already present and biases resolution).
+    "numba>=0.60",
 ]
 
 [project.optional-dependencies]
@@ -69,7 +76,12 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "PTH", "R
 ignore = ["E501", "N812"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ARG"]
+"tests/**" = ["ARG", "N803", "N806"]
+# N803/N806: `X`, `Xp`, `X_ml` are the universal scikit-learn/LightGBM convention for a
+# feature matrix (capital X, feature matrix; lowercase y, target). Using it keeps the
+# model code readable to anyone who has touched an ML library; it is not a class name.
+"src/provenance/models/**" = ["N803", "N806"]
+"src/provenance/explain/**" = ["N803", "N806"]
 # Detectors implement a fixed Protocol signature (frame, ctx); some do not use
 # both arguments, which is correct, not dead code.
 "src/provenance/detectors/**" = ["ARG002"]
@@ -96,7 +108,15 @@ files = ["src/provenance"]
 plugins = []
 
 [[tool.mypy.overrides]]
-module = ["pandera.*", "lightgbm.*", "shap.*", "torch_geometric.*", "scipy.*"]
+module = [
+    "pandera.*",
+    "lightgbm.*",
+    "shap.*",
+    "torch_geometric.*",
+    "scipy.*",
+    "sklearn.*",
+    "joblib.*",
+]
 ignore_missing_imports = true
 
 # ----------------------------------------------------------------------------

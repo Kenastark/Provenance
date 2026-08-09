@@ -1,0 +1,60 @@
+# Model hyperparameters and honesty thresholds for the phase-5 tree models.
+#
+# These are MODELLING CHOICES, not data-derived constants (standing rule 1). The
+# defect rate, completeness, station counts and event verdicts are all computed
+# from the readings and never appear here. Every figure below is a training or
+# reporting knob, and this file is the single place to tune it.
+#
+# `status: provisional` — the LightGBM settings are sensible defaults, not the
+# result of a held-out hyperparameter search; the recall floors and the R² band are
+# reporting gates recorded in the model card, never quoted as accuracy in the pitch.
+
+version: 1
+status: provisional
+
+deweather:
+  # Weather-responsive pollutants to deweather. Intersected with what the corpus
+  # actually carries at train time — a pollutant the network does not measure is
+  # skipped, never invented.
+  pollutants: [PM10, NO2, O3, CO]
+  n_splits: 4                 # forward-chaining time-blocked folds
+  # The R² sanity band (§ test gate). Below the floor, weather is not being captured
+  # and the residual is just the raw value; above the ceiling, no unexplained signal
+  # is left for a genuine event to show up in. Both are failures with distinct causes.
+  r2_floor: 0.15
+  r2_ceiling: 0.90
+  lightgbm:
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 30
+    subsample: 0.9
+    colsample_bytree: 0.9
+    random_state: 20260907
+
+fault:
+  n_splits: 4
+  # Per-signature recall floors at the injected strength. Recorded HERE and in the
+  # model card, deliberately not in the pitch — with this few real positives a
+  # headline number would describe the injection process, not the world (rule 4).
+  recall_floors:
+    flatline: 0.80
+    drift: 0.55
+    dropout: 0.80
+    gain: 0.55
+  # meteorological_artefact is the class we watch hardest: calling a real inversion
+  # a fault is the most damaging error this system makes (§7.3), so its precision is
+  # reported and floored separately.
+  meteorological_artefact_precision_floor: 0.50
+  lightgbm:
+    n_estimators: 250
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 20
+    random_state: 20260907
+
+explain:
+  top_k: 3                    # features named in the operator sentence
+  # SHAP additivity tolerance: sum(attributions)+base must reconstruct the model
+  # output to within this (TreeExplainer is exact up to float error).
+  reconstruction_tolerance: 1.0e-4

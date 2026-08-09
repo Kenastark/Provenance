@@ -5,6 +5,8 @@ import {
   type ApiClient,
   type AuditRun,
   type Defect,
+  type DeweatherSeries,
+  type Explain,
   type Page,
   type ProvEvent,
   type QualitySummary,
@@ -50,6 +52,9 @@ export const queryKeys = {
   trustSeries: (stationId: string) => ["trust", stationId, "series"] as const,
   readings: (stationId: string, parameter: string | undefined, start?: string | null) =>
     ["readings", stationId, parameter ?? "all", start ?? "any"] as const,
+  explain: (defectId: number | string) => ["explain", String(defectId)] as const,
+  deweather: (stationId: string, parameter: string) =>
+    ["deweather", stationId, parameter] as const,
 };
 
 // Pulling more than a page at a time is the exception, not the rule: the API caps
@@ -233,6 +238,40 @@ export function useTrustSeries(stationId: string | undefined): UseQueryResult<Tr
       });
       return [...page.items].sort((a, b) => a.timestamp_utc.localeCompare(b.timestamp_utc));
     },
+  });
+}
+
+/**
+ * The SHAP explanation for one flagged reading (phase 5).
+ *
+ * Returns the model-backed attributions and operator sentence when the model
+ * artefacts are present, and a `degraded` explanation (statistics-layer reason, no
+ * attributions) when they are not - so the evidence panel always has something honest
+ * to show, never a spinner that never resolves.
+ */
+export function useExplain(defectId: number | undefined): UseQueryResult<Explain> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.explain(defectId ?? ""),
+    enabled: Boolean(defectId),
+    queryFn: ({ signal }) => client.get<Explain>(`/v1/explain/${defectId}`, { signal }),
+  });
+}
+
+/** The deweathered before/after series for a station's pollutant (raw vs residual). */
+export function useDeweather(
+  stationId: string | undefined,
+  parameter: string | undefined,
+): UseQueryResult<DeweatherSeries> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.deweather(stationId ?? "", parameter ?? ""),
+    enabled: Boolean(stationId) && Boolean(parameter),
+    queryFn: ({ signal }) =>
+      client.get<DeweatherSeries>(`/v1/deweather/${stationId}`, {
+        query: { parameter },
+        signal,
+      }),
   });
 }
 

@@ -183,6 +183,30 @@ class Event(Base):
     audit_run: Mapped[AuditRun] = relationship(back_populates="events")
 
 
+class Residual(Base):
+    """A deweathered residual: actual minus weather-predicted, per reading.
+
+    The residual, not the raw value, is what anomaly detection sees downstream (§7.6),
+    so it is stored alongside the ``model_version`` that produced it — a residual is
+    meaningless without knowing which deweather model left it behind. Hypertable in
+    Postgres, chunked by day; the partition column ``timestamp_utc`` is part of the
+    primary key so Timescale accepts it.
+    """
+
+    __tablename__ = "residuals"
+
+    timestamp_utc: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    station_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    parameter: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    model_version: Mapped[str] = mapped_column(String, primary_key=True)
+    actual: Mapped[float] = mapped_column(Float, nullable=False)
+    predicted: Mapped[float] = mapped_column(Float, nullable=False)
+    residual: Mapped[float] = mapped_column(Float, nullable=False)
+    audit_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("audit_runs.id"), nullable=True, index=True
+    )
+
+
 class TrustScore(Base):
     """A trust score at a point in time. Hypertable in Postgres, chunked by day.
 

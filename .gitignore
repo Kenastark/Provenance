@@ -22,6 +22,11 @@ reports/*
 *.pkl
 *.joblib
 src/provenance/models/artefacts/**
+# Auto-generated ML model cards: reproducible from `prov models train`, filenames
+# carry the training-data checksum, so committing them only churns. The hand-written
+# cards (e.g. the propagation adjudicator) are tracked normally.
+docs/model-cards/deweather-*.md
+docs/model-cards/fault-*.md
 
 # ---- python ----
 .venv/

@@ -117,6 +117,31 @@ async def api_client(loaded_db: dict[str, str]) -> AsyncIterator[object]:
     await engine.dispose()
 
 
+@pytest.fixture(scope="session")
+def weather_corpus() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """A weather-coupled corpus + city weather frame, built once for the model tests."""
+    from provenance.fixtures.weather import generate_weather_corpus
+
+    return generate_weather_corpus(n_days=30, n_stations=6)
+
+
+@pytest.fixture(scope="session")
+def trained_models(weather_corpus: tuple[pd.DataFrame, pd.DataFrame]) -> dict[str, object]:
+    """Deweather + fault models trained once and shared across the model test suite.
+
+    Training the two LightGBM stacks is the slowest thing in the phase-5 tests, so it
+    happens exactly once per session. Everything is deterministic (fixed seeds, single
+    thread), so a shared model is byte-identical to one each test would build alone.
+    """
+    frame, weather = weather_corpus
+    from provenance.models.deweather import train_deweather
+    from provenance.models.fault import train_fault_classifier
+
+    deweather = train_deweather(frame, weather=weather)
+    fault = train_fault_classifier(frame, deweather, weather=weather)
+    return {"frame": frame, "weather": weather, "deweather": deweather, "fault": fault}
+
+
 @pytest.fixture
 def make_frame() -> Callable[..., pd.DataFrame]:
     """Factory: build a small canonical long frame from simple per-series specs."""

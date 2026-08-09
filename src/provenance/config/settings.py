@@ -37,6 +37,25 @@ class Settings(BaseSettings):
     data_raw: Path = Field(default=REPO_ROOT / "data" / "raw", alias="PROVENANCE_DATA_RAW")
     reports_dir: Path = Field(default=REPO_ROOT / "reports", alias="PROVENANCE_REPORTS_DIR")
 
+    artefacts_dir: Path = Field(
+        default=REPO_ROOT / "src" / "provenance" / "models" / "artefacts",
+        alias="PROVENANCE_ARTEFACTS_DIR",
+    )
+    """Where trained model artefacts and their card sidecars live. Gitignored (see
+    ``.gitignore``): models are reproducible from ``prov models train`` and never
+    committed. Missing artefacts are not an error — the system degrades gracefully to
+    the statistics layer and says so (standing rule 6)."""
+
+    model_docs_dir: Path = Field(
+        default=REPO_ROOT / "docs" / "model-cards",
+        alias="PROVENANCE_MODEL_DOCS_DIR",
+    )
+    """Where the human-readable model cards are written at training time. The
+    auto-generated ML cards (``deweather-*``/``fault-*``) are gitignored — they are
+    reproducible from ``prov models train`` and their filenames carry the data
+    checksum, so committing them would only churn. The hand-written cards (the
+    propagation adjudicator) stay tracked."""
+
     api_keys_json: str = Field(default="", alias="PROVENANCE_API_KEYS")
     """Optional JSON ``{api_key: role}`` map. Empty means use the local-dev keys in
     ``api/auth.py``. Full OIDC is deferred to phase 7 (ADR 0004)."""

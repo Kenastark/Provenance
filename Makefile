@@ -170,6 +170,16 @@ demo-data: demo-corpus ## schema, demo corpus, audit, adjudication - everything 
 	$(VENV)/bin/prov graph adjudicate-db --source $(DEMO_DIR)
 	$(VENV)/bin/prov graph adjudicate --data $(DEMO_DIR) --out reports/adjudications
 
+# Model training is deliberately NOT part of demo-data: the visual-regression
+# baselines are captured with demo-data (no models), so the trust score reads
+# `degraded` there and the station panel shows its degraded badge - the pinned state.
+# `make demo` trains the phase-5 models on top, which lights up the evidence panel's
+# SHAP attributions and the before/after deweathering chart for the live run.
+.PHONY: demo-models
+demo-models: ## train the phase-5 models on the demo corpus and store its residuals
+	$(VENV)/bin/prov models train --source $(DEMO_DIR)
+	$(VENV)/bin/prov models residuals --source $(DEMO_DIR)
+
 API_PID := .demo-api.pid
 # Loopback locally. CI overrides it to 0.0.0.0 so the browser running inside the
 # pinned Playwright container can reach back through the Docker bridge.
@@ -203,6 +213,7 @@ basemap: ## fetch the Debrecen street basemap (once; needs network; offline afte
 demo: ## one command: stack up, demo corpus loaded and audited, API up, dashboard open
 	$(MAKE) up
 	$(MAKE) demo-data
+	$(MAKE) demo-models
 	$(MAKE) api-bg
 	cd apps/web && pnpm install --no-frozen-lockfile
 	@# The streets are a nice-to-have. If the fetch cannot reach the network, the

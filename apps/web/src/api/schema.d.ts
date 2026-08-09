@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/deweather/{station_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Deweather */
+        get: operations["get_deweather_v1_deweather__station_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/events": {
         parameters: {
             query?: never;
@@ -98,6 +115,23 @@ export interface paths {
         };
         /** List Events */
         get: operations["list_events_v1_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/explain/{defect_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Explain */
+        get: operations["get_explain_v1_explain__defect_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -229,6 +263,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AttributionOut */
+        AttributionOut: {
+            /** Feature */
+            feature: string;
+            /** Feature Value */
+            feature_value: number;
+            /** Provenance */
+            provenance: string;
+            /** Value */
+            value: number;
+        };
         /** AuditRunOut */
         AuditRunOut: {
             /** Code Version */
@@ -296,6 +341,41 @@ export interface components {
             /** Timestamp Utc */
             timestamp_utc: string;
         };
+        /** DeweatherPointOut */
+        DeweatherPointOut: {
+            /** Actual */
+            actual: number;
+            /** Predicted */
+            predicted: number;
+            /** Residual */
+            residual: number;
+            /** Timestamp Utc */
+            timestamp_utc: string;
+        };
+        /**
+         * DeweatherSeriesOut
+         * @description A station's deweathered series for one pollutant: raw vs weather-predicted vs residual.
+         *
+         *     The before/after view (§7.6): ``actual`` is what the sensor reported, ``predicted`` is
+         *     what weather and time alone explain, and ``residual`` is what is left — the part
+         *     anomaly detection should see. ``degraded`` is true when no residuals have been stored
+         *     (no model trained), in which case ``series`` is empty and the client says so.
+         */
+        DeweatherSeriesOut: {
+            /**
+             * Degraded
+             * @default false
+             */
+            degraded: boolean;
+            /** Model Version */
+            model_version?: string | null;
+            /** Parameter */
+            parameter: string;
+            /** Series */
+            series?: components["schemas"]["DeweatherPointOut"][];
+            /** Station Id */
+            station_id: string;
+        };
         /** EventOut */
         EventOut: {
             /** Audit Run Id */
@@ -324,6 +404,57 @@ export interface components {
             timestamp_utc: string;
             /** Verdict */
             verdict?: string | null;
+        };
+        /**
+         * ExplainOut
+         * @description A per-defect explanation. Never a bare score: it always carries a sentence.
+         *
+         *     ``method`` records how the explanation was produced — ``model`` (SHAP over a tree
+         *     model), ``rule`` (a deterministic detector decided it), or ``degraded`` (no model
+         *     artefact was available, so the statistics-layer reason is returned instead). When
+         *     ``degraded`` is true the ``attributions`` list is empty by construction and the
+         *     response says so, per standing rule 6.
+         */
+        ExplainOut: {
+            /** Attributions */
+            attributions?: components["schemas"]["AttributionOut"][];
+            /** Base Value */
+            base_value?: number | null;
+            /** Defect Id */
+            defect_id: number;
+            /**
+             * Degraded
+             * @default false
+             */
+            degraded: boolean;
+            /** Fault Class */
+            fault_class?: string | null;
+            /** Method */
+            method: string;
+            /** Model Versions */
+            model_versions?: {
+                [key: string]: string;
+            };
+            /** Notes */
+            notes?: string[];
+            /** Parameter */
+            parameter: string;
+            /** Predicted Class */
+            predicted_class?: string | null;
+            /** Prediction */
+            prediction?: number | null;
+            /** Reason Code */
+            reason_code: string;
+            /** Reconstructs */
+            reconstructs?: boolean | null;
+            /** Residual */
+            residual?: number | null;
+            /** Sentence */
+            sentence: string;
+            /** Station Id */
+            station_id: string;
+            /** Timestamp Utc */
+            timestamp_utc: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -689,6 +820,40 @@ export interface operations {
             };
         };
     };
+    get_deweather_v1_deweather__station_id__get: {
+        parameters: {
+            query: {
+                /** @description The pollutant to show the deweathered series for. */
+                parameter: string;
+            };
+            header?: never;
+            path: {
+                station_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeweatherSeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_events_v1_events_get: {
         parameters: {
             query?: {
@@ -709,6 +874,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_EventOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_explain_v1_explain__defect_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                defect_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExplainOut"];
                 };
             };
             /** @description Validation Error */
