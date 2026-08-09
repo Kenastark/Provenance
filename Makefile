@@ -226,6 +226,14 @@ demo: ## one command: stack up, demo corpus loaded and audited, API up, dashboar
 	@echo ""
 	$(MAKE) web
 
+.PHONY: demo-scenarios
+demo-scenarios: ## write the deterministic replay sequences for every scenario (offline)
+	$(VENV)/bin/prov demo rehearse --data $(DEMO_DIR) --out reports/demo
+
+.PHONY: demo-record
+demo-record: ## capture the demo to a fallback recording (replay sequences + best-effort video)
+	bash scripts/record-demo.sh
+
 .PHONY: demo-stop
 demo-stop: ## stop the background API and the local stack
 	@if [ -f $(API_PID) ]; then kill $$(cat $(API_PID)) 2>/dev/null || true; rm -f $(API_PID); fi

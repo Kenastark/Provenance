@@ -85,7 +85,7 @@ ignore = ["E501", "N812"]
 # meaning (σ predictive std, α miscoverage rate, β attention-bias scale, Δθ the
 # dispersion-cone gap, µ/π in the Gaussian NLL). They are intentional and legible, so
 # the confusable-character check (RUF001/2/3) is told to allow exactly these.
-allowed-confusables = ["σ", "α", "β", "µ", "μ", "π", "θ", "Δ", "ŷ", "·"]
+allowed-confusables = ["σ", "α", "β", "µ", "μ", "π", "θ", "Δ", "ŷ", "·", "×"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG", "N803", "N806"]

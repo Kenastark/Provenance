@@ -58,7 +58,13 @@ def make_engine(url: str | None = None) -> AsyncEngine:
                 poolclass=StaticPool,
                 connect_args={"check_same_thread": False},
             )
-        return create_async_engine(resolved, future=True, poolclass=NullPool)
+        # ``timeout`` makes a connection wait for a busy write lock rather than failing
+        # immediately, so a concurrent dispatch reservation blocks and then resolves on
+        # the unique constraint (a clean IntegrityError) instead of a raw "database is
+        # locked" — which is what lets the idempotency-under-concurrency test be stable.
+        return create_async_engine(
+            resolved, future=True, poolclass=NullPool, connect_args={"timeout": 30}
+        )
     return create_async_engine(resolved, future=True, pool_pre_ping=True)
 
 
