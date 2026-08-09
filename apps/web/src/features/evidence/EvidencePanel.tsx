@@ -412,8 +412,13 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
       />
       <p className="text-caption text-text-tertiary">
         Adjudication verdict:{" "}
-        <span data-testid="evidence-verdict">pending adjudication (phase 4)</span>. Deciding
-        whether this is a real plume or a sensor fault needs the wind-conditioned graph.
+        <span data-testid="evidence-verdict">decided per event on the timeline</span>. This defect
+        view is the statistical evidence; whether a rise is a real plume or a sensor fault is
+        adjudicated over the wind-conditioned graph, on the{" "}
+        <a className="text-interactive underline" href="/timeline">
+          event timeline
+        </a>
+        .
       </p>
     </section>
   );

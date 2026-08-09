@@ -37,6 +37,9 @@ audit_app = typer.Typer(help="Run the audit and render its report.", no_args_is_
 fixtures_app = typer.Typer(help="Generate the seeded synthetic corpus.", no_args_is_help=True)
 codes_app = typer.Typer(help="Inspect the reason-code registry.", no_args_is_help=True)
 db_app = typer.Typer(help="Manage the database schema and load data.", no_args_is_help=True)
+graph_app = typer.Typer(
+    help="Wind-conditioned graph and the propagation adjudicator.", no_args_is_help=True
+)
 
 app.add_typer(data_app, name="data")
 app.add_typer(schema_app, name="schema")
@@ -44,6 +47,7 @@ app.add_typer(audit_app, name="audit")
 app.add_typer(fixtures_app, name="fixtures")
 app.add_typer(codes_app, name="codes")
 app.add_typer(db_app, name="db")
+app.add_typer(graph_app, name="graph")
 
 console = Console()
 
@@ -244,6 +248,127 @@ def db_load(
         f"{report.defects_inserted:,} defects, {report.trust_scores_inserted:,} trust scores "
         f"(run {report.audit_run_id})."
     )
+
+
+# ---------------------------------------------------------------------- graph
+_ADJ_DEFAULT = REPO_ROOT / "reports" / "adjudications"
+
+_VERDICT_STYLE = {
+    "GENUINE_EVENT": "bold green",
+    "LIKELY_FAULT": "bold red",
+    "AMBIGUOUS": "bold yellow",
+}
+
+
+@graph_app.command("adjudicate")
+def graph_adjudicate(
+    data: Path = typer.Option(_DATA_DEFAULT, "--data", help="Data drop to adjudicate."),
+    out: Path = typer.Option(_ADJ_DEFAULT, "--out", help="Where to write evidence bundles."),
+    limit: int = typer.Option(10, "--limit", help="How many top-ranked events to adjudicate."),
+) -> None:
+    """Rank the corpus's candidate events, adjudicate each, and write evidence bundles.
+
+    Nothing about the outcome is assumed: the top event is whatever ranks highest by
+    magnitude, and its verdict is whatever the adjudicator returns.
+    """
+    from provenance.graph.replay import replay_path
+
+    adjudications = replay_path(data, out, limit=limit)
+    if not adjudications:
+        console.print("[yellow]No candidate events found to adjudicate.[/yellow]")
+        raise typer.Exit(code=0)
+
+    table = Table(title="Adjudicated events (ranked by magnitude)", header_style="bold")
+    for col in ("Rank", "Station", "Parameter", "Timestamp", "Excess", "Verdict", "Confidence"):
+        table.add_column(col)
+    for rank, adj in enumerate(adjudications, start=1):
+        ev = adj.event
+        style = _VERDICT_STYLE.get(adj.verdict.value, "")
+        table.add_row(
+            str(rank),
+            ev.station_id,
+            ev.parameter,
+            ev.timestamp.isoformat(),
+            f"{ev.excess:,.1f} {ev.unit}".strip(),
+            f"[{style}]{adj.verdict.value}[/{style}]" if style else adj.verdict.value,
+            f"{adj.confidence:.2f} ({adj.confidence_band.value})",
+        )
+    console.print(table)
+
+    review = [a for a in adjudications if a.routes_to_review]
+    if review:
+        console.print(
+            f"[yellow]{len(review)} event(s) routed to human review (AMBIGUOUS).[/yellow]"
+        )
+    console.print(f"[green]Wrote[/green] {len(adjudications)} bundle(s) and an index to {out}")
+
+
+@graph_app.command("adjudicate-db")
+def graph_adjudicate_db(
+    source: Path = typer.Option(
+        _DATA_DEFAULT, "--source", help="Data drop already loaded to the DB."
+    ),
+) -> None:
+    """Adjudicate the events stored in the database and write their verdicts back.
+
+    Run after ``prov db load``: it fills the ``verdict`` the audit left null, so the
+    dashboard timeline shows a plume/fault/ambiguous label per event.
+    """
+    import asyncio
+
+    from provenance.graph.persist import adjudicate_stored_events
+    from provenance.io import loaders
+    from provenance.io.db.engine import make_engine, make_sessionmaker
+
+    frame = loaders.load_data(source)
+    station_meta = loaders.load_station_metadata(source)
+
+    async def _run() -> int:
+        from provenance.config.settings import get_settings
+
+        engine = make_engine(get_settings().database_url)
+        sm = make_sessionmaker(engine)
+        try:
+            async with sm() as session:
+                return await adjudicate_stored_events(session, frame, dict(station_meta))
+        finally:
+            await engine.dispose()
+
+    updated = asyncio.run(_run())
+    console.print(f"[green]Adjudicated[/green] {updated} stored event(s); verdicts written.")
+
+
+@graph_app.command("snapshot")
+def graph_snapshot(
+    data: Path = typer.Option(_DATA_DEFAULT, "--data", help="Data drop to build the graph from."),
+    at: str = typer.Option(
+        "", "--at", help="Timestamp (ISO-8601). Defaults to the latest reading time."
+    ),
+) -> None:
+    """Build one graph snapshot and print its node/edge shape."""
+    import pandas as pd
+
+    from provenance.graph.build import build_snapshot, station_points_from_metadata
+    from provenance.graph.wind import WindField
+    from provenance.io import loaders
+
+    frame = loaders.load_data(data)
+    meta = loaders.load_station_metadata(data)
+    points = station_points_from_metadata(dict(meta))
+    if not points:
+        console.print("[red]No station coordinates in this drop; cannot build a graph.[/red]")
+        raise typer.Exit(code=1)
+    from provenance.config.loading import load_graph_config
+    from provenance.schema import canonical as C
+
+    when = pd.Timestamp(at) if at else pd.Timestamp(frame[C.TIMESTAMP].max())
+    wind = WindField.from_frame(frame)
+    snap = build_snapshot(points, wind, when, load_graph_config())
+    summary = snap.summary()
+    console.print(f"[bold]Snapshot at {summary['timestamp']}[/bold]")
+    console.print(f"wind available: {snap.meta.get('wind_available')}")
+    console.print("nodes:", summary["nodes"])
+    console.print("edges:", summary["edges"])
 
 
 if __name__ == "__main__":  # pragma: no cover

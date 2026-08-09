@@ -18,6 +18,7 @@ _CONFIG_DIR = Path(__file__).resolve().parent
 THRESHOLDS_PATH = _CONFIG_DIR / "thresholds.yaml"
 SCHEMA_ASSUMPTIONS_PATH = _CONFIG_DIR / "schema_assumptions.yaml"
 STATION_ZONES_PATH = _CONFIG_DIR / "station_zones.yaml"
+GRAPH_PATH = _CONFIG_DIR / "graph.yaml"
 
 
 @lru_cache(maxsize=1)
@@ -46,6 +47,18 @@ def load_station_zones() -> dict[str, str]:
     data: dict[str, Any] = yaml.safe_load(STATION_ZONES_PATH.read_text(encoding="utf-8"))
     stations = data.get("stations", {}) or {}
     return {str(sid): str(spec["zone"]) for sid, spec in stations.items()}
+
+
+@lru_cache(maxsize=1)
+def load_graph_config() -> dict[str, Any]:
+    """Wind-graph and propagation-adjudicator parameters (see ``graph.yaml``).
+
+    Physically-reasoned defaults, not calibrated: the file carries ``status:
+    provisional`` and every figure is a modelling choice, never a data-derived
+    constant (standing rule 1).
+    """
+    data: dict[str, Any] = yaml.safe_load(GRAPH_PATH.read_text(encoding="utf-8"))
+    return data
 
 
 def config_hash() -> str:

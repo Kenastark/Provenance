@@ -27,6 +27,10 @@ FORBIDDEN: dict[str, set[str]] = {
     "io": {"api", "report", "models", "graph"},
     "audit": {"api", "report"},
     "trust": {"api", "report"},
+    # graph sits after trust and before the neural stack: it may lean on everything
+    # upstream (io/schema/grid/detectors/audit/trust/config) but never the
+    # presentation layers or anything downstream of it.
+    "graph": {"api", "report", "models", "explain"},
     "config": {"api", "report", "models", "graph", "detectors", "audit", "io"},
 }
 

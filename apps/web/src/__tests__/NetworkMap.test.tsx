@@ -180,11 +180,17 @@ describe("NetworkMap", () => {
     expect(within(legend).getByText("Fault")).toBeInTheDocument();
   });
 
-  it("builds the graph-edge toggle disabled, with a reason", async () => {
+  it("offers the wind-conditioned edge layer, off by default and switchable on", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<NetworkMap />);
     const toggle = await screen.findByTestId("layer-toggle-windEdges");
-    expect(toggle).toBeDisabled();
-    expect(screen.getByText(/Available in graph view/i)).toBeInTheDocument();
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    // The edge layer is drawn once enabled (empty of lines under jsdom, which has no
+    // WebGL projection, but present as its own layer over the map).
+    expect(await screen.findByTestId("wind-edge-layer")).toBeInTheDocument();
   });
 
   it("lets the available layer be switched off", async () => {
