@@ -60,10 +60,18 @@ def _build_model(kind: str, config: HSTGATConfig) -> HSTGAT | GCNBaseline:
 
 
 def set_seed(seed: int) -> None:
-    """Seed every RNG the training loop touches (standing rule 8)."""
+    """Seed every RNG the training loop touches (standing rule 8).
+
+    Also pins torch to a single intra-op thread: CPU determinism is only guaranteed
+    single-threaded (ADR 0009), and on macOS the multiple bundled OpenMP runtimes
+    (torch/numba/sklearn/scipy) can race a background thread and crash a large
+    ``torch.tensor`` build. One thread removes both problems; the models here are tiny,
+    so there is nothing to parallelise anyway.
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.set_num_threads(1)
 
 
 def resolve_device(name: str) -> torch.device:

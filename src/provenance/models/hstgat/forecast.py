@@ -20,6 +20,7 @@ per-neighbour expected excess and a σ, nothing that could be read as a method s
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,7 +79,21 @@ class LearnedExpectation:
     provenance: str
     predicted: dict[str, tuple[float, float]]  # station_id -> (physical mean, physical sigma)
     baselines: dict[str, float]
+    conformal_q: float | None = None
+    """The persisted split-conformal half-width multiplier (normalised score). ``None``
+    when the model was saved without a calibrator — then no interval is attached."""
     _analytic: AnalyticExpectation = field(default_factory=AnalyticExpectation)
+
+    def _interval(self, expected_excess: float, sigma: float) -> tuple[float, float] | None:
+        """Calibrated interval on the expected excess: ``expected_excess ± q·σ``.
+
+        Returns ``None`` unless a finite conformal ``q`` was persisted with the model, so
+        the interval is never fabricated from an un-calibrated width.
+        """
+        if self.conformal_q is None or not math.isfinite(self.conformal_q):
+            return None
+        half = self.conformal_q * sigma
+        return (expected_excess - half, expected_excess + half)
 
     def expect(
         self,
@@ -104,14 +119,16 @@ class LearnedExpectation:
                 sigma=None,
             )
         mean_value, sigma_value = pred
+        expected_excess = mean_value - base
         return NeighbourExpectation(
             station_id=geom.station_id,
             distance_km=geom.distance_km,
             bearing_deg=geom.bearing_deg,
             arrival_delay_min=geom.arrival_delay_min,
-            expected_excess=mean_value - base,
+            expected_excess=expected_excess,
             within_horizon=geom.within_horizon,
             sigma=sigma_value,
+            interval=self._interval(expected_excess, sigma_value),
         )
 
 
@@ -191,7 +208,13 @@ def build_learned_provider(
         )
         if base is not None:
             baselines[sid] = base
-    return LearnedExpectation(provenance=LEARNED, predicted=predicted, baselines=baselines)
+    q = None
+    if loaded.conformal is not None:
+        raw_q = loaded.conformal.get("q")
+        q = None if raw_q is None else float(raw_q)
+    return LearnedExpectation(
+        provenance=LEARNED, predicted=predicted, baselines=baselines, conformal_q=q
+    )
 
 
 def learned_provider_factory(

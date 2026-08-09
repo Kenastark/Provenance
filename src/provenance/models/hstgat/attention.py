@@ -52,7 +52,13 @@ def attention_overlay(
         mean=loaded.mean,
         std=loaded.std,
     )
-    t = batch.n_times - 1 if at_time is None else batch.times.index(pd.Timestamp(at_time))
+    # Default to the last hour; if a specific hour is asked for but the target parameter
+    # was not measured then, fall back to the last hour rather than crashing.
+    if at_time is None:
+        t = batch.n_times - 1
+    else:
+        want = pd.Timestamp(at_time)
+        t = batch.times.index(want) if want in batch.times else batch.n_times - 1
     value_input = batch.target.clone()
     mask_flag = torch.zeros_like(batch.target)
     with torch.no_grad():
@@ -114,3 +120,29 @@ def write_overlay(overlay: dict[str, Any], out_path: Path) -> Path:
         json.dumps(overlay, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     return out_path
+
+
+def write_overlay_for_drop(
+    frame: pd.DataFrame,
+    points: list[StationPoint],
+    wind: WindField,
+    cfg: dict[str, Any],
+    out_dir: Path,
+    *,
+    at_time: pd.Timestamp | None = None,
+    artefacts_dir: Path | None = None,
+) -> Path | None:
+    """Produce and write the attention overlay for a data drop, or ``None`` if no model.
+
+    This is the reachable, product-flow entry point (the CLI's ``graph adjudicate
+    --learned`` calls it): it loads the latest HST-GAT, builds the overlay, and writes
+    ``out_dir/attention_overlay.json``. With no artefact it returns ``None`` rather than
+    raising — a missing model degrades gracefully (standing rule 6).
+    """
+    from provenance.models.hstgat.store import load_latest
+
+    loaded = load_latest(artefacts_dir=artefacts_dir)
+    if loaded is None:
+        return None
+    overlay = attention_overlay(loaded, frame, points, wind, cfg, at_time=at_time)
+    return write_overlay(overlay, Path(out_dir) / "attention_overlay.json")

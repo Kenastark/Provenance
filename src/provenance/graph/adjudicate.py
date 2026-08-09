@@ -109,6 +109,12 @@ class NeighbourEvidence:
     expected_excess: float
     actual_excess: float | None
     corroborated: bool
+    sigma: float | None = None
+    """Predictive standard deviation of the expected excess (learned path only)."""
+    expected_interval: tuple[float, float] | None = None
+    """Calibrated split-conformal interval on ``expected_excess`` (learned path only, and
+    only when a conformal calibrator was persisted with the model). This is the
+    "calibrated confidence interval on every score" the demo checkpoint asks for."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -122,6 +128,12 @@ class NeighbourEvidence:
             "expected_excess": round(self.expected_excess, 4),
             "actual_excess": None if self.actual_excess is None else round(self.actual_excess, 4),
             "corroborated": self.corroborated,
+            "sigma": None if self.sigma is None else round(self.sigma, 4),
+            "expected_interval": (
+                None
+                if self.expected_interval is None
+                else [round(self.expected_interval[0], 4), round(self.expected_interval[1], 4)]
+            ),
         }
 
 
@@ -392,6 +404,8 @@ def validate_event(
                 expected_excess=exp.expected_excess,
                 actual_excess=actual_excess,
                 corroborated=corroborated,
+                sigma=exp.sigma,
+                expected_interval=exp.interval,
             )
         )
 

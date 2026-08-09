@@ -46,17 +46,23 @@ class LoadedModel:
     target_parameter: str
     env_ids: list[str]
     data_checksum: str
+    conformal: dict[str, Any] | None = None
+    """The persisted split-conformal calibrator (alpha, q, normalised, n_calibration), or
+    ``None`` if the model was saved without one. Used to attach a calibrated interval to
+    the learned expectation at inference — the interval is meaningless without the ``q``
+    computed on the held-out calibration block, so it travels with the artefact."""
 
 
 def _artefacts_dir(artefacts_dir: Path | None) -> Path:
     return Path(artefacts_dir) if artefacts_dir is not None else get_settings().artefacts_dir
 
 
-def _state_payload(trained: TrainedModel) -> dict[str, Any]:
+def _state_payload(trained: TrainedModel, conformal: dict[str, Any] | None) -> dict[str, Any]:
     c = trained.config
     return {
         "kind": trained.kind,
         "state_dict": trained.model.state_dict(),
+        "conformal": conformal,
         "config": {
             "target_parameter": c.target_parameter,
             "hidden_dim": c.hidden_dim,
@@ -85,6 +91,7 @@ def save_model(
     config_hash: str = "unknown",
     coverage: dict[str, Any] | None = None,
     baseline: dict[str, Any] | None = None,
+    conformal: dict[str, Any] | None = None,
     artefacts_dir: Path | None = None,
     docs_dir: Path | None = None,
 ) -> dict[str, Path]:
@@ -103,7 +110,7 @@ def save_model(
 
     model_path = directory / f"{trained.stem}{_MODEL_SUFFIX}"
     card_path = directory / f"{trained.stem}{_CARD_SUFFIX}"
-    torch.save(_state_payload(trained), model_path)
+    torch.save(_state_payload(trained, conformal), model_path)
     card_path.write_text(card.sidecar_json(), encoding="utf-8")
 
     resolved_docs = Path(docs_dir) if docs_dir is not None else get_settings().model_docs_dir
@@ -128,6 +135,7 @@ def _rebuild(payload: dict[str, Any]) -> LoadedModel:
         target_parameter=str(payload["target_parameter"]),
         env_ids=list(payload["env_ids"]),
         data_checksum=str(payload["data_checksum"]),
+        conformal=payload.get("conformal"),
     )
 
 

@@ -5,6 +5,23 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 
+### Fixed
+- **Phase-6 flag review — the attention export and the calibrated interval are now
+  produced in the product flow, not only in tests.** Two capabilities that phase 6 built
+  and coverage-tested were reachable only from unit tests:
+  - The **attention overlay** (§8) is now written by `prov graph adjudicate --learned`
+    (via `models/hstgat/attention.py:write_overlay_for_drop`) as
+    `attention_overlay.json` for the top-ranked event — the map-ready "which neighbours
+    influenced this call" export. The live MapLibre rendering remains a deliberate
+    frontend follow-up (would drift the pinned visual baselines).
+  - The **split-conformal calibrator (`q`) is now persisted with the artefact** and
+    loaded at inference, so a learned adjudication attaches a **calibrated interval on
+    the expected excess of every downwind neighbour** (`NeighbourEvidence.sigma` /
+    `expected_interval`) — the "calibrated confidence intervals on every score" the demo
+    checkpoint asks for. Previously the model's predictive σ was computed and dropped and
+    the `q` was discarded after coverage was recorded. The analytic path is unchanged
+    (both fields are `None`; the KER11 characterization still passes byte-for-byte).
+
 ## [0.6.0] - 2026-08-09
 Phase 6: the research contribution — a heterogeneous spatio-temporal graph-attention
 network (HST-GAT), split-conformal intervals, a learned propagation validator behind a
