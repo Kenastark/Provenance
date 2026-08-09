@@ -38,6 +38,11 @@ repos:
           - "sqlalchemy[asyncio]>=2.0"
           - "alembic>=1.13"
           - "structlog>=24.1"
+          # torch ships its own stubs (py.typed) and the phase-6 model code subclasses
+          # torch.nn.Module, so the hook env needs the real package or strict mypy sees
+          # Module as Any and rejects the subclass. torch-geometric stays in
+          # ignore_missing_imports (pyproject), so it is deliberately not listed here.
+          - "torch>=2.2,<2.9"
         args: ["--config-file=pyproject.toml"]
         pass_filenames: false
 

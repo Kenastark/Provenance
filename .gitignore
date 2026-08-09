@@ -27,6 +27,11 @@ src/provenance/models/artefacts/**
 # cards (e.g. the propagation adjudicator) are tracked normally.
 docs/model-cards/deweather-*.md
 docs/model-cards/fault-*.md
+# The HST-GAT's auto-generated card carries a checksum suffix (hst-gat-v1-<checksum>.md);
+# the hand-written, committed card is docs/model-cards/hst-gat-v1.md, which this does NOT
+# match.
+docs/model-cards/hst-gat-v1-*.md
+docs/model-cards/gcn-*.md
 
 # ---- python ----
 .venv/

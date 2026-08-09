@@ -33,10 +33,13 @@ import numpy as np
 import pandas as pd
 
 from provenance.graph.edges import WindEdgeParams, wind_edge_weight
+from provenance.graph.expectation import (
+    AnalyticExpectation,
+    ExpectationProvider,
+)
 from provenance.graph.propagation import (
     PropagationParams,
     evaluation_hours,
-    expected_arrival,
 )
 from provenance.graph.topology import StationPoint
 from provenance.graph.wind import WindField, WindProvenance, WindVector
@@ -163,6 +166,10 @@ class EvidenceBundle:
     covariates: list[CovariateState]
     reason_codes: list[str]
     notes: list[str] = field(default_factory=list)
+    expectation_provenance: str = "analytic"
+    """Which expectation produced this verdict — "analytic" (phase-4 plume prior) or
+    "hst-gat" (the learned forecast). Recorded so the fallback is always visible in the
+    bundle a human reviews (standing rule 6), never silent."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -175,6 +182,7 @@ class EvidenceBundle:
             "covariates": [c.to_dict() for c in self.covariates],
             "reason_codes": list(self.reason_codes),
             "notes": list(self.notes),
+            "expectation_provenance": self.expectation_provenance,
         }
 
 
@@ -308,14 +316,27 @@ def validate_event(
     wind: WindField,
     readings: pd.DataFrame,
     cfg: dict[str, Any],
+    *,
+    expectation: ExpectationProvider | None = None,
 ) -> Adjudication:
     """Adjudicate one candidate event over the wind graph. Returns a full bundle.
 
     Deterministic in ``(event, geometry, wind at the event hour, readings, config)``.
+
+    ``expectation`` chooses who computes the downwind expectation each neighbour is
+    judged against: the default :class:`~provenance.graph.expectation.AnalyticExpectation`
+    is the phase-4 plume prior (and reproduces phase-4 verdicts byte-for-byte), while a
+    learned :class:`~provenance.graph.expectation.ExpectationProvider` injected from the
+    ``models`` layer swaps in the HST-GAT forecast (§6.4). The adjudicator imports
+    neither the model nor torch — the seam is a Protocol, so the layering holds. Which
+    provider ran is recorded in the evidence bundle's ``expectation_provenance``.
     """
     params = AdjudicatorParams.from_config(cfg)
     wind_params = WindEdgeParams.from_config(cfg)
     prop_params = PropagationParams.from_config(cfg)
+    provider: ExpectationProvider = (
+        expectation if expectation is not None else AnalyticExpectation()
+    )
 
     by_id = {p.station_id: p for p in points}
     source = by_id.get(event.station_id)
@@ -331,7 +352,9 @@ def validate_event(
             if source is not None
             else "The event's station has no coordinate in the graph; cannot assess propagation."
         )
-        return _ambiguous_without_neighbours(event, vec, wind, covariates, note, params)
+        return _ambiguous_without_neighbours(
+            event, vec, wind, covariates, note, params, provider.provenance
+        )
 
     hours = evaluation_hours(event.timestamp, prop_params)
     neighbours: list[NeighbourEvidence] = []
@@ -343,7 +366,7 @@ def validate_event(
         )
         if weight < params.downwind_weight_floor:
             continue
-        arrival = expected_arrival(source, p, vec, event.excess, wind_params, prop_params)
+        exp = provider.expect(source, p, vec, event, wind_params, prop_params)
         n_series = _series(readings, p.station_id, event.parameter)
         carries = not n_series.empty
         actual_excess: float | None = None
@@ -353,22 +376,20 @@ def validate_event(
             actual = _value_at(n_series, hours)
             if base is not None and actual is not None:
                 actual_excess = actual - base
-                threshold = arrival.expected_excess * (1.0 - params.corroboration_tolerance)
+                threshold = exp.expected_excess * (1.0 - params.corroboration_tolerance)
                 corroborated = (
-                    arrival.within_horizon
-                    and arrival.expected_excess > 0
-                    and actual_excess >= threshold
+                    exp.within_horizon and exp.expected_excess > 0 and actual_excess >= threshold
                 )
         neighbours.append(
             NeighbourEvidence(
                 station_id=p.station_id,
-                distance_km=arrival.distance_km,
-                bearing_deg=arrival.bearing_deg,
+                distance_km=exp.distance_km,
+                bearing_deg=exp.bearing_deg,
                 edge_weight=weight,
                 wind_provenance=vec.provenance.value,
                 carries_parameter=carries,
-                arrival_delay_min=arrival.arrival_delay_min,
-                expected_excess=arrival.expected_excess,
+                arrival_delay_min=exp.arrival_delay_min,
+                expected_excess=exp.expected_excess,
                 actual_excess=actual_excess,
                 corroborated=corroborated,
             )
@@ -398,6 +419,7 @@ def validate_event(
         covariates=covariates,
         reason_codes=reason_codes,
         notes=_notes_for(verdict, len(usable), params),
+        expectation_provenance=provider.provenance,
     )
     return Adjudication(
         event=event,
@@ -496,6 +518,7 @@ def _ambiguous_without_neighbours(
     covariates: list[CovariateState],
     note: str,
     params: AdjudicatorParams,
+    expectation_provenance: str = "analytic",
 ) -> Adjudication:
     wind_dict = (
         _wind_dict(vec, wind)
@@ -514,6 +537,7 @@ def _ambiguous_without_neighbours(
         covariates=covariates,
         reason_codes=[RC_AMBIGUOUS],
         notes=[note, "No headline accuracy figure is reported for this method."],
+        expectation_provenance=expectation_provenance,
     )
     confidence = params.ambiguous_confidence_cap
     return Adjudication(

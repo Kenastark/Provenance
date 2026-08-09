@@ -79,6 +79,18 @@ class Settings(BaseSettings):
     random_seed: int = 20260907
     """Global seed. Every run of every pipeline is reproducible from this."""
 
+    learned_propagation: bool = Field(default=False, alias="PROVENANCE_LEARNED_PROPAGATION")
+    """Phase-6 feature flag. When true, the propagation adjudicator swaps its analytic
+    expectation for the HST-GAT forecast (§6.4). Off by default: the analytic prior is
+    the shipped, demoable path, and the learned one is opt-in. If the flag is on but the
+    model artefact is absent or fails to load, the adjudicator falls back to the analytic
+    prior automatically and records which path produced the verdict (standing rule 6)."""
+
+    torch_device: str = Field(default="cpu", alias="PROVENANCE_TORCH_DEVICE")
+    """Device for the neural stack. ``cpu`` is the deterministic default CI uses (ADR
+    0009); ``mps`` is opt-in on Apple Silicon. An unavailable device falls back to CPU
+    with a logged warning rather than crashing."""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
