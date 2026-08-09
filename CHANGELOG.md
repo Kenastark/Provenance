@@ -6,6 +6,14 @@ Format: Keep a Changelog. Versioning: SemVer.
 ## [Unreleased]
 
 ### Fixed
+- **Test databases no longer leak an aiosqlite worker thread.** `io/db/engine.make_engine`
+  now backs file-based SQLite (the test path) with a `NullPool`, which closes each
+  connection on return, and keeps a `StaticPool` for `:memory:`. This removes at source the
+  leftover `_connection_worker_thread` that could race the native OpenMP math pools of a
+  later torch-heavy test and segfault the process on macOS (surfaced by the HST-GAT
+  "real corpus shape" test once it was included in the full local run; CI-Linux was
+  unaffected). Torch is also pinned to a single intra-op thread (`train.py`,
+  `tests/conftest.py`) for the CPU determinism the repo already requires (ADR 0009).
 - **Phase-6 flag review — the attention export and the calibrated interval are now
   produced in the product flow, not only in tests.** Two capabilities that phase 6 built
   and coverage-tested were reachable only from unit tests:

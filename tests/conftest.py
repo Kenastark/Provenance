@@ -21,14 +21,15 @@ import pytest
 import pytest_asyncio
 import torch
 
-# Serialise the native math thread pools before any test triggers a parallel op. On macOS
-# the several bundled OpenMP runtimes (torch, numba, sklearn, scipy) can race the aiosqlite
-# worker thread the async DB fixtures leave alive and segfault the process (exit 139)
-# mid-`torch.tensor` — the 18x720 graph build in the HST-GAT "real corpus shape" test is
-# the trigger. One thread each removes the race and matches the single-threaded CPU
-# determinism the repo already relies on (ADR 0009); CI (Linux) is unaffected. The env vars
-# are read lazily by each runtime on first use (after this module loads); torch takes the
-# immediate runtime setter.
+# Single-threaded native math pools, for two reasons. Primarily determinism: CPU results
+# are only guaranteed byte-identical single-threaded (ADR 0009, standing rule 8), and these
+# models are tiny so there is nothing to parallelise. Secondarily defense-in-depth: on
+# macOS the several bundled OpenMP runtimes (torch, numba, sklearn, scipy) could race a
+# stray aiosqlite worker thread and segfault a large `torch.tensor` build. That race's root
+# cause — a worker thread outliving its fixture — is now fixed at source (file-backed test
+# DBs use NullPool in `io/db/engine.make_engine`, so connections close eagerly); this keeps
+# the belt alongside that fix. The env vars are read lazily by each runtime on first use
+# (after this module loads); torch takes the immediate runtime setter. CI (Linux) unaffected.
 for _var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
