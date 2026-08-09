@@ -30,6 +30,7 @@ export const defaultRoutes: RouteMap = {
   "/v1/stations": page(fixtures.stations),
   "/v1/quality/summary": fixtures.qualitySummary,
   "/v1/audit/runs": page([fixtures.auditRun()]),
+  "/v1/audit/runs/run-2026-05-15": fixtures.auditRunDetail,
   "/v1/events": page(fixtures.events),
   "/v1/defects": page(fixtures.defects),
   "/v1/readings": page(fixtures.readings),

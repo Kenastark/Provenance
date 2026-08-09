@@ -15,9 +15,24 @@
  * deliberate choice: a municipal buyer story is stronger on an open stack.
  */
 
-import type { StyleSpecification } from "maplibre-gl";
+import { DARK, GRAYSCALE, layers as protomapsLayers } from "@protomaps/basemaps";
+import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 
 export const MAP_STYLE_URL: string | undefined = import.meta.env.VITE_MAP_STYLE_URL;
+
+/**
+ * Where the fetched Debrecen basemap lives when it is present.
+ *
+ * `make basemap` extracts a Debrecen vector tile archive into `public/basemap/`,
+ * which the dev and preview servers serve from the site root. The file is
+ * gitignored and absent by default — a fresh clone, and every CI run, has no tiles
+ * and falls back to the token ground below. So the streets are a local-demo
+ * enhancement, never a thing tests or CI depend on.
+ */
+export const LOCAL_BASEMAP_URL = "/basemap/debrecen.pmtiles";
+
+/** The vector source name the Protomaps layer definitions expect. */
+const PROTOMAPS_SOURCE = "protomaps";
 
 /** Read a CSS custom property off the document root. */
 export function readToken(name: string, root?: HTMLElement): string {
@@ -82,6 +97,90 @@ export function buildFallbackStyle(root?: HTMLElement): StyleSpecification {
 
 export function resolveStyle(root?: HTMLElement): string | StyleSpecification {
   return MAP_STYLE_URL ?? buildFallbackStyle(root);
+}
+
+/**
+ * The real streets, when the fetched basemap is present.
+ *
+ * Uses the maintained `@protomaps/basemaps` layer definitions over a local PMTiles
+ * source, with the **symbol layers removed** so the map needs no glyph fonts and
+ * stays fully offline: streets, water, land use, buildings and boundaries, but no
+ * labels. Two deliberate choices matter here:
+ *
+ * 1. The GRAYSCALE / DARK flavours are neutral — greys and blue-greys, no saturated
+ *    green or blue. That is not aesthetics: Sentinel Green means *verified* and
+ *    Trust Blue is the only interactive colour, so a green park or a blue road on
+ *    the basemap would compete with the state the markers carry. The basemap must
+ *    sit under the map without arguing with it (tokens.css says exactly this).
+ * 2. The flavour tracks the app theme, so the streets re-theme with everything else.
+ *
+ * The OSM attribution is carried on the source, so MapLibre's own attribution
+ * control renders it — the open-stack, correctly-credited story the municipal pitch
+ * rests on.
+ */
+export function buildBasemapStyle(
+  theme: "dark" | "light",
+  pmtilesUrl: string = LOCAL_BASEMAP_URL,
+): StyleSpecification {
+  const flavour = theme === "dark" ? DARK : GRAYSCALE;
+  const geometryOnly = (protomapsLayers(PROTOMAPS_SOURCE, flavour, { lang: "en" }) as LayerSpecification[]).filter(
+    (layer) => layer.type !== "symbol",
+  );
+
+  return {
+    version: 8,
+    // A same-origin absolute URL: the pmtiles protocol needs the archive's full
+    // location, not a bare path, to issue range requests against it.
+    sources: {
+      [PROTOMAPS_SOURCE]: {
+        type: "vector",
+        url: `pmtiles://${absoluteUrl(pmtilesUrl)}`,
+        attribution:
+          '<a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">&copy; OpenStreetMap</a>',
+      },
+    },
+    layers: geometryOnly,
+  };
+}
+
+function absoluteUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  if (typeof window !== "undefined" && window.location) {
+    return `${window.location.origin}${path}`;
+  }
+  return path;
+}
+
+/** The ASCII magic every PMTiles v3 archive begins with. */
+const PMTILES_MAGIC = "PMTiles";
+
+/**
+ * Is a *real* PMTiles archive actually served here?
+ *
+ * It reads the first seven bytes and checks the archive magic — a HEAD, or trusting
+ * a 200, is not enough: the dashboard is a single-page app, and its dev and preview
+ * servers answer any unknown path with `index.html` and a 200. A HEAD probe would
+ * then report the basemap "present" when the file is absent, and the pmtiles loader
+ * would choke on HTML with "Wrong magic number" and leave the map stuck loading. A
+ * content check distinguishes the archive from the SPA fallback.
+ *
+ * Every failure — a 404, an SPA HTML fallback, no `fetch`, a network error —
+ * resolves to `false`, and the map keeps the token ground it was created with. That
+ * is what lets the streets be a local enhancement that never breaks a fresh clone.
+ */
+export async function probeBasemap(
+  url: string = LOCAL_BASEMAP_URL,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (typeof fetch !== "function") return false;
+  try {
+    const response = await fetch(url, { headers: { Range: `bytes=0-6` }, signal });
+    if (!response.ok) return false;
+    const magic = new TextDecoder().decode(new Uint8Array(await response.arrayBuffer()).subarray(0, 7));
+    return magic === PMTILES_MAGIC;
+  } catch {
+    return false;
+  }
 }
 
 /** A bounding box around the stations that have coordinates, with a little margin. */

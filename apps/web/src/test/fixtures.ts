@@ -47,6 +47,7 @@ export const trustComponents = [
     contribution: 0.168,
     is_placeholder: false,
     detail: "7 active flags",
+    evidence: { n_defects: 7 },
   },
   {
     name: "ImputationCertainty",
@@ -55,6 +56,7 @@ export const trustComponents = [
     contribution: 0.176,
     is_placeholder: true,
     detail: "imputation uncertainty 12.0% (placeholder, no model)",
+    evidence: { pct: 12.0 },
   },
   {
     name: "CrossSensorConsistency",
@@ -63,6 +65,7 @@ export const trustComponents = [
     contribution: 0.122,
     is_placeholder: false,
     detail: "3 parameter(s) compared to peers",
+    evidence: { n: 4, min_peers: 2 },
   },
   {
     name: "PhysicalPlausibility",
@@ -71,6 +74,7 @@ export const trustComponents = [
     contribution: 0.04,
     is_placeholder: false,
     detail: "worst-case margin over 336 readings",
+    evidence: { n_readings: 336 },
   },
 ];
 
@@ -79,7 +83,9 @@ export const trustScore = (overrides: Partial<TrustScore> = {}): TrustScore => (
   timestamp_utc: "2026-05-14T00:00:00",
   trust: 0.51,
   components: trustComponents,
-  reason_codes: ["T01", "T04", "T02"],
+  // Every placeholder-bearing trust code, so the fixture proves each one renders
+  // as a sentence rather than as a template.
+  reason_codes: ["T01", "T04", "T02", "T03"],
   risk: {
     value: 0.31,
     trust: 0.51,
@@ -89,6 +95,7 @@ export const trustScore = (overrides: Partial<TrustScore> = {}): TrustScore => (
   },
   degraded: false,
   notes: ["ImputationUncertainty is a placeholder term (12.0% absent); no model yet."],
+  evidence: { n_defects: 7, pct: 12.0, n: 4, min_peers: 2, n_readings: 336 },
   ...overrides,
 });
 
@@ -102,6 +109,7 @@ export const qualityStation = (overrides: Partial<QualityStation> = {}): Quality
   last_reading_at: "2026-05-14T23:00:00",
   components: trustComponents,
   reason_codes: ["T01", "T04"],
+  evidence: { n_defects: 7, pct: 12.0, n: 4, min_peers: 2, n_readings: 336 },
   ...overrides,
 });
 
@@ -130,6 +138,20 @@ export const auditRun = (overrides: Partial<AuditRun> = {}): AuditRun => ({
   ingest_batch_id: "batch-1",
   ...overrides,
 });
+
+/**
+ * The stored run summary, as the engine writes it.
+ *
+ * `defects_by_code` is computed by the audit over *every* row. The dashboard must
+ * read it rather than counting the paginated ledger, which stops at 500.
+ */
+export const auditRunDetail = {
+  run: auditRun(),
+  summary: {
+    defect_rate: { n_defective_cells: 812, n_covered_cells: 4020, rate: 0.20199 },
+    defects_by_code: { R07: 3, R09: 4, R10: 336, R12: 336, R18: 1 },
+  } as Record<string, unknown>,
+};
 
 export const defect = (overrides: Partial<Defect> = {}): Defect => ({
   id: 1,

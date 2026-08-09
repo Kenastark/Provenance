@@ -35,7 +35,21 @@ def _to_out(t: m.TrustScore) -> TrustScoreOut:
         risk=RiskOut(**t.risk),
         degraded=bool(t.degraded),
         notes=list(t.notes or []),
+        evidence=_evidence(t.components),
     )
+
+
+def _evidence(components: list[dict[str, Any]]) -> dict[str, Any]:
+    """Merge the components' figures into one substitution map.
+
+    Rows written before components carried evidence simply contribute nothing, so
+    an older score still serialises - it just renders its sentences with an em dash
+    where a number would go, exactly as it did before.
+    """
+    merged: dict[str, Any] = {}
+    for component in components:
+        merged.update(component.get("evidence") or {})
+    return merged
 
 
 def _component(c: dict[str, Any]) -> dict[str, Any]:
@@ -46,6 +60,7 @@ def _component(c: dict[str, Any]) -> dict[str, Any]:
         "contribution": c["contribution"],
         "is_placeholder": c.get("is_placeholder", False),
         "detail": c.get("detail", ""),
+        "evidence": c.get("evidence") or {},
     }
 
 

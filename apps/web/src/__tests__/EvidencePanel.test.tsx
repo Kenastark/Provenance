@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { EvidencePanel } from "../features/evidence/EvidencePanel";
 import * as fixtures from "../test/fixtures";
-import { page, renderWithProviders } from "../test/harness";
+import { page, renderWithProviders, stubClient } from "../test/harness";
 
 describe("EvidencePanel", () => {
   it("lists the flagged cells", async () => {
@@ -117,5 +117,69 @@ describe("EvidencePanel", () => {
       },
     });
     expect(await screen.findByText(/That absence is the defect/i)).toBeInTheDocument();
+  });
+});
+
+describe("the dense code chip is not a downgrade", () => {
+  it("carries the row's filled sentence in its tooltip and screen-reader text", async () => {
+    // The sentence sites were fixed when the placeholder leak was found; the code
+    // chip in the defect table was not, so it read "Value of — — exceeds the
+    // physical maximum for —" next to a row holding every one of those numbers.
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    await waitFor(() => expect(screen.getAllByTestId("data-table-row").length).toBe(3));
+
+    const row = screen
+      .getAllByTestId("data-table-row")
+      .find((candidate) => candidate.dataset.rowKey === "1")!;
+    const chip = within(row).getByTestId("reason-code-badge");
+
+    expect(chip).toHaveAttribute(
+      "title",
+      "Value of 3000 µg/m3 exceeds the physical maximum for PM10.",
+    );
+    expect(within(chip).getByText(/^R07: Value of 3000 µg\/m3/)).toBeInTheDocument();
+  });
+
+  it("still degrades to an em dash where a tally has no single row to draw on", async () => {
+    // The audit report's per-code tally aggregates many defects, so there is no one
+    // evidence dict to attach. An em dash is correct there - what must never appear
+    // is a brace.
+    const { renderReasonSentenceParts } = await import("../api/reason-codes");
+    const { text } = renderReasonSentenceParts("R07", {});
+    expect(text).toContain("—");
+    expect(text).not.toMatch(/[{}]/);
+  });
+});
+
+describe("truncation is surfaced, never silent", () => {
+  it("tells the operator when the ledger walk hit its page cap", async () => {
+    // A client whose defect pages never run out: every response offers another
+    // cursor, so the walk stops only at the cap. That is the case flag B was about -
+    // a count that silently becomes a prefix. The stub is synchronous, so walking
+    // the full 100-page cap is a few milliseconds.
+    const base = stubClient();
+    let served = 0;
+    const client = {
+      config: base.config,
+      get: (async (path: string, options?: Parameters<typeof base.get>[1]) => {
+        if (path === "/v1/defects") {
+          served += 1;
+          return { items: [fixtures.defect({ id: served })], next_cursor: `more-${served}`, count: 1 };
+        }
+        return base.get(path, options);
+      }) as typeof base.get,
+    } as typeof base;
+
+    renderWithProviders(<EvidencePanel />, { route: "/evidence", client });
+
+    const banner = await screen.findByTestId("evidence-truncated");
+    expect(banner).toHaveTextContent(/Showing the first .* flagged cells/i);
+    expect(banner).toHaveTextContent(/narrow by station, code, or time window/i);
+  });
+
+  it("shows no truncation banner when the walk reaches the end", async () => {
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    await screen.findByTestId("defect-table");
+    expect(screen.queryByTestId("evidence-truncated")).not.toBeInTheDocument();
   });
 });

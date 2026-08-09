@@ -4,6 +4,50 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Added
+- **Real street basemap for the demo map** (ADR 0006, resolving the flag-review
+  escalation). `make basemap` extracts the Debrecen region (~6 MB) from a Protomaps
+  planet build into a gitignored path; the dashboard renders it under the markers
+  when present and falls back to the token ground otherwise. Offline after the first
+  fetch, never committed, neutral palette so it never competes with the state colours.
+
+### Fixed
+- Second phase-3 flag-review pass:
+  - **Defect list truncation is surfaced.** The cursor walk reports when it stops at
+    its page cap; the evidence panel shows a banner instead of presenting a prefix as
+    the whole set.
+  - **The defect table's dense code chip carries its row's evidence**, so its tooltip
+    and screen-reader text read the full sentence, not "Value of — — exceeds the
+    physical maximum for —".
+  - **Trust component evidence keys are pinned pairwise-disjoint** by a test.
+  - **The map re-themes on a theme switch** (a latent bug: the token ground never
+    repainted), surfaced while wiring the basemap.
+- Phase-3 flag-review resolutions:
+  - **Trust reason codes carry their figures.** `TrustComponent` gains an `evidence`
+    dict keyed by the placeholder names the registry sentences use, and `TrustScore`
+    merges them into the substitution map the API now serves as
+    `TrustScoreOut.evidence`. No migration: `components` is already a JSON column of
+    arbitrary dicts. T03 reads "disagreement with 15 neighbouring station(s)" instead
+    of an em dash with a prose fallback beneath it.
+  - **The audit report's per-code breakdown is complete.** It read one 500-row page
+    and counted it, which on the 18-station demo corpus showed 6 of 13 reason codes
+    with R10 at 145 instead of 336. It now reads `summary.defects_by_code`, computed
+    by the engine over every row, and `useDefects` follows the cursor so no windowed
+    count can silently truncate.
+  - **The defect table's code chip carries its row's evidence**, so its tooltip and
+    screen-reader text no longer read "Value of — — exceeds the physical maximum
+    for —" beside a row holding every one of those numbers.
+  - **The contract drift check moved to `ci.yml`**, which has no `paths:` filter and
+    therefore cannot be skipped by a change nobody thought to list.
+  - **CI starts the API through `make api-bg`**, the same target `make demo` uses, so
+    a `make demo` that does not start the API fails a check.
+  - Uptime and last-calibration stay derived in the dashboard but are tethered by
+    backend tests asserting the two properties their formula assumes.
+
+### Documentation
+- `dashboard-v1.1-operator-screens.md` supersedes v1.0.
+- `docs/demo/checkpoint-3-capture-checklist-v1.0.md` records the outstanding human
+  demo-capture task durably.
 
 ## [0.3.0] - 2026-08-08
 ### Added

@@ -51,7 +51,8 @@ export function EvidencePanel() {
   });
   const stations = useStations();
 
-  const rows = defects.data ?? [];
+  const rows = defects.data?.items ?? [];
+  const truncated = defects.data?.truncated ?? false;
   const selected = useMemo(
     () => rows.find((defect) => String(defect.id) === selectedId) ?? rows[0] ?? null,
     [rows, selectedId],
@@ -72,7 +73,17 @@ export function EvidencePanel() {
         header: "Code",
         isRowHeader: true,
         sortValue: (defect) => defect.reason_code,
-        render: (defect) => <ReasonCodeBadge code={defect.reason_code} variant="code" />,
+        // The dense chip still needs the row's evidence: its tooltip and its
+        // screen-reader text are the full sentence, and without this they read
+        // "Value of — — exceeds the physical maximum for —" beside a row that
+        // holds every one of those numbers.
+        render: (defect) => (
+          <ReasonCodeBadge
+            code={defect.reason_code}
+            variant="code"
+            evidence={evidenceFor(defect)}
+          />
+        ),
       },
       {
         key: "station",
@@ -181,6 +192,17 @@ export function EvidencePanel() {
           </select>
         </label>
       </header>
+
+      {truncated && (
+        <p
+          className="prov-panel p-2 text-caption prov-state-degraded"
+          role="status"
+          data-testid="evidence-truncated"
+        >
+          Showing the first {rows.length.toLocaleString()} flagged cells. There are more than
+          this many for these filters — narrow by station, code, or time window to see the rest.
+        </p>
+      )}
 
       {rows.length === 0 ? (
         <div className="prov-panel">

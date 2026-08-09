@@ -102,8 +102,8 @@ export function QualityMonitor() {
       buildRows(
         quality.data?.stations ?? [],
         stations.data ?? [],
-        absences.data ?? [],
-        calibrations.data ?? [],
+        absences.data?.items ?? [],
+        calibrations.data?.items ?? [],
         windowHours,
       ),
     [quality.data, stations.data, absences.data, calibrations.data, windowHours],

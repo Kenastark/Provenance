@@ -22,6 +22,14 @@ class TrustComponent:
     is_placeholder: bool = False
     """True for terms that are not yet backed by a calibrated model (imputation)."""
     detail: str = ""
+    evidence: dict[str, Any] = field(default_factory=dict)
+    """The figures behind this term, keyed by the placeholder names the reason-code
+    sentences use.
+
+    ``detail`` is prose for a human; this is the same information in a form a
+    renderer can substitute. Keeping only the prose is what made the dashboard show
+    "Trust is reduced by disagreement with — neighbouring station(s)": the engine
+    had counted the neighbours and then thrown the count away."""
 
     @property
     def contribution(self) -> float:
@@ -35,6 +43,7 @@ class TrustComponent:
             "contribution": self.contribution,
             "is_placeholder": self.is_placeholder,
             "detail": self.detail,
+            "evidence": dict(self.evidence),
         }
 
 
@@ -77,6 +86,24 @@ class TrustScore:
     alone (graceful degradation, standing rule 6)."""
     notes: list[str] = field(default_factory=list)
 
+    @property
+    def evidence(self) -> dict[str, Any]:
+        """Every component's figures, merged — the substitution map for a sentence.
+
+        The merge assumes the components' evidence keys are pairwise disjoint: each
+        key is a placeholder name owned by exactly one component, so no component can
+        silently overwrite another's figure. That invariant is a property of the
+        component code, not of the data — only a code change could break it — so it
+        is pinned by ``tests/unit/test_trust_reason_evidence.py`` rather than by a
+        runtime check here. A guard in this hot path (it runs per station per scoring
+        instant) would risk taking a whole score down over what is, at worst, a
+        cosmetic label collision; the test catches it in CI instead, before it ships.
+        """
+        merged: dict[str, Any] = {}
+        for component in self.components:
+            merged.update(component.evidence)
+        return merged
+
     def __post_init__(self) -> None:
         if not self.components:
             raise ValueError("a trust score cannot render without its component breakdown")
@@ -95,4 +122,5 @@ class TrustScore:
             "risk": self.risk.to_dict(),
             "degraded": self.degraded,
             "notes": list(self.notes),
+            "evidence": self.evidence,
         }

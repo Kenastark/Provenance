@@ -63,7 +63,13 @@ def health_conf(
         reason_codes.append("T01")
     return (
         TrustComponent(
-            name="HealthConf", value=value, weight=0.0, detail=f"{n_active} active flags"
+            name="HealthConf",
+            value=value,
+            weight=0.0,
+            detail=f"{n_active} active flags",
+            # T01's sentence asks for {n_defects}. Carrying the count, and not only
+            # the prose above, is what lets the UI render it as a sentence.
+            evidence={"n_defects": n_active},
         ),
         reason_codes,
         [],
@@ -126,6 +132,7 @@ def imputation_uncertainty(
             weight=0.0,
             is_placeholder=True,
             detail=f"imputation uncertainty {pct}% (placeholder, no model)",
+            evidence={"pct": pct},  # T02
         ),
         reason_codes,
         notes,
@@ -167,7 +174,13 @@ def cross_sensor_consistency(
     station_params = sorted(fw[fw[C.STATION_ID] == station_id][C.PARAMETER].unique())
     if not station_params:
         return (
-            TrustComponent(name="CrossSensorConsistency", value=0.5, weight=0.0, detail="no data"),
+            TrustComponent(
+                name="CrossSensorConsistency",
+                value=0.5,
+                weight=0.0,
+                detail="no data",
+                evidence={"n": 0, "min_peers": min_peers},
+            ),
             ["T05"],
             [],
         )
@@ -219,6 +232,10 @@ def cross_sensor_consistency(
             value=value,
             weight=0.0,
             detail=f"{len(scores)} parameter(s) compared to peers",
+            # T03 asks for {n} disagreeing neighbours; T05 for the {min_peers}
+            # threshold it fell short of. Both are emitted unconditionally so the
+            # sentence renders whichever of the two codes this component raised.
+            evidence={"n": disagreement_peers, "min_peers": min_peers},
         ),
         reason_codes,
         [],
@@ -298,6 +315,10 @@ def physical_plausibility(
             value=value,
             weight=0.0,
             detail=f"worst-case margin over {len(plausibilities)} readings",
+            # T04's sentence takes no placeholder, but the sample size is what makes
+            # the term auditable, so it travels with the score rather than only in
+            # the prose.
+            evidence={"n_readings": len(plausibilities)},
         ),
         reason_codes,
         [],

@@ -74,6 +74,11 @@ web-e2e: ## Playwright end-to-end suite (needs the stack + demo data)
 # Linux baselines are both generated and verified inside the same pinned image, so
 # CI compares like with like. macOS baselines exist so the gate is real on a
 # developer's laptop too.
+#
+# The container copy drops public/basemap before building, so the visual gate always
+# tests the token-ground default - the state a fresh clone and CI have. The fetched
+# street basemap is a local enhancement and is deliberately not under pixel
+# regression (its tiles come from an upstream planet that changes daily).
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.62.1-noble
 VISUAL_API_URL ?= http://host.docker.internal:8000
 
@@ -93,6 +98,7 @@ define run_visual_in_container
 	      exit 1; }; \
 	    mkdir -p /build && cp -r /host/. /build/; \
 	    rm -rf /build/node_modules /build/dist /build/test-results /build/playwright-report; \
+	    rm -rf /build/public/basemap; \
 	    cd /build && pnpm install --no-frozen-lockfile --silent; \
 	    npx playwright test --project=chromium e2e/visual.spec.ts $(1); \
 	    cp /build/e2e/visual.spec.ts-snapshots/*-linux.png /out/ 2>/dev/null || true'
@@ -163,11 +169,14 @@ demo-data: demo-corpus ## schema, demo corpus, audit - everything but the server
 	$(VENV)/bin/prov audit run --data $(DEMO_DIR) --out reports
 
 API_PID := .demo-api.pid
+# Loopback locally. CI overrides it to 0.0.0.0 so the browser running inside the
+# pinned Playwright container can reach back through the Docker bridge.
+API_HOST ?= 127.0.0.1
 
 .PHONY: api
 api: ## run the API in the foreground
 	$(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
-	  --host 127.0.0.1 --port 8000 --reload
+	  --host $(API_HOST) --port 8000 --reload
 
 .PHONY: api-bg
 api-bg: ## start the API in the background (writes $(API_PID))
@@ -175,7 +184,7 @@ api-bg: ## start the API in the background (writes $(API_PID))
 	  echo "API already listening on :8000"; \
 	else \
 	  $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
-	    --host 127.0.0.1 --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
+	    --host $(API_HOST) --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
 	  for i in $$(seq 1 40); do \
 	    curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; \
 	  done; \
@@ -184,12 +193,19 @@ api-bg: ## start the API in the background (writes $(API_PID))
 	    || { echo "API failed to start; see .demo-api.log"; exit 1; }; \
 	fi
 
+.PHONY: basemap
+basemap: ## fetch the Debrecen street basemap (once; needs network; offline after)
+	bash scripts/fetch-basemap.sh
+
 .PHONY: demo
 demo: ## one command: stack up, demo corpus loaded and audited, API up, dashboard open
 	$(MAKE) up
 	$(MAKE) demo-data
 	$(MAKE) api-bg
 	cd apps/web && pnpm install --no-frozen-lockfile
+	@# The streets are a nice-to-have. If the fetch cannot reach the network, the
+	@# demo still runs against the token-coloured ground, so this must never abort it.
+	$(MAKE) basemap || echo "  basemap: skipped — the map will use the token ground"
 	@echo ""
 	@echo "  Dashboard : http://localhost:5173"
 	@echo "  API docs  : http://localhost:8000/docs"

@@ -120,3 +120,99 @@ def test_runtime_state_classes_are_safelisted(class_name: str) -> None:
         "tailwind.config.ts's safelist, so Tailwind will strip its rule and that state "
         "will render with no colour at all."
     )
+
+
+# The generated frontend client is a second copy of the API schema, the reason-code
+# registry and the design tokens. Its drift check is only a guarantee if it cannot
+# be skipped, which means it must live in a workflow with no `paths:` filter.
+WORKFLOWS = REPO / ".github" / "workflows"
+
+
+def _workflow(name: str) -> dict:
+    import yaml
+
+    return yaml.safe_load((WORKFLOWS / name).read_text("utf-8"))
+
+
+def test_contract_drift_check_runs_in_an_unfiltered_workflow() -> None:
+    """The contract check must not sit behind a path filter.
+
+    A filter only protects against the changes someone thought to list. Editing
+    ``trust/score.py``'s ``to_dict`` or a repository row builder changes the served
+    contract without touching any frontend path, and the dashboard would then
+    describe a system that no longer exists with CI green.
+    """
+    hosts = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        config = _workflow(path.name)
+        jobs = config.get("jobs", {})
+        if "contract" not in jobs:
+            continue
+        # PyYAML parses a bare `on:` key as the boolean True.
+        triggers = config.get(True) or config.get("on") or {}
+        pull_request = triggers.get("pull_request") or {}
+        filtered = isinstance(pull_request, dict) and bool(pull_request.get("paths"))
+        hosts.append((path.name, filtered))
+
+    assert hosts, "No workflow defines a `contract` job; the drift check is not wired up."
+    unfiltered = [name for name, filtered in hosts if not filtered]
+    assert unfiltered, (
+        "Every workflow defining the `contract` job filters by path "
+        f"({[n for n, _ in hosts]}). Move it to one that always runs."
+    )
+
+
+# `make demo` is the documented one-command path to a working demo. It once brought
+# up Postgres, loaded and audited the corpus, and opened the dashboard against
+# nothing, because the API was never started - and no test could notice, since CI
+# started the API its own way.
+MAKEFILE = REPO / "Makefile"
+
+
+def _recipe(target: str) -> list[str]:
+    """The lines of one Makefile target's recipe."""
+    lines = MAKEFILE.read_text("utf-8").splitlines()
+    out: list[str] = []
+    collecting = False
+    for line in lines:
+        if line.startswith(f"{target}:"):
+            collecting = True
+            continue
+        if collecting:
+            if line.startswith("\t"):
+                out.append(line.strip())
+            elif line.strip() and not line.startswith("#"):
+                break
+    return out
+
+
+def test_make_demo_starts_every_service_the_dashboard_needs() -> None:
+    """The demo target must bring up the stack, the data, the API and the dashboard.
+
+    Each of these is a thing the dashboard renders an empty state for when it is
+    missing, which is why omitting one produced a demo that looked plausible and
+    showed nothing.
+    """
+    recipe = " ".join(_recipe("demo"))
+    for needed, why in [
+        ("up", "the database and cache"),
+        ("demo-data", "the corpus and the audit run"),
+        ("api-bg", "the API the dashboard reads from"),
+        ("web", "the dashboard itself"),
+    ]:
+        assert needed in recipe, (
+            f"`make demo` no longer starts {why} (missing `{needed}`). Every screen "
+            "would render its empty state against a stack that looks healthy."
+        )
+
+
+def test_ci_starts_the_api_through_the_documented_target() -> None:
+    """CI must exercise `make api-bg`, not a private uvicorn invocation.
+
+    If CI starts the API its own way, a broken `make demo` passes every check.
+    """
+    workflow = (WORKFLOWS / "frontend.yml").read_text("utf-8")
+    assert "make api-bg" in workflow, (
+        "The e2e workflow starts the API by hand instead of through `make api-bg`, "
+        "so nothing exercises the command the documentation tells a person to run."
+    )

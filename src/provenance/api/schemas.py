@@ -55,6 +55,10 @@ class ComponentOut(BaseModel):
     contribution: float
     is_placeholder: bool
     detail: str
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """The figures behind this term, keyed by the placeholder names the reason-code
+    sentences use. ``detail`` is the same information as prose; this is the form a
+    renderer can substitute, so a client never has to show an unfilled sentence."""
 
 
 class RiskOut(BaseModel):
@@ -80,6 +84,11 @@ class TrustScoreOut(BaseModel):
     risk: RiskOut
     degraded: bool = False
     notes: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """Every component's figures, merged: the substitution map for ``reason_codes``.
+
+    A consumer renders a code's registry sentence against this. Without it the only
+    way to show a reason was to print the template, placeholders and all."""
 
 
 class EventOut(BaseModel):
@@ -123,6 +132,9 @@ class QualityStationOut(BaseModel):
     # explanation the trust endpoint does (standing rule 9).
     components: list[ComponentOut] = Field(default_factory=list)
     reason_codes: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """As :class:`TrustScoreOut.evidence`: the map a reason-code sentence renders
+    against, so the at-a-glance table can say a sentence too."""
 
 
 class QualitySummaryOut(BaseModel):

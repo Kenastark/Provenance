@@ -80,6 +80,11 @@
             "title": "Detail",
             "type": "string"
           },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
           "is_placeholder": {
             "title": "Is Placeholder",
             "type": "boolean"
@@ -464,6 +469,11 @@
             "title": "Components",
             "type": "array"
           },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
           "flag_count": {
             "title": "Flag Count",
             "type": "integer"
@@ -766,6 +776,11 @@
             "default": false,
             "title": "Degraded",
             "type": "boolean"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
           },
           "notes": {
             "items": {

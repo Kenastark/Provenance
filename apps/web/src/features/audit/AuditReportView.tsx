@@ -30,11 +30,32 @@ interface CodeTally {
   category: string;
 }
 
+/**
+ * The engine's own per-code tally, computed over every row when the audit ran.
+ *
+ * `summary.defects_by_code` is the authoritative count. The alternative - counting
+ * the rows the paginated ledger returns - is wrong the moment a run exceeds one
+ * page, which the 18-station demo corpus already does: R10 is 336 in the engine's
+ * tally and 145 on the first page, and seven codes never appear at all.
+ */
+export function tallyFromSummary(summary: Record<string, unknown> | undefined): CodeTally[] | null {
+  const raw = summary?.["defects_by_code"];
+  if (!raw || typeof raw !== "object") return null;
+  const entries = Object.entries(raw as Record<string, unknown>).filter(
+    ([, count]) => typeof count === "number",
+  ) as [string, number][];
+  return entries.length > 0 ? buildTallies(new Map(entries)) : null;
+}
+
 export function tallyByCode(defects: readonly { reason_code: string; counts_toward_rate: boolean }[]): CodeTally[] {
   const counts = new Map<string, number>();
   for (const defect of defects) {
     counts.set(defect.reason_code, (counts.get(defect.reason_code) ?? 0) + 1);
   }
+  return buildTallies(counts);
+}
+
+function buildTallies(counts: Map<string, number>): CodeTally[] {
   return [...counts.entries()]
     .map(([code, count]) => {
       const def = reasonCode(code);
@@ -103,10 +124,29 @@ export function AuditReportView() {
   const runId = selectedRunId ?? latest?.id;
   const run = useMemo(() => runs.data?.find((r) => r.id === runId) ?? latest, [runs.data, runId, latest]);
   const detail = useAuditRun(runId);
-  const defects = useDefects({ limit: 500 });
 
-  const tallies = useMemo(() => tallyByCode(defects.data ?? []), [defects.data]);
-  const truncated = (defects.data?.length ?? 0) >= 500;
+  // The authoritative tally comes off the stored run summary. The ledger is only a
+  // fallback for a run recorded before the summary carried one, and in that case
+  // the screen says the counts are a lower bound.
+  const authoritative = useMemo(
+    () => tallyFromSummary(detail.data?.summary),
+    [detail.data],
+  );
+  // Only reach for the ledger once the summary has settled *without* a tally.
+  // Rendering a provisional count while the authoritative one is still in flight
+  // would flash a wrong breakdown - and a wrong number that corrects itself a
+  // moment later is worse than a spinner, because someone may have read it.
+  const summarySettled = detail.isFetched || detail.isError || !runId;
+  const needsLedger = summarySettled && authoritative === null;
+  const defects = useDefects({ limit: 500, enabled: needsLedger });
+
+  const tallies = useMemo(
+    () => authoritative ?? (needsLedger ? tallyByCode(defects.data?.items ?? []) : []),
+    [authoritative, needsLedger, defects.data],
+  );
+  // The fallback counts a fetched ledger, which the cursor walk now reports as
+  // truncated directly rather than being inferred from a page-size heuristic.
+  const truncated = needsLedger && (defects.data?.truncated ?? false);
 
   const columns: Column<CodeTally>[] = useMemo(
     () => [
@@ -227,11 +267,14 @@ export function AuditReportView() {
 
       <div className="prov-panel p-4">
         <h3 className="mb-2 text-subhead">Defect breakdown by reason code</h3>
-        {defects.isLoading && <LoadingState label="Loading the defect ledger" />}
-        {defects.error && (
+        {!summarySettled && <LoadingState label="Loading the audit summary" />}
+        {needsLedger && defects.isLoading && (
+          <LoadingState label="Loading the defect ledger" />
+        )}
+        {authoritative === null && defects.error && (
           <ErrorState error={defects.error} what="load the defect ledger" onRetry={defects.refetch} />
         )}
-        {defects.data && tallies.length === 0 && (
+        {summarySettled && !defects.isLoading && tallies.length === 0 && (
           <EmptyState
             title="The audit found no defects in this run"
             description="That is a result, not an empty screen: every covered cell passed every detector."

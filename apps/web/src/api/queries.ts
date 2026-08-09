@@ -56,6 +56,10 @@ export const queryKeys = {
 // a page at 500 and the dashboard's dense views want the whole small table at once.
 const MAX_PAGE = 500;
 
+// A traversal cap, not a page size. 100 pages is 50,000 rows - more than the real
+// corpus produces - and it exists only so a paging bug cannot spin forever.
+const MAX_PAGES = 100;
+
 export function useVersion(): UseQueryResult<Version> {
   const client = useApiClient();
   return useQuery({
@@ -140,16 +144,61 @@ export interface DefectFilters {
   start?: string | null;
   end?: string | null;
   limit?: number;
+  enabled?: boolean;
 }
 
-export function useDefects(filters: DefectFilters = {}): UseQueryResult<Defect[]> {
+/** A fully-traversed list, plus whether the traversal was cut short by the cap. */
+export interface Paginated<T> {
+  items: T[];
+  /** True when the cap stopped the walk while more rows remained upstream. */
+  truncated: boolean;
+}
+
+/**
+ * Follow a cursor to exhaustion, so a count is a count.
+ *
+ * The list endpoints page at 500. Anything that *counts* the rows it fetched -
+ * the quality monitor's absent-cell numerator, a filtered defect total - is
+ * silently wrong the moment a query exceeds one page. `maxPages` stops a runaway
+ * traversal; when it bites, `truncated` says so, so a consumer can tell the user
+ * it is looking at a prefix rather than the whole set. The alternative - inferring
+ * truncation from `items.length === maxPages * pageSize` - is the kind of implicit
+ * signal that stops being true the moment a page comes back short.
+ */
+export async function paginateAll<T>(
+  client: ApiClient,
+  path: string,
+  query: Record<string, string | number | boolean | undefined>,
+  signal: AbortSignal | undefined,
+  maxPages = MAX_PAGES,
+): Promise<Paginated<T>> {
+  const items: T[] = [];
+  let cursor: string | null = null;
+  for (let fetched = 0; fetched < maxPages; fetched += 1) {
+    const page: Page<T> = await client.get<Page<T>>(path, {
+      query: { ...query, cursor: cursor ?? undefined },
+      signal,
+    });
+    items.push(...page.items);
+    if (!page.next_cursor) return { items, truncated: false };
+    cursor = page.next_cursor;
+  }
+  // Left the loop with a cursor still in hand: there is more upstream than the cap
+  // let us fetch.
+  return { items, truncated: true };
+}
+
+export function useDefects(filters: DefectFilters = {}): UseQueryResult<Paginated<Defect>> {
   const client = useApiClient();
   return useQuery({
     queryKey: queryKeys.defects(filters),
     placeholderData: keepPreviousData,
-    queryFn: async ({ signal }) => {
-      const page = await client.get<Page<Defect>>("/v1/defects", {
-        query: {
+    enabled: filters.enabled ?? true,
+    queryFn: ({ signal }) =>
+      paginateAll<Defect>(
+        client,
+        "/v1/defects",
+        {
           code: filters.code,
           station: filters.station,
           severity: filters.severity,
@@ -158,9 +207,7 @@ export function useDefects(filters: DefectFilters = {}): UseQueryResult<Defect[]
           limit: filters.limit ?? MAX_PAGE,
         },
         signal,
-      });
-      return page.items;
-    },
+      ),
   });
 }
 

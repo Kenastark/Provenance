@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useEvents, useQualitySummary, useReadings, useStations } from "../../api/queries";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { useTheme } from "../../lib/theme";
 import { useWindowState } from "../../lib/windowContext";
 import { StationDetailPanel } from "../station/StationDetailPanel";
 import { LayerToggles, MapLegend, StationMarkerLayer, WindOverlay } from "./MapOverlays";
@@ -109,8 +110,9 @@ function MapSurface({
   onSelect: (stationId: string) => void;
 }) {
   const { resolved } = useWindowState();
+  const { resolved: theme } = useTheme();
   const [layers, setLayers] = useState<Record<LayerId, boolean>>(DEFAULT_LAYERS);
-  const { containerRef, project, basemapAvailable, isIdle } = useMapEngine(markers);
+  const { containerRef, project, basemapAvailable, isIdle } = useMapEngine(markers, theme);
 
   // Wind is a network-level readout, taken across the stations that carry a wind
   // sensor rather than from a nominated one. Stations without one contribute

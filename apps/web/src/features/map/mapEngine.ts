@@ -1,5 +1,23 @@
-import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
+import { Protocol as PMTilesProtocol } from "pmtiles";
+import maplibregl, { type Map as MapLibreMap, type StyleSpecification } from "maplibre-gl";
 import { boundsForStations, resolveStyle } from "./mapStyle";
+
+/**
+ * Register the pmtiles protocol once, so a `pmtiles://` source can be range-read
+ * from a single local archive file.
+ *
+ * Guarded, because the vitest suite aliases maplibre-gl to a stub that has no
+ * `addProtocol` — and the map engine's factory runs under jsdom when a component
+ * test mounts the map surface. Without the guard, importing this module would throw
+ * there before any assertion ran.
+ */
+let pmtilesRegistered = false;
+function ensurePmtilesProtocol(): void {
+  if (pmtilesRegistered) return;
+  if (typeof maplibregl.addProtocol !== "function") return;
+  maplibregl.addProtocol("pmtiles", new PMTilesProtocol().tile);
+  pmtilesRegistered = true;
+}
 
 /**
  * The MapLibre binding, kept to one file and one shape.
@@ -22,7 +40,8 @@ export interface Projected {
 export interface MapEngine {
   project(lon: number, lat: number): Projected;
   fitStations(stations: readonly { lat?: number | null; lon?: number | null }[]): void;
-  setStyleFromTokens(): void;
+  /** Swap the whole style — used to bring in the fetched basemap and to re-theme. */
+  applyStyle(style: string | StyleSpecification): void;
   destroy(): void;
 }
 
@@ -32,6 +51,9 @@ export interface CreateMapEngineOptions {
   onReady: () => void;
   /** Fired when the map has finished moving and rendering. */
   onIdle: () => void;
+  /** The style to start with. Defaults to the token ground; the hook may swap in
+   *  the fetched basemap once it has confirmed the tiles are present. */
+  initialStyle?: string | StyleSpecification;
 }
 
 export function createMapEngine({
@@ -39,10 +61,12 @@ export function createMapEngine({
   onViewChange,
   onReady,
   onIdle,
+  initialStyle,
 }: CreateMapEngineOptions): MapEngine {
+  ensurePmtilesProtocol();
   const map: MapLibreMap = new maplibregl.Map({
     container,
-    style: resolveStyle(),
+    style: initialStyle ?? resolveStyle(),
     // No hardcoded centre: the view is fitted to the stations the API returns as
     // soon as they arrive. Until then, a neutral world view.
     center: [0, 0],
@@ -82,8 +106,10 @@ export function createMapEngine({
         duration: prefersReducedMotion() ? 0 : 600,
       });
     },
-    setStyleFromTokens() {
-      map.setStyle(resolveStyle());
+    applyStyle(style) {
+      // diff:true keeps the camera and only swaps the changed layers, so bringing
+      // in the basemap or re-theming does not throw the view back to the start.
+      map.setStyle(style, { diff: true });
     },
     destroy() {
       map.remove();

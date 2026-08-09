@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NetworkMap } from "../features/map/NetworkMap";
 import {
   buildStationMarkers,
@@ -8,7 +8,14 @@ import {
   currentWind,
   summariseMarkers,
 } from "../features/map/stationMarkers";
-import { boundsForStations, buildFallbackStyle, graticule } from "../features/map/mapStyle";
+import {
+  boundsForStations,
+  buildBasemapStyle,
+  buildFallbackStyle,
+  graticule,
+  LOCAL_BASEMAP_URL,
+  probeBasemap,
+} from "../features/map/mapStyle";
 import * as fixtures from "../test/fixtures";
 import { page, renderWithProviders } from "../test/harness";
 
@@ -220,5 +227,88 @@ describe("NetworkMap", () => {
     await waitFor(() =>
       expect(within(map).getByTestId("empty-state")).toHaveTextContent(/Location column/i),
     );
+  });
+});
+
+describe("fetched street basemap", () => {
+  it("builds a vector style over the local PMTiles archive, correctly credited", () => {
+    const style = buildBasemapStyle("light");
+    const source = style.sources.protomaps as { type: string; url: string; attribution: string };
+
+    expect(source.type).toBe("vector");
+    // The pmtiles protocol needs the archive's full location to range-read it.
+    expect(source.url).toContain("pmtiles://");
+    expect(source.url).toContain(LOCAL_BASEMAP_URL);
+    // The open-stack pitch rests on OSM being credited.
+    expect(source.attribution).toMatch(/OpenStreetMap/);
+  });
+
+  it("carries no symbol layers, so it needs no glyph fonts and stays offline", () => {
+    for (const theme of ["dark", "light"] as const) {
+      const style = buildBasemapStyle(theme);
+      expect(style.layers.length).toBeGreaterThan(20);
+      expect(style.layers.some((layer) => layer.type === "symbol")).toBe(false);
+      // A symbol-free style must not declare a glyphs endpoint.
+      expect(style.glyphs).toBeUndefined();
+    }
+  });
+
+  it("re-themes: the dark and light basemaps differ", () => {
+    const dark = JSON.stringify(buildBasemapStyle("dark"));
+    const light = JSON.stringify(buildBasemapStyle("light"));
+    expect(dark).not.toEqual(light);
+  });
+
+  it("uses only neutral basemap colours, so nothing competes with the state palette", () => {
+    // Sentinel Green means verified and Trust Blue is the only interactive colour;
+    // a saturated green or blue on the basemap would read as state. A neutral
+    // grey/slate basemap keeps colour meaning what it means on the markers.
+    const style = buildBasemapStyle("light");
+    const fills = style.layers
+      .map((layer) => {
+        const paint = (layer as { paint?: Record<string, unknown> }).paint ?? {};
+        return (paint["background-color"] ?? paint["fill-color"] ?? paint["line-color"]) as unknown;
+      })
+      .filter((value): value is string => typeof value === "string" && value.startsWith("#"));
+
+    expect(fills.length).toBeGreaterThan(0);
+    for (const hex of fills) {
+      const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      // Chroma (max-min) small => desaturated / neutral, whatever the brightness.
+      const chroma = Math.max(...channels) - Math.min(...channels);
+      expect(chroma, `${hex} is too saturated for a basemap`).toBeLessThanOrEqual(24);
+    }
+  });
+});
+
+describe("probeBasemap", () => {
+  const bytes = (text: string): Response =>
+    ({ ok: true, arrayBuffer: async () => new TextEncoder().encode(text).buffer }) as Response;
+
+  it("is false when the archive is absent (a 404)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false } as Response));
+    await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("is true only when the bytes are a real PMTiles archive", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(bytes("PMTiles\x03...")));
+    await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("is false on an SPA HTML fallback that answered 200 - the bug this guards", async () => {
+    // The dev/preview server returns index.html with a 200 for any unknown path.
+    // A HEAD or ok-only probe would call that "present" and the map would hang on
+    // HTML it cannot parse as tiles.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(bytes("<!doctype html><html>...")));
+    await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("is false, not a throw, when the request fails entirely", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(false);
+    vi.unstubAllGlobals();
   });
 });

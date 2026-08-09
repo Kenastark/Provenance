@@ -110,6 +110,19 @@ function StationDetailBody({
   );
   const components = score?.components ?? qualityRow?.components ?? [];
 
+  // The engine's own figures, keyed by the placeholder names the reason-code
+  // sentences use. Falls back to merging them off the components for a score
+  // written before the API carried them, and finally to the quality row's flag
+  // count so T01 at least renders.
+  const trustEvidence = useMemo(() => {
+    const served = score?.evidence ?? qualityRow?.evidence;
+    if (served && Object.keys(served).length > 0) return served;
+    const merged: Record<string, unknown> = {};
+    for (const component of components) Object.assign(merged, component.evidence ?? {});
+    if (Object.keys(merged).length > 0) return merged;
+    return { n_defects: qualityRow?.flag_count };
+  }, [score, qualityRow, components]);
+
   const parameters = useMemo(() => {
     const coverage = station?.coverage ?? {};
     return Object.keys(coverage).sort();
@@ -179,7 +192,7 @@ function StationDetailBody({
                 <li key={code}>
                   <ReasonCodeBadge
                     code={code}
-                    evidence={{ n_defects: qualityRow?.flag_count }}
+                    evidence={trustEvidence}
                     detail={detailFor(code, components)}
                   />
                 </li>
@@ -263,13 +276,13 @@ function StationDetailBody({
       </section>
 
       {/* --------------------------------------------------------- coverage */}
-      {coverageFacts.data && coverageFacts.data.length > 0 && (
+      {coverageFacts.data && coverageFacts.data.items.length > 0 && (
         <section aria-labelledby="station-coverage-heading">
           <h3 id="station-coverage-heading" className="mb-2 text-subhead">
             Coverage
           </h3>
           <ul className="m-0 list-none space-y-2 p-0" data-testid="station-coverage-facts">
-            {coverageFacts.data.map((fact) => (
+            {coverageFacts.data.items.map((fact) => (
               <li key={`${fact.reason_code}-${fact.parameter}`}>
                 <ReasonCodeBadge code={fact.reason_code} evidence={evidenceFor(fact)} />
               </li>
