@@ -22,7 +22,9 @@ from provenance.api.logging import RequestContextMiddleware
 from provenance.api.routers import (
     audit,
     defects,
+    deweather,
     events,
+    explain,
     export,
     meta,
     quality,
@@ -43,6 +45,8 @@ _ROUTERS = (
     events.router,
     audit.router,
     export.router,
+    explain.router,
+    deweather.router,
 )
 
 _DESCRIPTION = (

@@ -40,6 +40,9 @@ db_app = typer.Typer(help="Manage the database schema and load data.", no_args_i
 graph_app = typer.Typer(
     help="Wind-conditioned graph and the propagation adjudicator.", no_args_is_help=True
 )
+models_app = typer.Typer(
+    help="Train and apply the deweather and fault models (phase 5).", no_args_is_help=True
+)
 
 app.add_typer(data_app, name="data")
 app.add_typer(schema_app, name="schema")
@@ -48,6 +51,7 @@ app.add_typer(fixtures_app, name="fixtures")
 app.add_typer(codes_app, name="codes")
 app.add_typer(db_app, name="db")
 app.add_typer(graph_app, name="graph")
+app.add_typer(models_app, name="models")
 
 console = Console()
 
@@ -369,6 +373,102 @@ def graph_snapshot(
     console.print(f"wind available: {snap.meta.get('wind_available')}")
     console.print("nodes:", summary["nodes"])
     console.print("edges:", summary["edges"])
+
+
+# ------------------------------------------------------------------- models
+@models_app.command("train")
+def models_train(
+    demo: bool = typer.Option(
+        True, "--demo/--no-demo", help="Train on the seeded weather-coupled demo corpus."
+    ),
+    source: Path | None = typer.Option(
+        None, "--source", help="Real data drop to train on (implies --no-demo)."
+    ),
+    stations: int = typer.Option(6, "--stations", min=4, help="Demo corpus station count."),
+    days: int = typer.Option(30, "--days", help="Demo corpus days of hourly data."),
+) -> None:
+    """Train the deweather and fault models and save their artefacts and cards.
+
+    A model without a card cannot load (§5); training writes both the artefact and its
+    card sidecar, plus a human-readable card under docs/model-cards/.
+    """
+    from provenance.fixtures.weather import generate_weather_corpus
+    from provenance.models import registry
+    from provenance.models.deweather import train_deweather
+    from provenance.models.fault import train_fault_classifier
+
+    if not demo and source is None:
+        console.print("[red]--no-demo requires --source pointing at a real data drop.[/red]")
+        raise typer.Exit(code=1)
+
+    if source is not None:
+        from provenance.io import loaders
+
+        frame = loaders.load_data(source)
+        weather = None  # HungaroMet feed is unconfirmed; in-situ meteorology only.
+        console.print(f"Training on real drop {source} ({len(frame):,} readings, in-situ weather).")
+    else:
+        frame, weather = generate_weather_corpus(n_stations=stations, n_days=days)
+        console.print(f"Training on the seeded demo corpus ({stations} stations, {days} days).")
+
+    dw = train_deweather(frame, weather=weather)
+    console.print(
+        f"[green]Deweather[/green] {dw.version}: "
+        + ", ".join(f"{p} R²={dw.metrics[p].cv_r2_mean:.2f}" for p in dw.pollutants)
+    )
+    fc = train_fault_classifier(frame, dw, weather=weather)
+    console.print(
+        f"[green]Fault[/green] {fc.version}: recall "
+        + ", ".join(f"{k}={v:.2f}" for k, v in sorted(fc.signature_recall.items()))
+        + f" | meteo precision {fc.meteo_precision:.2f}"
+    )
+    dw_paths = registry.save_model(dw)
+    fc_paths = registry.save_model(fc)
+    console.print(f"[green]Saved[/green] {dw_paths['model'].name}, card {dw_paths['doc']}")
+    console.print(f"[green]Saved[/green] {fc_paths['model'].name}, card {fc_paths['doc']}")
+    console.print(
+        "[dim]No headline accuracy is reported for the classifier (standing rule 4).[/dim]"
+    )
+
+
+@models_app.command("residuals")
+def models_residuals(
+    source: Path = typer.Option(_DATA_DEFAULT, "--source", help="Data drop already loaded to DB."),
+) -> None:
+    """Compute deweathered residuals for a loaded drop and store them with the model version."""
+    import asyncio
+
+    from provenance.io import loaders
+    from provenance.io.db import repository as repo
+    from provenance.io.db.engine import make_engine, make_sessionmaker
+    from provenance.models import registry
+    from provenance.models.deweather import store_residuals
+
+    bundle = registry.load_bundle()
+    if bundle is None:
+        console.print("[red]No trained models found. Run `prov models train` first.[/red]")
+        raise typer.Exit(code=1)
+    frame = loaders.load_data(source)
+
+    async def _run() -> int:
+        from provenance.config.settings import get_settings
+
+        engine = make_engine(get_settings().database_url)
+        sm = make_sessionmaker(engine)
+        try:
+            async with sm() as session:
+                run = await repo.latest_audit_run(session)
+                return await store_residuals(
+                    session,
+                    bundle.deweather,
+                    frame,
+                    audit_run_id=run.id if run is not None else None,
+                )
+        finally:
+            await engine.dispose()
+
+    n = asyncio.run(_run())
+    console.print(f"[green]Stored[/green] {n:,} residuals under model {bundle.deweather.version}.")
 
 
 if __name__ == "__main__":  # pragma: no cover

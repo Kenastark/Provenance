@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from provenance.api.auth import Role
 from provenance.api.deps import get_session, require
 from provenance.api.errors import ProblemException
+from provenance.api.models_status import models_available
 from provenance.api.pagination import Page, clamp_limit, decode_cursor, encode_cursor
 from provenance.api.schemas import ComponentOut, RiskOut, TrustScoreOut
 from provenance.io.db import models as m
@@ -24,8 +25,21 @@ from provenance.io.db import repository as repo
 
 router = APIRouter(prefix="/v1/trust", tags=["trust"])
 
+_DEGRADED_NOTE = (
+    "Model artefacts are unavailable; this score comes from the statistics layer alone "
+    "(graceful degradation, standing rule 6). Train models with `prov models train` to "
+    "enrich it."
+)
 
-def _to_out(t: m.TrustScore) -> TrustScoreOut:
+
+def _to_out(t: m.TrustScore, *, models_degraded: bool) -> TrustScoreOut:
+    # A score is degraded if it was computed degraded OR the model layer is absent at
+    # serving time. Either way the response says so — a trust layer never hides that it
+    # is running on statistics alone.
+    degraded = bool(t.degraded) or models_degraded
+    notes = list(t.notes or [])
+    if models_degraded and _DEGRADED_NOTE not in notes:
+        notes.append(_DEGRADED_NOTE)
     return TrustScoreOut(
         station_id=t.station_id,
         timestamp_utc=t.timestamp_utc.isoformat(),
@@ -33,8 +47,8 @@ def _to_out(t: m.TrustScore) -> TrustScoreOut:
         components=[ComponentOut(**_component(c)) for c in t.components],
         reason_codes=list(t.reason_codes),
         risk=RiskOut(**t.risk),
-        degraded=bool(t.degraded),
-        notes=list(t.notes or []),
+        degraded=degraded,
+        notes=notes,
         evidence=_evidence(t.components),
     )
 
@@ -77,6 +91,7 @@ async def get_trust(
     session: AsyncSession = Depends(get_session),
     _: Role = Depends(require(Role.PUBLIC_READ)),
 ) -> TrustScoreOut | Page[TrustScoreOut]:
+    models_degraded = not models_available()
     if series or start or end:
         n = clamp_limit(limit)
         after = decode_cursor(cursor)
@@ -88,7 +103,7 @@ async def get_trust(
             start=start.replace(tzinfo=None) if start and start.tzinfo else start,
             end=end.replace(tzinfo=None) if end and end.tzinfo else end,
         )
-        items = [_to_out(t) for t in rows[:n]]
+        items = [_to_out(t, models_degraded=models_degraded) for t in rows[:n]]
         next_cursor = (
             encode_cursor(rows[n - 1].timestamp_utc.isoformat()) if len(rows) > n else None
         )
@@ -99,4 +114,4 @@ async def get_trust(
         raise ProblemException(
             404, f"No trust score for station {station_id!r}. Load a data drop first."
         )
-    return _to_out(latest)
+    return _to_out(latest, models_degraded=models_degraded)

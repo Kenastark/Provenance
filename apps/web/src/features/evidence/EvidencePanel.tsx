@@ -11,9 +11,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { Defect } from "../../api/client";
+import type { Defect, Explain } from "../../api/client";
 import { evidenceFor, REASON_CODES } from "../../api/reason-codes";
-import { useDefects, useReadings, useStations } from "../../api/queries";
+import {
+  useDefects,
+  useDeweather,
+  useExplain,
+  useReadings,
+  useStations,
+} from "../../api/queries";
 import { DataTable, type Column } from "../../components/DataTable";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { EmptyState, ErrorState, LoadingState, NotYetComputed } from "../../components/States";
@@ -402,10 +408,8 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
         )}
       </div>
 
-      <NotYetComputed
-        title="Feature attribution (SHAP) for this flag"
-        arrivesIn="the LightGBM fault classifier lands in phase 5"
-      />
+      <ShapAttribution defect={defect} />
+      <DeweatherChart stationId={defect.station_id} parameter={defect.parameter} />
       <NotYetComputed
         title="Graph attention over neighbouring stations"
         arrivesIn="the HST-GAT attention overlay lands in phase 6"
@@ -449,5 +453,236 @@ function NeighbourSeries({
         {values.length} readings · mean {formatMeasurement(mean, unit)}
       </span>
     </li>
+  );
+}
+
+/**
+ * SHAP feature attribution for a flagged reading (phase 5).
+ *
+ * Fills the slot that was an empty placeholder until the tree models landed. When the
+ * model artefacts are present it shows the operator sentence, the fault class, and the
+ * top feature contributions as signed bars; when they are absent it says so plainly
+ * (graceful degradation, standing rule 6) rather than pretending or spinning forever.
+ */
+export function ShapAttribution({ defect }: { defect: Defect }) {
+  const explain = useExplain(defect.id);
+
+  if (explain.isLoading) {
+    return (
+      <div className="prov-panel p-4" data-testid="shap-attribution">
+        <LoadingState label="Explaining this flag" />
+      </div>
+    );
+  }
+  if (explain.error || !explain.data) {
+    return (
+      <NotYetComputed
+        title="Feature attribution (SHAP) for this flag"
+        arrivesIn="the explanation could not be loaded"
+      />
+    );
+  }
+
+  const data = explain.data;
+  if (data.degraded || data.method !== "model") {
+    return (
+      <div className="prov-panel p-4" data-testid="shap-attribution">
+        <h4 className="mb-1 text-subhead">Feature attribution (SHAP)</h4>
+        <p className="text-caption text-text-tertiary" data-testid="shap-degraded">
+          {data.method === "rule"
+            ? `This flag is decided by a deterministic rule (${data.fault_class ?? "physical"}); there is no model attribution to show.`
+            : "No trained model is loaded, so this runs on the statistics layer alone. Train one with `prov models train` to see per-feature SHAP attributions."}
+        </p>
+      </div>
+    );
+  }
+
+  return <ShapBars data={data} />;
+}
+
+function ShapBars({ data }: { data: Explain }) {
+  const top = [...(data.attributions ?? [])]
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    .slice(0, 6);
+  const maxAbs = Math.max(1e-9, ...top.map((a) => Math.abs(a.value)));
+
+  return (
+    <div className="prov-panel p-4" data-testid="shap-attribution">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h4 className="text-subhead">Feature attribution (SHAP)</h4>
+        {data.fault_class && (
+          <span className="prov-numeric text-caption text-text-tertiary">
+            fault class: {data.fault_class}
+          </span>
+        )}
+      </div>
+      <p className="mb-3 text-body" data-testid="shap-sentence">
+        {data.sentence}
+      </p>
+      <ul className="m-0 list-none space-y-2 p-0" data-testid="shap-bars">
+        {top.map((attr) => {
+          const width = `${(Math.abs(attr.value) / maxAbs) * 100}%`;
+          const positive = attr.value >= 0;
+          return (
+            <li key={attr.feature} className="grid grid-cols-[10rem_1fr] items-center gap-2">
+              <span className="truncate text-caption text-text-secondary" title={attr.feature}>
+                {attr.feature}
+                <span className="ml-1 text-micro text-text-tertiary">({attr.provenance})</span>
+              </span>
+              <span className="relative flex h-4 items-center">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-border" aria-hidden />
+                <span
+                  className="h-3 rounded-sm"
+                  style={{
+                    width,
+                    marginLeft: positive ? "50%" : `calc(50% - ${width})`,
+                    background: positive
+                      ? "var(--prov-chart-series-1)"
+                      : "var(--prov-chart-series-2)",
+                  }}
+                  title={`${positive ? "raised" : "lowered"} by ${attr.value.toFixed(3)}`}
+                />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 text-micro text-text-tertiary">
+        Bars right of centre raised the weather-predicted value; left lowered it. Attributions plus
+        the base value reconstruct the prediction exactly (SHAP additivity).
+      </p>
+    </div>
+  );
+}
+
+type DeweatherView = "both" | "raw" | "residual";
+
+/**
+ * The before/after deweathering chart (§7.6): raw reading vs weather-predicted vs
+ * residual, toggleable. The residual - what the weather does *not* explain - is the
+ * series anomaly detection actually sees. Degrades to an honest note when no residuals
+ * have been stored (no model trained yet).
+ */
+export function DeweatherChart({
+  stationId,
+  parameter,
+}: {
+  stationId: string;
+  parameter: string;
+}) {
+  const [view, setView] = useState<DeweatherView>("both");
+  const deweather = useDeweather(stationId, parameter);
+
+  const chartData = useMemo(
+    () =>
+      (deweather.data?.series ?? []).map((point) => ({
+        label: formatTimestamp(point.timestamp_utc),
+        actual: point.actual,
+        predicted: point.predicted,
+        residual: point.residual,
+      })),
+    [deweather.data],
+  );
+
+  if (deweather.isLoading) {
+    return (
+      <div className="prov-panel p-4" data-testid="deweather-chart">
+        <LoadingState label="Loading the deweathered series" />
+      </div>
+    );
+  }
+  if (deweather.error || !deweather.data || deweather.data.degraded || chartData.length === 0) {
+    return (
+      <NotYetComputed
+        title={`Deweathered residual for ${parameter}`}
+        arrivesIn="no residuals are stored yet — run `prov models train` then `prov models residuals`"
+      />
+    );
+  }
+
+  return (
+    <div className="prov-panel p-4" data-testid="deweather-chart">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="text-subhead">
+          Deweathered {parameter} — raw vs residual
+          {deweather.data.model_version && (
+            <span className="ml-2 text-micro text-text-tertiary">
+              model {deweather.data.model_version}
+            </span>
+          )}
+        </h4>
+        <div className="flex gap-1" role="group" aria-label="Deweather view" data-testid="deweather-toggle">
+          {(["both", "raw", "residual"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setView(option)}
+              aria-pressed={view === option}
+              className={`rounded-sm border px-2 py-0.5 text-caption ${
+                view === option
+                  ? "border-interactive text-interactive"
+                  : "border-border text-text-tertiary"
+              }`}
+            >
+              {option === "both" ? "Both" : option === "raw" ? "Raw" : "Residual"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ width: "100%", height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+            <CartesianGrid stroke="var(--prov-chart-grid)" strokeDasharray="2 4" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: "var(--prov-text-tertiary)" }}
+              stroke="var(--prov-chart-grid)"
+              minTickGap={64}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "var(--prov-text-tertiary)" }}
+              stroke="var(--prov-chart-grid)"
+              width={56}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--prov-surface)",
+                border: "1px solid var(--prov-border)",
+                borderRadius: "var(--prov-radius-md)",
+                fontSize: "var(--prov-size-caption)",
+              }}
+            />
+            {view !== "residual" && (
+              <Line
+                type="monotone"
+                dataKey="actual"
+                name="raw"
+                stroke="var(--prov-chart-series-1)"
+                dot={false}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
+            {view !== "raw" && (
+              <Line
+                type="monotone"
+                dataKey="residual"
+                name="residual"
+                stroke="var(--prov-chart-series-2)"
+                dot={false}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-2 text-micro text-text-tertiary">
+        The residual is actual minus what weather and time alone predict. A flatter residual than raw
+        means the weather has been removed; what is left is the signal worth trusting.
+      </p>
+    </div>
   );
 }

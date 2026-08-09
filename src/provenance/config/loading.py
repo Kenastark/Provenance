@@ -19,6 +19,7 @@ THRESHOLDS_PATH = _CONFIG_DIR / "thresholds.yaml"
 SCHEMA_ASSUMPTIONS_PATH = _CONFIG_DIR / "schema_assumptions.yaml"
 STATION_ZONES_PATH = _CONFIG_DIR / "station_zones.yaml"
 GRAPH_PATH = _CONFIG_DIR / "graph.yaml"
+MODELS_PATH = _CONFIG_DIR / "models.yaml"
 
 
 @lru_cache(maxsize=1)
@@ -58,6 +59,17 @@ def load_graph_config() -> dict[str, Any]:
     constant (standing rule 1).
     """
     data: dict[str, Any] = yaml.safe_load(GRAPH_PATH.read_text(encoding="utf-8"))
+    return data
+
+
+@lru_cache(maxsize=1)
+def load_models_config() -> dict[str, Any]:
+    """Deweather / fault / explain hyperparameters and reporting gates (``models.yaml``).
+
+    Modelling choices, not calibrated values: the file carries ``status:
+    provisional`` and nothing in it is a data-derived constant (standing rule 1).
+    """
+    data: dict[str, Any] = yaml.safe_load(MODELS_PATH.read_text(encoding="utf-8"))
     return data
 
 

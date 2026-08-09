@@ -50,12 +50,50 @@ describe("EvidencePanel", () => {
     expect(within(coverageRow!).getByText(/no — coverage/i)).toBeInTheDocument();
   });
 
-  it("renders the SHAP and attention slots as explicitly not yet computed", async () => {
+  it("populates the SHAP slot with the operator sentence and signed bars", async () => {
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    const sentence = await screen.findByTestId("shap-sentence");
+    expect(sentence).toHaveTextContent(/Driven primarily by/);
+    const bars = await screen.findByTestId("shap-bars");
+    expect(within(bars).getByText("boundary_layer_proxy")).toBeInTheDocument();
+    const shap = screen.getByTestId("shap-attribution");
+    expect(within(shap).getByText(/fault class: physically_impossible/)).toBeInTheDocument();
+  });
+
+  it("degrades the SHAP slot honestly when no model is loaded", async () => {
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/explain/1": fixtures.explainDegraded },
+    });
+    const degraded = await screen.findByTestId("shap-degraded");
+    expect(degraded).toHaveTextContent(/statistics layer alone/);
+  });
+
+  it("draws the before/after deweathering chart, toggleable", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    const toggle = await screen.findByTestId("deweather-toggle");
+    const residualButton = within(toggle).getByRole("button", { name: "Residual" });
+    expect(within(toggle).getByRole("button", { name: "Both" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(residualButton);
+    expect(residualButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows a degraded deweather note when no residuals are stored", async () => {
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/deweather/STA-03": fixtures.deweatherDegraded },
+    });
+    expect(await screen.findByText(/Deweathered residual for PM10/)).toBeInTheDocument();
+  });
+
+  it("leaves the phase-6 attention slot explicitly not yet computed", async () => {
     renderWithProviders(<EvidencePanel />, { route: "/evidence" });
     const slots = await screen.findAllByTestId("not-yet-computed");
-    expect(slots).toHaveLength(2);
-    expect(slots[0]).toHaveTextContent(/phase 5/);
-    expect(slots[1]).toHaveTextContent(/phase 6/);
+    expect(slots.some((slot) => slot.textContent?.includes("phase 6"))).toBe(true);
   });
 
   it("points to the event timeline for the adjudication verdict", async () => {

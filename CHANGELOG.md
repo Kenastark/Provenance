@@ -4,7 +4,51 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-08-09
+Phase 5: meteorological normalization, the supervised fault classifier, and the
+explainability layer — completing the B1 → B3 → B2 demo order.
+
 ### Added
+- **Deweathering (B2)** — one gradient-boosted regressor per pollutant predicts the
+  reading from meteorology and time alone; the residual (actual − weather-predicted)
+  is what anomaly detection sees downstream. Trained forward-chaining only
+  (`models/cv.py`), never random K-fold, and held to a **0.15–0.90 R² sanity band**
+  whose two failure modes are named. Residual series are stored in the database
+  (`residuals` hypertable) alongside the model version that produced them.
+- **Feature layer with honest provenance** (`models/features/`). Wind direction is
+  encoded as `(sin, cos)` so 359° and 1° are neighbours, not a cliff at north — a
+  property the test gate pins. Temperature/precipitation come from HungaroMet (flagged
+  imputed until the feed is confirmed), the boundary-layer height is a documented
+  time-of-day/season **proxy** (§5.3), and every feature column carries its provenance.
+- **Hybrid fault classifier** (`models/fault/`, §7.3). The deterministic Phase-1
+  detectors run **first and short-circuit**; LightGBM only ever chooses among the
+  subtle classes (`none`, `calibration_drift`, `meteorological_artefact`). A test
+  proves the ML can never override a physical-impossibility flag. Class-weighted
+  cross-entropy, a per-class confusion matrix, per-signature recall floors, and a
+  watched `meteorological_artefact` precision — **no headline accuracy figure**
+  (standing rule 4).
+- **Explainability (`explain/`, §8)** — SHAP over the tree models with a stable
+  feature-name mapping; the additivity invariant (base + attributions reconstruct the
+  prediction) is asserted. A renderer turns attributions into the operator sentence
+  ("driven primarily by the shallow overnight mixing layer, then wind speed").
+- **`GET /v1/explain/{defect_id}`** serves per-defect SHAP attributions, the fault
+  class, the residual and the sentence — degrading to the statistics-layer reason,
+  flagged `degraded`, when no model artefact is loaded. **`GET /v1/deweather/{station}`**
+  serves the raw-vs-predicted-vs-residual series behind the before/after chart.
+- **Model cards, auto-generated at training** (`models/cards.py`, §5): data window,
+  feature list with provenance, CV scheme, metrics, class balance, limitations and the
+  training-data checksum. A model without a card sidecar (or with a mismatched
+  checksum) **refuses to load** (`models/registry.py`).
+- **Graceful degradation, end to end** (standing rule 6): with every model artefact
+  deleted the API still returns trust scores from the statistics layer, flagged
+  `degraded` and complete with their breakdown — pinned by a `demo_critical` test.
+- **Dashboard**: the evidence panel's SHAP slot now populates (signed attribution bars
+  + the operator sentence), and a toggleable **before/after deweathering chart** (raw
+  vs residual) is drawn beside it. Both degrade honestly when no model is loaded.
+- **`prov models train` / `prov models residuals`** CLI, and `make demo-models` wires
+  training into `make demo` (deliberately not into `make demo-data`, so the pinned
+  visual baselines keep their statistics-only state).
 - **Real street basemap for the demo map** (ADR 0006, resolving the flag-review
   escalation). `make basemap` extracts the Debrecen region (~6 MB) from a Protomaps
   planet build into a gitignored path; the dashboard renders it under the markers

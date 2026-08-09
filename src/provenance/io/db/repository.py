@@ -10,12 +10,15 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from provenance.io.db import models as m
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 async def get_station(session: AsyncSession, station_id: str) -> m.Station | None:
@@ -84,6 +87,59 @@ async def list_defects(
     if after is not None:
         stmt = stmt.where(m.Defect.id > after)
     return (await session.scalars(stmt)).all()
+
+
+async def get_defect(session: AsyncSession, defect_id: int) -> m.Defect | None:
+    return await session.get(m.Defect, defect_id)
+
+
+async def residuals_for_station(
+    session: AsyncSession, station_id: str, *, parameter: str | None = None
+) -> Sequence[m.Residual]:
+    """Stored deweathered residuals for a station (optionally one parameter), time-ordered."""
+    stmt = (
+        select(m.Residual)
+        .where(m.Residual.station_id == station_id)
+        .order_by(m.Residual.parameter, m.Residual.timestamp_utc)
+    )
+    if parameter is not None:
+        stmt = stmt.where(m.Residual.parameter == parameter)
+    return (await session.scalars(stmt)).all()
+
+
+async def station_frame(session: AsyncSession, station_id: str) -> pd.DataFrame:
+    """Reconstruct a station's readings as a canonical long frame.
+
+    Used by the explain layer to rebuild the feature matrix for one station without
+    re-reading the source files. Returns an empty (correctly-typed) frame when the
+    station has no readings.
+    """
+    import pandas as pd
+
+    from provenance.schema import canonical as C
+
+    rows = (
+        await session.scalars(
+            select(m.Reading)
+            .where(m.Reading.station_id == station_id)
+            .order_by(m.Reading.parameter, m.Reading.timestamp_utc)
+        )
+    ).all()
+    if not rows:
+        return pd.DataFrame(columns=list(C.LONG_COLUMNS))
+    frame = pd.DataFrame(
+        {
+            C.STATION_ID: [r.station_id for r in rows],
+            C.PARAMETER: [r.parameter for r in rows],
+            C.TIMESTAMP: [pd.Timestamp(r.timestamp_utc) for r in rows],
+            C.VALUE: [r.value for r in rows],
+            C.UNIT: [r.unit for r in rows],
+            C.INSTRUMENT_ID: pd.Series([r.instrument_id for r in rows], dtype="string"),
+            C.SOURCE_FILE: [r.source_file for r in rows],
+        }
+    )
+    frame = C.add_row_hash(frame)
+    return C.validate(frame)
 
 
 async def list_events(
