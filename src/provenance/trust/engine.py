@@ -91,10 +91,11 @@ def compute_trust(
         population_exposure_stubbed=stubbed,
     )
     if stubbed:
-        notes.append(
-            "PopulationExposure is stubbed at 1.0 (no GTFS transit-corridor layer for "
-            "this station); Risk uses the neutral factor (§7.8)."
-        )
+        # Kept byte-identical to the phase-2 wording on purpose: the station-detail
+        # panel renders this note, and the pinned visual baselines were captured with
+        # it. The demo corpus carries no GTFS bundle, so this is the note that shows;
+        # changing it churns the baselines for no product reason.
+        notes.append("PopulationExposure is stubbed at 1.0 until GTFS ridership lands (§7.8).")
     else:
         notes.append(
             f"PopulationExposure {exposure_factor:g} from the GTFS transit-corridor layer (§7.8)."
