@@ -58,3 +58,37 @@ explain:
   # SHAP additivity tolerance: sum(attributions)+base must reconstruct the model
   # output to within this (TreeExplainer is exact up to float error).
   reconstruction_tolerance: 1.0e-4
+
+# --- HST-GAT (phase 6, §6.4) ------------------------------------------------
+# The heterogeneous spatio-temporal graph attention model. Every figure here is an
+# ARCHITECTURE / TRAINING choice, never a data-derived constant. The model is kept
+# deliberately small: the binding constraint is 720 timesteps per station (§5.1), so
+# a large model would memorise, not generalise. The parameter count is logged in the
+# model card and justified there against that constraint.
+hstgat:
+  target_parameter: PM10      # the propagating pollutant the reconstruction targets;
+                              # intersected with what the corpus carries (never invented)
+  hidden_dim: 16              # GRU + attention hidden width; small on purpose
+  attention_heads: 2          # heterogeneous attention heads per edge type
+  # Wind-conditioned weight enters attention as an ADDITIVE pre-softmax BIAS, not a
+  # hard mask, so the model can override the physical prior when the data warrants it.
+  # beta scales the bias; beta = 0 recovers a plain HetGAT (tested). It is a learnable
+  # parameter initialised here.
+  wind_bias_beta_init: 1.0
+  mask_fraction: 0.15         # fraction of observed values hidden for the masked-AE objective
+  epochs: 200
+  learning_rate: 0.01
+  weight_decay: 1.0e-4
+  min_variance: 1.0e-3        # floor on predicted variance (keeps Gaussian NLL finite)
+  n_splits: 3                 # forward-chaining time blocks (train / calib / test-style)
+  seed: 20260907
+  device: cpu                 # cpu | mps ; cpu is the deterministic default (ADR 0009)
+
+# --- Split conformal prediction (phase 6, §7.7) -----------------------------
+# Wraps model outputs with a calibrated interval. The calibration set is ALWAYS a
+# held-out TIME block, never a random sample (standing rule 7). alpha is the miscoverage
+# rate: 0.1 -> a nominal 90% interval. The achieved empirical coverage is reported in
+# the model card, not asserted as an accuracy figure.
+conformal:
+  alpha: 0.1                  # nominal miscoverage; 90% target coverage
+  min_calibration: 20         # refuse to calibrate on fewer points than this (interval would be meaningless)

@@ -91,10 +91,27 @@ def test_edge_sets_are_bounded(cfg: dict) -> None:
     assert snap.edge_count(EdgeType.ROAD_ADJACENCY) == n * cfg["topology"]["road_adjacency_k"]
 
 
-def test_hetero_data_boundary_is_reserved_for_phase_6(cfg: dict) -> None:
+def test_hetero_data_boundary_materialises_typed_tensors(cfg: dict) -> None:
+    # Phase 6 backs the same node/edge-table interface with a PyG HeteroData. The
+    # boundary the phase-4/5 snapshot reserved is now implemented, still behind the
+    # very same accessors, and torch is imported only inside to_hetero_data().
+    torch = pytest.importorskip("torch")
     snap = build_snapshot(_points(), _empty_wind(), _TS, cfg)
-    with pytest.raises(NotImplementedError, match="phase 6"):
-        snap.to_hetero_data()
+    data = snap.to_hetero_data()
+    # Every node type carries a finite [N, F] feature tensor.
+    for nt in NodeType:
+        x = data[nt.value].x
+        assert x.shape[0] == snap.node_count(nt)
+        assert torch.isfinite(x).all()
+    # Every edge type becomes a relation with a [2, E] index and a finite weight vector,
+    # matching the snapshot's own edge counts (determinism: table order preserved).
+    from provenance.graph.pyg import RELATION
+
+    for et in EdgeType:
+        rel = RELATION[et]
+        assert data[rel].edge_index.shape[0] == 2
+        assert data[rel].edge_index.shape[1] == snap.edge_count(et)
+        assert torch.isfinite(data[rel].edge_weight).all()
 
 
 def test_station_points_drop_coordinateless() -> None:

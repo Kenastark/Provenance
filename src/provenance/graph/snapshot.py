@@ -94,18 +94,18 @@ class GraphSnapshot:
                 return True
         return False
 
-    def to_hetero_data(self) -> Any:  # pragma: no cover - phase 6
-        """Materialise a PyG ``HeteroData`` view. Implemented in phase 6.
+    def to_hetero_data(self) -> Any:
+        """Materialise a PyG ``HeteroData`` view of this snapshot (phase 6, §6.4).
 
-        Deliberately unimplemented now: the neural stack (PyTorch Geometric) is a
-        phase-6 dependency, and the whole point of this boundary is that it can be
-        added here without any caller of :meth:`node_table` / :meth:`edge_table`
-        changing. Raising keeps the seam explicit rather than pretending it exists.
+        The numpy/pandas node and edge tables are the stable interface; this backs
+        them with tensors. torch is imported lazily *inside* :mod:`provenance.graph.pyg`
+        so that the rest of the pipeline — which never calls this method — still
+        imports and runs on a machine with no torch installed (ADR 0009). No caller of
+        :meth:`node_table` / :meth:`edge_table` changed to get here.
         """
-        raise NotImplementedError(
-            "GraphSnapshot.to_hetero_data() lands in phase 6 (HST-GAT). The numpy/pandas "
-            "node and edge tables are the stable interface; PyG backs them later."
-        )
+        from provenance.graph.pyg import snapshot_to_hetero_data
+
+        return snapshot_to_hetero_data(self)
 
     def summary(self) -> dict[str, Any]:
         """A small, JSON-safe description of the snapshot's shape."""

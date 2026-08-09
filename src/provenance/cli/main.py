@@ -269,15 +269,29 @@ def graph_adjudicate(
     data: Path = typer.Option(_DATA_DEFAULT, "--data", help="Data drop to adjudicate."),
     out: Path = typer.Option(_ADJ_DEFAULT, "--out", help="Where to write evidence bundles."),
     limit: int = typer.Option(10, "--limit", help="How many top-ranked events to adjudicate."),
+    learned: bool = typer.Option(
+        False,
+        "--learned/--analytic",
+        help="Use the HST-GAT forecast as the expectation (falls back to analytic if no "
+        "artefact). Default is the phase-4 analytic prior.",
+    ),
 ) -> None:
     """Rank the corpus's candidate events, adjudicate each, and write evidence bundles.
 
     Nothing about the outcome is assumed: the top event is whatever ranks highest by
-    magnitude, and its verdict is whatever the adjudicator returns.
+    magnitude, and its verdict is whatever the adjudicator returns. With ``--learned``
+    the expectation each neighbour is judged against comes from the HST-GAT (§6.4); if
+    no artefact is present it degrades to the analytic prior and the bundle says so.
     """
     from provenance.graph.replay import replay_path
 
-    adjudications = replay_path(data, out, limit=limit)
+    factory = _learned_factory(data) if learned else None
+    if learned and factory is None:
+        console.print(
+            "[yellow]--learned requested but no HST-GAT artefact loaded; "
+            "using the analytic prior (recorded in each bundle).[/yellow]"
+        )
+    adjudications = replay_path(data, out, limit=limit, expectation_factory=factory)
     if not adjudications:
         console.print("[yellow]No candidate events found to adjudicate.[/yellow]")
         raise typer.Exit(code=0)
@@ -429,6 +443,117 @@ def models_train(
     console.print(
         "[dim]No headline accuracy is reported for the classifier (standing rule 4).[/dim]"
     )
+
+
+def _learned_factory(data: Path):  # type: ignore[no-untyped-def]
+    """Build a per-event learned expectation factory for ``data``, or None if no artefact.
+
+    Lives in the CLI (which may import ``models``) so the ``graph`` layer never does; the
+    graph adjudicator only ever sees the injected factory (dependency injection).
+    """
+    from provenance.config.loading import load_graph_config
+    from provenance.graph.adjudicate import AdjudicatorParams
+    from provenance.graph.build import station_points_from_metadata
+    from provenance.graph.wind import WindField
+    from provenance.io import loaders
+    from provenance.models.hstgat.forecast import learned_provider_factory
+    from provenance.models.hstgat.store import load_latest
+
+    if load_latest() is None:
+        return None
+    frame = loaders.load_data(data)
+    meta = loaders.load_station_metadata(data)
+    points = station_points_from_metadata(dict(meta))
+    cfg = load_graph_config()
+    window = AdjudicatorParams.from_config(cfg).baseline_window_hours
+    wind = WindField.from_frame(frame)
+    return learned_provider_factory(frame, points, wind, cfg, baseline_window_hours=window)
+
+
+@models_app.command("train-hstgat")
+def models_train_hstgat(
+    source: Path = typer.Option(
+        _DATA_DEFAULT, "--source", help="Data drop with station coordinates to train on."
+    ),
+    target: str = typer.Option("PM10", "--target", help="Target pollutant to reconstruct."),
+    epochs: int = typer.Option(0, "--epochs", help="Override configured epochs (0 = use config)."),
+    baseline: bool = typer.Option(
+        True,
+        "--baseline/--no-baseline",
+        help="Also train the GCN baseline for the card comparison.",
+    ),
+) -> None:
+    """Train the HST-GAT (§6.4), calibrate a conformal interval, and save it with a card.
+
+    The artefact is gitignored and reproducible from this command; the model card records
+    the parameter count, the achieved conformal coverage and the GCN-baseline comparison —
+    never a propagation accuracy figure (standing rule 4).
+    """
+    from provenance.config.loading import config_hash, load_graph_config, load_models_config
+    from provenance.graph.build import station_points_from_metadata
+    from provenance.graph.wind import WindField
+    from provenance.io import loaders
+    from provenance.models.hstgat import store
+    from provenance.models.hstgat.conformalize import calibrate_and_coverage
+    from provenance.models.hstgat.data import build_batch
+    from provenance.models.hstgat.train import train_model
+    from provenance.schema.observe import observe
+
+    frame = loaders.load_data(source)
+    meta = loaders.load_station_metadata(source)
+    points = station_points_from_metadata(dict(meta))
+    if not points:
+        console.print(
+            "[red]No station coordinates in this drop; cannot train the graph model.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    gcfg = load_graph_config()
+    mcfg = load_models_config()
+    wind = WindField.from_frame(frame)
+    checksum = observe(frame).checksum
+    try:
+        batch = build_batch(frame, points, wind, gcfg, target_parameter=target)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    ep = epochs if epochs > 0 else None
+    console.print(f"Training HST-GAT on {batch.n_env} stations x {batch.n_times} hours ({target}).")
+    trained = train_model(batch, kind="hstgat", cfg=mcfg, epochs=ep, data_checksum=checksum)
+    console.print(
+        f"[green]HST-GAT[/green] {trained.version}: {trained.parameter_count} parameters."
+    )
+
+    baseline_metrics = None
+    if baseline:
+        gcn = train_model(batch, kind="gcn", cfg=mcfg, epochs=ep, data_checksum=checksum)
+        baseline_metrics = gcn.metrics
+        console.print(f"[green]GCN baseline[/green] {gcn.parameter_count} parameters (comparison).")
+
+    conf_cfg = mcfg.get("conformal", {})
+    _, coverage = calibrate_and_coverage(
+        trained.model,
+        trained.mean,
+        trained.std,
+        batch,
+        alpha=float(conf_cfg.get("alpha", 0.1)),
+        n_splits=int(mcfg["hstgat"]["n_splits"]),
+        min_calibration=int(conf_cfg.get("min_calibration", 20)),
+    )
+    if coverage.get("calibrated"):
+        console.print(
+            f"[green]Conformal[/green] nominal {coverage['nominal_coverage']} → "
+            f"empirical {coverage['empirical_coverage']} (n={coverage['n_calibration']})."
+        )
+    else:
+        console.print(f"[yellow]Conformal not calibrated:[/yellow] {coverage.get('reason')}")
+
+    paths = store.save_model(
+        trained, config_hash=config_hash(), coverage=coverage, baseline=baseline_metrics
+    )
+    console.print(f"[green]Saved[/green] {paths['model'].name}, card {paths['doc']}")
+    console.print("[dim]No propagation accuracy/F1 is reported (standing rule 4).[/dim]")
 
 
 @models_app.command("residuals")

@@ -5,6 +5,62 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-09
+Phase 6: the research contribution — a heterogeneous spatio-temporal graph-attention
+network (HST-GAT), split-conformal intervals, a learned propagation validator behind a
+feature flag, and inspectable attention. Sequenced last on purpose: it converged, so it
+ships; had it not, Phase 5 would have shipped unchanged.
+
+### Added
+- **PyTorch Geometric adaptation** (`graph/pyg.py`) — `GraphSnapshot.to_hetero_data()`
+  materialises the same node/edge tables as a PyG `HeteroData` **without any caller
+  changing**, with torch imported lazily so the statistics layers still run on a machine
+  with no torch. The exact working install (CPU-first, MPS-optional, no compiled
+  `torch-scatter`) is recorded in **ADR 0009**.
+- **HST-GAT** (`models/hstgat/`, §6.4): `h_i(t) = GRU(h_i(t-1), HetGAT({h_j(t)}, edge_weights(t)))`.
+  A hand-rolled heterogeneous graph-attention layer over all five edge types with a
+  per-`EnvStation` GRU memory, predicting a **mean and a variance** per station-hour. The
+  wind-conditioned weight enters attention as an **additive pre-softmax bias**: zeroing it
+  recovers a plain HetGAT (tested), and raising it monotonically shifts attention to the
+  wind-connected neighbour (tested). Deliberately small — **3,299 parameters** against 720
+  timesteps/station (§5.1) — justified in the model card. A **GCN baseline** is included
+  for comparison, as the blueprint specifies.
+- **Masked-autoencoder training** (`models/hstgat/train.py`): hide known values,
+  reconstruct from wind-weighted neighbours, score with **masked Gaussian NLL**.
+  Time-blocked splits (never random K-fold, standing rule 7), full seeding
+  (byte-identical reruns on CPU, standing rule 8), and a **run manifest** per training —
+  seed, config hash, data checksum, git sha, metrics and parameter count.
+- **Split conformal prediction** (`models/conformal/`, §7.7): a small, hand-rolled,
+  distribution-free interval with the exact finite-sample quantile and adaptive
+  (σ-normalised) width. Every model output gains a calibrated interval; the calibration
+  set is always a held-out **time** block. Empirical coverage on held-out data lands
+  inside the nominal band (90% nominal → 85–95% empirical, tested).
+- **Learned propagation validation, behind a feature flag** (`models/hstgat/forecast.py`).
+  The Phase-4 adjudicator's analytic expectation is swapped for the HST-GAT forecast via a
+  `graph.ExpectationProvider` Protocol (dependency injection — `graph` never imports
+  `models`, so the layering holds). If the artefact is absent or fails to load, the
+  adjudicator **falls back to the analytic prior automatically** and the evidence bundle
+  records which path produced the verdict (`expectation_provenance`). Both paths stay
+  tested and demoable. Flag: `PROVENANCE_LEARNED_PROPAGATION`; CLI: `prov graph adjudicate --learned`.
+- **Attention explainability** (`models/hstgat/attention.py`, §8): per-prediction
+  attention exported as weighted, highlighted edges — "which neighbours most influenced
+  this call" — ready for the network map.
+- **Model card** `docs/model-cards/hst-gat-v1.md` (hand-written, committed): parameter
+  count, small-data justification, achieved conformal coverage, GCN-baseline comparison,
+  honest limitations. Auto-generated per-training cards (checksum-suffixed) are gitignored,
+  like the tree models'. New CLI: `prov models train-hstgat`.
+
+### Changed
+- The propagation adjudicator (`graph/adjudicate.py`) now takes an optional injected
+  expectation provider; the default `AnalyticExpectation` reproduces Phase-4 verdicts
+  **byte-for-byte** (the KER11 characterization test is unchanged).
+
+### Explicitly not done (standing rule 4)
+- **No headline accuracy or F1 for the propagation validator.** With this few real
+  corroborated events such a number would describe the synthetic injection process, not
+  the world. The model reports reconstruction NLL/RMSE, per-case evidence, and calibrated
+  intervals instead — enforced by a test that scans the metrics for "accuracy"/"f1".
+
 ## [0.5.0] - 2026-08-09
 Phase 5: meteorological normalization, the supervised fault classifier, and the
 explainability layer — completing the B1 → B3 → B2 demo order.

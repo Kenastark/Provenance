@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ from provenance.graph.adjudicate import (
     validate_event,
 )
 from provenance.graph.build import station_points_from_metadata
+from provenance.graph.expectation import ExpectationProvider
 from provenance.graph.topology import StationPoint
 from provenance.graph.wind import WindField
 from provenance.schema import canonical as C
@@ -150,8 +152,27 @@ def adjudicate_candidates(
     wind: WindField,
     frame: pd.DataFrame,
     cfg: dict[str, Any],
+    *,
+    expectation_factory: Callable[[CandidateEvent], ExpectationProvider] | None = None,
 ) -> list[Adjudication]:
-    return [validate_event(c.event, points, wind, frame, cfg) for c in candidates]
+    """Adjudicate each candidate; optionally with a per-event learned expectation.
+
+    ``expectation_factory`` is injected from the CLI (which may import ``models``) behind
+    the learned-propagation feature flag, so ``graph`` still never imports ``models`` —
+    it depends only on the ``ExpectationProvider`` Protocol. When ``None``, every event
+    uses the analytic prior, exactly as phase 4.
+    """
+    return [
+        validate_event(
+            c.event,
+            points,
+            wind,
+            frame,
+            cfg,
+            expectation=None if expectation_factory is None else expectation_factory(c.event),
+        )
+        for c in candidates
+    ]
 
 
 def _slug(text: str) -> str:
@@ -202,22 +223,42 @@ def replay_frame(
     *,
     cfg: dict[str, Any] | None = None,
     limit: int | None = 10,
+    expectation_factory: Callable[[CandidateEvent], ExpectationProvider] | None = None,
 ) -> list[Adjudication]:
-    """Rank and adjudicate the candidate events in a canonical frame."""
+    """Rank and adjudicate the candidate events in a canonical frame.
+
+    ``expectation_factory`` (injected from the CLI behind the learned-propagation flag)
+    swaps the analytic prior for the HST-GAT forecast per event; ``None`` is phase-4
+    behaviour.
+    """
     cfg = cfg or load_graph_config()
     params = AdjudicatorParams.from_config(cfg)
     points = station_points_from_metadata(station_meta)
     wind = WindField.from_frame(frame)
     candidates = rank_candidates(frame, window_hours=params.baseline_window_hours, limit=limit)
-    return adjudicate_candidates(candidates, points, wind, frame, cfg)
+    return adjudicate_candidates(
+        candidates, points, wind, frame, cfg, expectation_factory=expectation_factory
+    )
 
 
-def replay_path(data_dir: Path, out_dir: Path, *, limit: int = 10) -> list[Adjudication]:
-    """Load a data drop, adjudicate its ranked events, and write the bundles."""
+def replay_path(
+    data_dir: Path,
+    out_dir: Path,
+    *,
+    limit: int = 10,
+    expectation_factory: Callable[[CandidateEvent], ExpectationProvider] | None = None,
+) -> list[Adjudication]:
+    """Load a data drop, adjudicate its ranked events, and write the bundles.
+
+    ``expectation_factory`` (built by the caller behind the learned-propagation flag)
+    swaps the analytic prior for the HST-GAT forecast; ``None`` is phase-4 behaviour.
+    """
     from provenance.io import loaders
 
     frame = loaders.load_data(data_dir)
     station_meta = loaders.load_station_metadata(data_dir)
-    adjudications = replay_frame(frame, dict(station_meta), limit=limit)
+    adjudications = replay_frame(
+        frame, dict(station_meta), limit=limit, expectation_factory=expectation_factory
+    )
     write_adjudications(adjudications, out_dir)
     return adjudications
