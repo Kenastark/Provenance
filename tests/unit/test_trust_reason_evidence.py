@@ -114,3 +114,53 @@ def test_health_evidence_matches_the_active_defect_count(scored: dict[str, Trust
     # `detail` is the prose the UI used to have to fall back on; the number in the
     # evidence must be the same number, or the two halves of the screen disagree.
     assert str(health.evidence["n_defects"]) in health.detail
+
+
+@pytest.mark.parametrize("station", ["STA-01", "STA-02", "STA-03", "STA-04"])
+def test_component_evidence_keys_are_pairwise_disjoint(
+    scored: dict[str, TrustScore], station: str
+) -> None:
+    """No two components may own the same evidence key.
+
+    ``TrustScore.evidence`` merges the four components' dicts. If two ever emitted
+    the same key, one would silently overwrite the other and a reason-code sentence
+    would render the wrong component's figure. The merge deliberately carries no
+    runtime guard (it is on the per-instant scoring path), so this is where a future
+    collision is caught - across four stations whose conditions differ enough to
+    exercise every component's populated branch.
+    """
+    seen: dict[str, str] = {}
+    collisions: list[str] = []
+    for component in scored[station].components:
+        for key in component.evidence:
+            if key in seen:
+                collisions.append(f"{key!r} claimed by both {seen[key]} and {component.name}")
+            else:
+                seen[key] = component.name
+
+    assert not collisions, (
+        f"{station}: components share evidence keys, so a merged figure is ambiguous: "
+        f"{collisions}. Rename one of the colliding keys, or the sentence will show "
+        "the wrong number."
+    )
+
+
+def test_all_four_components_contribute_at_least_one_figure(scored: dict[str, TrustScore]) -> None:
+    """Guards the disjointness test: it is only meaningful if every component speaks.
+
+    A disjointness check passes vacuously if a component contributes no keys, so this
+    asserts the four §7.8 components each carry evidence on at least one fixture
+    station - i.e. the parametrised test above is actually exercising all of them.
+    """
+    contributing: set[str] = set()
+    for score in scored.values():
+        for component in score.components:
+            if component.evidence:
+                contributing.add(component.name)
+
+    assert contributing == {
+        "HealthConf",
+        "ImputationCertainty",
+        "CrossSensorConsistency",
+        "PhysicalPlausibility",
+    }, f"Only these components carried evidence anywhere: {sorted(contributing)}"

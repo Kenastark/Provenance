@@ -147,22 +147,31 @@ export interface DefectFilters {
   enabled?: boolean;
 }
 
+/** A fully-traversed list, plus whether the traversal was cut short by the cap. */
+export interface Paginated<T> {
+  items: T[];
+  /** True when the cap stopped the walk while more rows remained upstream. */
+  truncated: boolean;
+}
+
 /**
  * Follow a cursor to exhaustion, so a count is a count.
  *
  * The list endpoints page at 500. Anything that *counts* the rows it fetched -
  * the quality monitor's absent-cell numerator, a filtered defect total - is
  * silently wrong the moment a query exceeds one page. `maxPages` stops a runaway
- * traversal; when it bites, the caller can see it did, because the row count comes
- * back exactly at the cap.
+ * traversal; when it bites, `truncated` says so, so a consumer can tell the user
+ * it is looking at a prefix rather than the whole set. The alternative - inferring
+ * truncation from `items.length === maxPages * pageSize` - is the kind of implicit
+ * signal that stops being true the moment a page comes back short.
  */
-async function fetchAllPages<T>(
+export async function paginateAll<T>(
   client: ApiClient,
   path: string,
   query: Record<string, string | number | boolean | undefined>,
   signal: AbortSignal | undefined,
   maxPages = MAX_PAGES,
-): Promise<T[]> {
+): Promise<Paginated<T>> {
   const items: T[] = [];
   let cursor: string | null = null;
   for (let fetched = 0; fetched < maxPages; fetched += 1) {
@@ -171,20 +180,22 @@ async function fetchAllPages<T>(
       signal,
     });
     items.push(...page.items);
-    if (!page.next_cursor) break;
+    if (!page.next_cursor) return { items, truncated: false };
     cursor = page.next_cursor;
   }
-  return items;
+  // Left the loop with a cursor still in hand: there is more upstream than the cap
+  // let us fetch.
+  return { items, truncated: true };
 }
 
-export function useDefects(filters: DefectFilters = {}): UseQueryResult<Defect[]> {
+export function useDefects(filters: DefectFilters = {}): UseQueryResult<Paginated<Defect>> {
   const client = useApiClient();
   return useQuery({
     queryKey: queryKeys.defects(filters),
     placeholderData: keepPreviousData,
     enabled: filters.enabled ?? true,
     queryFn: ({ signal }) =>
-      fetchAllPages<Defect>(
+      paginateAll<Defect>(
         client,
         "/v1/defects",
         {

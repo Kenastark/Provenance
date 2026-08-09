@@ -141,10 +141,12 @@ export function AuditReportView() {
   const defects = useDefects({ limit: 500, enabled: needsLedger });
 
   const tallies = useMemo(
-    () => authoritative ?? (needsLedger ? tallyByCode(defects.data ?? []) : []),
+    () => authoritative ?? (needsLedger ? tallyByCode(defects.data?.items ?? []) : []),
     [authoritative, needsLedger, defects.data],
   );
-  const truncated = needsLedger && (defects.data?.length ?? 0) >= 500;
+  // The fallback counts a fetched ledger, which the cursor walk now reports as
+  // truncated directly rather than being inferred from a page-size heuristic.
+  const truncated = needsLedger && (defects.data?.truncated ?? false);
 
   const columns: Column<CodeTally>[] = useMemo(
     () => [

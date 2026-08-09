@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { EvidencePanel } from "../features/evidence/EvidencePanel";
 import * as fixtures from "../test/fixtures";
-import { page, renderWithProviders } from "../test/harness";
+import { page, renderWithProviders, stubClient } from "../test/harness";
 
 describe("EvidencePanel", () => {
   it("lists the flagged cells", async () => {
@@ -148,5 +148,42 @@ describe("the dense code chip is not a downgrade", () => {
     const { text } = renderReasonSentenceParts("R07", {});
     expect(text).toContain("—");
     expect(text).not.toMatch(/[{}]/);
+  });
+});
+
+describe("truncation is surfaced, never silent", () => {
+  it("tells the operator when the ledger walk hit its page cap", async () => {
+    // A client whose defect pages never run out: every response offers another
+    // cursor, so the walk stops only at the cap. That is the case flag B was about -
+    // a count that silently becomes a prefix. The stub is synchronous, so walking
+    // the full 100-page cap is a few milliseconds.
+    const base = stubClient();
+    let served = 0;
+    const client = {
+      config: base.config,
+      async get<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T> {
+        if (path === "/v1/defects") {
+          served += 1;
+          return {
+            items: [{ ...fixtures.defect({ id: served }) }],
+            next_cursor: `more-${served}`,
+            count: 1,
+          } as T;
+        }
+        return base.get<T>(path, options);
+      },
+    } as typeof base;
+
+    renderWithProviders(<EvidencePanel />, { route: "/evidence", client });
+
+    const banner = await screen.findByTestId("evidence-truncated");
+    expect(banner).toHaveTextContent(/Showing the first .* flagged cells/i);
+    expect(banner).toHaveTextContent(/narrow by station, code, or time window/i);
+  });
+
+  it("shows no truncation banner when the walk reaches the end", async () => {
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    await screen.findByTestId("defect-table");
+    expect(screen.queryByTestId("evidence-truncated")).not.toBeInTheDocument();
   });
 });

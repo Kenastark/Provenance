@@ -276,13 +276,13 @@ function StationDetailBody({
       </section>
 
       {/* --------------------------------------------------------- coverage */}
-      {coverageFacts.data && coverageFacts.data.length > 0 && (
+      {coverageFacts.data && coverageFacts.data.items.length > 0 && (
         <section aria-labelledby="station-coverage-heading">
           <h3 id="station-coverage-heading" className="mb-2 text-subhead">
             Coverage
           </h3>
           <ul className="m-0 list-none space-y-2 p-0" data-testid="station-coverage-facts">
-            {coverageFacts.data.map((fact) => (
+            {coverageFacts.data.items.map((fact) => (
               <li key={`${fact.reason_code}-${fact.parameter}`}>
                 <ReasonCodeBadge code={fact.reason_code} evidence={evidenceFor(fact)} />
               </li>

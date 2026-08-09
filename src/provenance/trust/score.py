@@ -90,8 +90,14 @@ class TrustScore:
     def evidence(self) -> dict[str, Any]:
         """Every component's figures, merged — the substitution map for a sentence.
 
-        Component names are distinct and their evidence keys are the placeholder
-        names of the codes they justify, so the merge is unambiguous.
+        The merge assumes the components' evidence keys are pairwise disjoint: each
+        key is a placeholder name owned by exactly one component, so no component can
+        silently overwrite another's figure. That invariant is a property of the
+        component code, not of the data — only a code change could break it — so it
+        is pinned by ``tests/unit/test_trust_reason_evidence.py`` rather than by a
+        runtime check here. A guard in this hot path (it runs per station per scoring
+        instant) would risk taking a whole score down over what is, at worst, a
+        cosmetic label collision; the test catches it in CI instead, before it ships.
         """
         merged: dict[str, Any] = {}
         for component in self.components:
