@@ -36,8 +36,17 @@ def compute_trust(
     thresholds: dict[str, Any] | None = None,
     weights_cfg: dict[str, Any] | None = None,
     degraded: bool = False,
+    exposure: float | None = None,
 ) -> TrustScore:
-    """Compute the trust score for ``station_id`` at ``at`` over a trailing window."""
+    """Compute the trust score for ``station_id`` at ``at`` over a trailing window.
+
+    ``exposure`` is the PopulationExposure multiplier for this station, computed from
+    the GTFS transit-corridor layer (:mod:`provenance.grid.exposure`). When it is
+    ``None`` — no GTFS bundle, or no coordinate for this station — the factor falls
+    back to the neutral 1.0 and the score reports ``population_exposure_stubbed=True``
+    (graceful degradation, standing rule 6). When it is provided the flag is False:
+    the exposure is measured, not stubbed.
+    """
     thresholds = thresholds or load_thresholds()
     weights_cfg = weights_cfg or load_trust_weights()
     coverage = coverage or build_coverage(frame)
@@ -68,15 +77,29 @@ def compute_trust(
     notes = notes_h + notes_i + notes_c + notes_p
 
     svt = comp.severity_vs_threshold(defects, station_id, at, weights_cfg)
-    exposure = float(weights_cfg["risk"]["population_exposure_stub"])
+    if exposure is None:
+        stubbed = True
+        exposure_factor = float(weights_cfg["risk"]["population_exposure_stub"])
+    else:
+        stubbed = False
+        exposure_factor = float(exposure)
     risk = Risk(
-        value=round(total * svt * exposure, 6),
+        value=round(total * svt * exposure_factor, 6),
         trust=total,
         severity_vs_threshold=svt,
-        population_exposure=exposure,
-        population_exposure_stubbed=True,
+        population_exposure=exposure_factor,
+        population_exposure_stubbed=stubbed,
     )
-    notes.append("PopulationExposure is stubbed at 1.0 until GTFS ridership lands (§7.8).")
+    if stubbed:
+        # Kept byte-identical to the phase-2 wording on purpose: the station-detail
+        # panel renders this note, and the pinned visual baselines were captured with
+        # it. The demo corpus carries no GTFS bundle, so this is the note that shows;
+        # changing it churns the baselines for no product reason.
+        notes.append("PopulationExposure is stubbed at 1.0 until GTFS ridership lands (§7.8).")
+    else:
+        notes.append(
+            f"PopulationExposure {exposure_factor:g} from the GTFS transit-corridor layer (§7.8)."
+        )
 
     return TrustScore(
         station_id=station_id,

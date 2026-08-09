@@ -26,6 +26,7 @@ from provenance.config import reason_codes
 from provenance.detectors import registry
 from provenance.detectors.base import AuditContext
 from provenance.grid.coverage import CoverageModel, build_coverage
+from provenance.grid.exposure import ExposureLayer
 from provenance.io.db import models as m
 from provenance.io.loaders import StationLocation
 from provenance.schema import canonical as C
@@ -52,6 +53,7 @@ async def load_frame(
     source: str,
     path: str,
     station_meta: dict[str, StationLocation] | None = None,
+    exposure: ExposureLayer | None = None,
 ) -> LoadReport:
     """Persist a canonical frame plus its audit and trust scores, idempotently.
 
@@ -97,7 +99,7 @@ async def load_frame(
     defects_inserted = _insert_defects(session, result, run_id)
     _insert_coverage_facts(session, result, run_id)
     _insert_events(session, result, run_id)
-    trust_inserted = _insert_trust_scores(session, frame, coverage, run_id)
+    trust_inserted = _insert_trust_scores(session, frame, coverage, run_id, exposure=exposure)
 
     await session.commit()
     return LoadReport(
@@ -118,9 +120,36 @@ async def load_path(
 
     frame = loaders.load_data(data_dir)
     station_meta = loaders.load_station_metadata(data_dir)
+    exposure = exposure_for_drop(data_dir, station_meta)
     return await load_frame(
-        session, frame, source=source, path=str(data_dir), station_meta=station_meta
+        session,
+        frame,
+        source=source,
+        path=str(data_dir),
+        station_meta=station_meta,
+        exposure=exposure,
     )
+
+
+def exposure_for_drop(
+    data_dir: Path, station_meta: dict[str, StationLocation]
+) -> ExposureLayer | None:
+    """Build the PopulationExposure layer for a data drop, or None when it cannot be.
+
+    Needs both a GTFS bundle under ``data_dir`` and station coordinates; without either
+    the trust scores fall back to the neutral, stubbed exposure factor rather than
+    inventing one (standing rule 6). Kept here (io) so the trust layer stays a pure
+    function of a per-station factor and never learns how GTFS is discovered.
+    """
+    from provenance.grid.exposure import build_exposure_layer
+    from provenance.io.ingest.gtfs import find_gtfs_bundle, stops_with_route_counts
+
+    bundle = find_gtfs_bundle(data_dir)
+    points = {sid: (loc.lat, loc.lon) for sid, loc in station_meta.items()}
+    if bundle is None or not points:
+        return None
+    stops = stops_with_route_counts(bundle)
+    return build_exposure_layer(stops, points)
 
 
 def _run_id(frame: pd.DataFrame) -> str:
@@ -279,7 +308,12 @@ def _insert_events(session: AsyncSession, result: AuditResult, run_id: str) -> N
 
 
 def _insert_trust_scores(
-    session: AsyncSession, frame: pd.DataFrame, coverage: CoverageModel, run_id: str
+    session: AsyncSession,
+    frame: pd.DataFrame,
+    coverage: CoverageModel,
+    run_id: str,
+    *,
+    exposure: ExposureLayer | None = None,
 ) -> int:
     from provenance.config.loading import load_thresholds
     from provenance.trust.engine import scoring_instants
@@ -297,6 +331,11 @@ def _insert_trust_scores(
     )
     n = 0
     for station in coverage.stations:
+        factor = (
+            exposure.factor_for(station)
+            if exposure is not None and exposure.is_measured(station)
+            else None
+        )
         for at in instants:
             score = compute_trust(
                 frame,
@@ -306,6 +345,7 @@ def _insert_trust_scores(
                 coverage=coverage,
                 thresholds=thresholds,
                 weights_cfg=weights_cfg,
+                exposure=factor,
             )
             session.add(
                 m.TrustScore(

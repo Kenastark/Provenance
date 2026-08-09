@@ -5,7 +5,69 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 
+## [1.0.0-demo] - 2026-08-09
+Phase 7: the operational layer and the submission build — the freeze tag. Adds the
+maintenance queue and Alert Centre, the human sign-off gate on public dispatch, the
+completed regulatory export, four-role RBAC, two-plane monitoring, and deterministic
+offline demo mode.
+
+### Added
+- **PopulationExposure is computed, not stubbed** (`grid/exposure.py`, §7.8). The Risk
+  factor is now derived per station from a GTFS static bundle — every stop within a
+  ~500 m corridor contributes its distinct-route count, min–max normalised into a bounded
+  multiplier — so a broken reading in a busy transit corridor outranks the same fault at a
+  rural background site. A station with no coordinate or a drop with no GTFS bundle keeps
+  the neutral 1.0 and reports `population_exposure_stubbed=true` (graceful degradation):
+  the flag is no longer permanently true. A synthetic GTFS fixture (`fixtures/gtfs.py`)
+  gives tests and the offline demo a real bundle to aggregate.
+- **Maintenance queue** (`ops/maintenance.py`, `ops/store.py`, §9.5): tickets auto-raised
+  from the deterministic fault flags, ranked by **severity × station importance**
+  (importance = PopulationExposure), with an `open → acknowledged → dispatched → resolved`
+  state machine and a full, append-only transition history. Idempotent rebuild.
+- **Alert Centre ranked by RISK, not certainty** (`ops/alerts.py`, §9.5):
+  `genuineness × exposure × hazard × confidence`, so a high-exposure **genuine event**
+  outranks a confident low-exposure **sensor fault**. Asserted with a constructed pair.
+- **Human sign-off gate + idempotent dispatch** (`api/decision/`, §2, standing rule 5):
+  every public dispatch passes through one choke point that refuses to send without a
+  valid, non-expired operator sign-off (who / when / evidence hash / model version) and
+  is idempotent on `(event, channel, sign-off)` — retries and concurrent calls never
+  double-send. A **static call-graph test** proves the senders are unreachable except
+  through the validated gate.
+- **Completed regulatory export** (`report/regulatory.py`, §2): reading accounting, the
+  itemised defects and structural exclusions, model versions, sign-off records, and a
+  **reproducible verification hash** over the certified content — rendered as CSV, JSON,
+  and a dependency-free printable **PDF** summary, all from one bundle. `?format=pdf` and
+  an `X-Verification-Hash` header added to `/v1/export/audit-trail`.
+- **Four-role RBAC** (`api/auth.py`, §11): adds `admin` above `operator`; a full endpoint
+  × role matrix test pins the policy (ADR 0010). An **admin dashboard** surface exposes
+  model versions, config hashes, retraining triggers, and export/dispatch history.
+- **Two-plane monitoring** (§11): Prometheus service-health metrics at `/metrics` (infra
+  plane) and a separate **model-drift monitor** at `/v1/admin/model-drift` (deweathering
+  R², conformal coverage, fault confusion, defect-rate drift by station). Grafana
+  dashboards and the rationale for the split in `docs/monitoring-v1.0-two-planes.md`.
+- **Deterministic offline demo mode** (`cli/demo.py`, `ops/demo.py`, §demo-critical):
+  `prov demo run --scenario <name>` replays a fixed window at a controllable speed as an
+  ordered sequence of screen states with computed numbers; five scenarios
+  (`audit-headline`, `ker11-adjudication`, `contrast-fault`, `deweathering-reveal`,
+  `explainability`). Two runs are byte-identical; the suite runs with the network blocked;
+  basemap tiles are vendored for the Debrecen bbox. `scripts/record-demo.sh` captures the
+  fallback recording.
+- **Submission artefacts** (`docs/demo/`): the timed 7-minute `demo-script-v1.0.md`, a
+  one-page description, a 3-minute video storyboard, and `judge-questions-v1.0.md`
+  (prepared answers to the §16 critiques).
+
+### Tests
+- Sign-off architecture (static call-graph), alert risk ordering, dispatch idempotency
+  under retry **and** concurrency, the RBAC matrix, audit-export reconciliation + hash
+  reproducibility, demo-mode determinism, a full network-blocked offline run, a
+  scenario-layer full-script rehearsal, and a 50-client load smoke.
+
 ### Fixed
+- **A huge integer path parameter no longer 500s.** The maintenance detail/transition
+  endpoints are the API's first `int` path params; an id larger than SQLite's 64-bit
+  `INTEGER` raised `OverflowError`. A global `OverflowError → 400` handler
+  (`api/errors.py`) maps it to a client error, found by the schemathesis fuzz and pinned
+  by a regression test.
 - **Test databases no longer leak an aiosqlite worker thread.** `io/db/engine.make_engine`
   now backs file-based SQLite (the test path) with a `NullPool`, which closes each
   connection on return, and keeps a `StaticPool` for `:memory:`. This removes at source the

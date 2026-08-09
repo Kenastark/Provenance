@@ -265,6 +265,29 @@
         "title": "DeweatherSeriesOut",
         "type": "object"
       },
+      "DispatchIn": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "signoff_id": {
+            "title": "Signoff Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "channel",
+          "signoff_id"
+        ],
+        "title": "DispatchIn",
+        "type": "object"
+      },
       "EventOut": {
         "properties": {
           "audit_run_id": {
@@ -694,6 +717,39 @@
         "title": "Page[TrustScoreOut]",
         "type": "object"
       },
+      "Page_dict_str__Any__": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "Page[dict[str, Any]]",
+        "type": "object"
+      },
       "QualityStationOut": {
         "properties": {
           "components": {
@@ -898,6 +954,49 @@
         "title": "ReadyOut",
         "type": "object"
       },
+      "RebuildIn": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Audit run; defaults to the latest.",
+            "title": "Run Id"
+          }
+        },
+        "title": "RebuildIn",
+        "type": "object"
+      },
+      "RetrainIn": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "target": {
+            "description": "One of ['deweather', 'fault', 'hstgat'].",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "title": "RetrainIn",
+        "type": "object"
+      },
       "RiskOut": {
         "properties": {
           "population_exposure": {
@@ -929,6 +1028,62 @@
           "population_exposure_stubbed"
         ],
         "title": "RiskOut",
+        "type": "object"
+      },
+      "SignoffIn": {
+        "properties": {
+          "channel": {
+            "description": "webhook | email | sms.",
+            "title": "Channel",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the operator saw; defaults to the event's evidence.",
+            "title": "Evidence"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "operator": {
+            "default": "operator",
+            "description": "Who is signing off.",
+            "title": "Operator",
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "default": 900,
+            "maximum": 86400.0,
+            "minimum": 1.0,
+            "title": "Ttl Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_id",
+          "channel"
+        ],
+        "title": "SignoffIn",
         "type": "object"
       },
       "StationOut": {
@@ -993,6 +1148,37 @@
           "station_id"
         ],
         "title": "StationOut",
+        "type": "object"
+      },
+      "TransitionIn": {
+        "properties": {
+          "actor": {
+            "default": "operator",
+            "description": "Who is making the change.",
+            "title": "Actor",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "to": {
+            "description": "Target status: acknowledged | dispatched | resolved.",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "title": "TransitionIn",
         "type": "object"
       },
       "TrustScoreOut": {
@@ -1185,6 +1371,161 @@
         ]
       }
     },
+    "/v1/admin/model-drift": {
+      "get": {
+        "description": "The model-drift monitor (§11): defect-rate drift by station, R², coverage, confusion.\n\nDeliberately a *different plane* from ``/metrics`` (infra health) — model health and\nservice health are separate questions with separate dashboards.",
+        "operationId": "model_drift_v1_admin_model_drift_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Model Drift V1 Admin Model Drift Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Model Drift",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/retrain": {
+      "post": {
+        "operationId": "retrain_v1_admin_retrain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrainIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrain V1 Admin Retrain Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrain",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/status": {
+      "get": {
+        "operationId": "admin_status_v1_admin_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Admin Status V1 Admin Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Admin Status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/alerts": {
+      "get": {
+        "operationId": "list_alerts_v1_alerts_get",
+        "parameters": [
+          {
+            "description": "Audit run; defaults to the latest.",
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Audit run; defaults to the latest.",
+              "title": "Run Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Alerts V1 Alerts Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Alerts",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/v1/audit/runs": {
       "get": {
         "operationId": "list_runs_v1_audit_runs_get",
@@ -1287,6 +1628,92 @@
         "summary": "Get Run",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/v1/decision/dispatch": {
+      "post": {
+        "operationId": "dispatch_alert_v1_decision_dispatch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dispatch Alert V1 Decision Dispatch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dispatch Alert",
+        "tags": [
+          "decision"
+        ]
+      }
+    },
+    "/v1/decision/signoff": {
+      "post": {
+        "operationId": "create_signoff_v1_decision_signoff_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignoffIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Signoff V1 Decision Signoff Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Signoff",
+        "tags": [
+          "decision"
         ]
       }
     },
@@ -1635,7 +2062,7 @@
             "required": false,
             "schema": {
               "default": "json",
-              "pattern": "^(json|csv)$",
+              "pattern": "^(json|csv|pdf)$",
               "title": "Format",
               "type": "string"
             }
@@ -1664,6 +2091,233 @@
         "summary": "Audit Trail",
         "tags": [
           "export"
+        ]
+      }
+    },
+    "/v1/maintenance": {
+      "get": {
+        "operationId": "list_maintenance_v1_maintenance_get",
+        "parameters": [
+          {
+            "description": "Filter by lifecycle status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by lifecycle status.",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_dict_str__Any__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Maintenance",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/v1/maintenance/rebuild": {
+      "post": {
+        "operationId": "rebuild_v1_maintenance_rebuild_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RebuildIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rebuild V1 Maintenance Rebuild Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebuild",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/v1/maintenance/{item_id}": {
+      "get": {
+        "operationId": "get_item_v1_maintenance__item_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Item V1 Maintenance  Item Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Item",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/v1/maintenance/{item_id}/transition": {
+      "post": {
+        "operationId": "transition_v1_maintenance__item_id__transition_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transition V1 Maintenance  Item Id  Transition Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition",
+        "tags": [
+          "maintenance"
         ]
       }
     },

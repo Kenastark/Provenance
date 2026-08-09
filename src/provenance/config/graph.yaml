@@ -113,3 +113,33 @@ topology:
   bus_corridor_max: 24          # BusStop nodes are aggregated to AT MOST this many corridors
   road_adjacency_k: 3           # each env station links to its k nearest traffic counters
   seed: 20260907
+
+# --- PopulationExposure from the aggregated GTFS transit-corridor layer ------
+# Risk = Trust × SeverityVsThreshold × PopulationExposure (§7.8). Until phase 7
+# PopulationExposure was a permanent 1.0 stub; it is now COMPUTED per station from
+# a GTFS static bundle (stops.txt + routes.txt), as a proxy for how many people a
+# station's readings speak for. The proxy is the transit *service intensity* around
+# each station: every GTFS stop within `corridor_radius_m` contributes the number of
+# distinct routes serving it, and the per-station intensities are min-max normalised
+# across the network into a bounded multiplier in [floor, ceil].
+#
+# These four figures are MODELLING CHOICES (the corridor width, the multiplier band),
+# NOT data-derived constants (standing rule 1): the per-station intensity counts come
+# from the GTFS file at runtime, never from here. A station with no GTFS coordinate,
+# or a drop with no GTFS bundle, keeps exposure at 1.0 and reports it as stubbed
+# (graceful degradation, standing rule 6) — the flag is no longer permanently true.
+exposure:
+  status: provisional
+  # Corridor half-width: a stop within this many metres of a station counts toward
+  # that station's transit service intensity. ~500 m is a standard walkable transit
+  # catchment.
+  corridor_radius_m: 500.0
+  # The exposure multiplier band. The least-served station in the network maps to
+  # `floor`, the busiest to `ceil`; a flat network (all intensities equal) maps every
+  # station to 1.0 rather than collapsing the band.
+  floor: 0.6
+  ceil: 1.6
+  # A station needs at least this many route-weighted stops in its corridor for the
+  # exposure to be treated as measured; below it the station falls back to the neutral
+  # 1.0 and is flagged, so a coverage gap never masquerades as low exposure.
+  min_service: 1.0

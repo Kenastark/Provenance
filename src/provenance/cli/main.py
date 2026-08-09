@@ -43,6 +43,7 @@ graph_app = typer.Typer(
 models_app = typer.Typer(
     help="Train and apply the deweather and fault models (phase 5).", no_args_is_help=True
 )
+demo_app = typer.Typer(help="Deterministic, offline demo replay (phase 7).", no_args_is_help=True)
 
 app.add_typer(data_app, name="data")
 app.add_typer(schema_app, name="schema")
@@ -52,6 +53,7 @@ app.add_typer(codes_app, name="codes")
 app.add_typer(db_app, name="db")
 app.add_typer(graph_app, name="graph")
 app.add_typer(models_app, name="models")
+app.add_typer(demo_app, name="demo")
 
 console = Console()
 
@@ -623,6 +625,115 @@ def models_residuals(
 
     n = asyncio.run(_run())
     console.print(f"[green]Stored[/green] {n:,} residuals under model {bundle.deweather.version}.")
+
+
+# --------------------------------------------------------------------- demo
+_DEMO_DEFAULT = REPO_ROOT / ".demo-corpus"
+
+
+def _load_demo_drop(data: Path):  # type: ignore[no-untyped-def]
+    """Load the demo corpus frame + station metadata, failing loudly if it is absent."""
+    from provenance.io import loaders
+
+    data = Path(data)
+    has_corpus = (data / "corpus.parquet").exists() or any(data.glob("**/DEB-KER*"))
+    if not has_corpus:
+        console.print(
+            f"[red]No demo corpus at {data}.[/red] Generate one first, offline, with:\n"
+            f"  prov fixtures make --out {data} --stations 18"
+        )
+        raise typer.Exit(code=1)
+    frame = loaders.load_data(data)
+    meta = dict(loaders.load_station_metadata(data))
+    return frame, meta
+
+
+@demo_app.command("list")
+def demo_list() -> None:
+    """List the demo scenarios."""
+    from provenance.ops import demo as demo_mod
+
+    table = Table(title="Demo scenarios", header_style="bold")
+    table.add_column("Scenario")
+    for name in demo_mod.available_scenarios():
+        table.add_row(name)
+    console.print(table)
+
+
+@demo_app.command("run")
+def demo_run(
+    scenario: str = typer.Option(..., "--scenario", help="Which scenario to replay."),
+    data: Path = typer.Option(_DEMO_DEFAULT, "--data", help="Demo corpus directory."),
+    speed: float = typer.Option(1.0, "--speed", min=0.1, help="Playback speed multiplier."),
+    out: Path | None = typer.Option(None, "--out", help="Write the replay sequence as JSON."),
+) -> None:
+    """Replay one scenario deterministically. Prints the timed screen sequence.
+
+    The sequence is a pure function of the seeded corpus — two runs are byte-identical —
+    and needs no network: it is the drive script the live dashboard consumes.
+    """
+    import json
+
+    from provenance.ops import demo as demo_mod
+
+    if scenario not in demo_mod.available_scenarios():
+        console.print(
+            f"[red]Unknown scenario {scenario!r}.[/red] Options: "
+            f"{', '.join(demo_mod.available_scenarios())}"
+        )
+        raise typer.Exit(code=1)
+    frame, meta = _load_demo_drop(data)
+    sc = demo_mod.build_scenario(scenario, frame, meta, speed=speed)
+
+    console.print(f"[bold]{sc.title}[/bold]  ({sc.window['start']} → {sc.window['end']})")
+    table = Table(title=f"{scenario} @ {speed}x", header_style="bold")
+    for col in ("t+ms", "Screen", "Headline", "Numbers"):
+        table.add_column(col)
+    for step in sc.steps:
+        nums = ", ".join(f"{k}={v}" for k, v in step.numbers.items())
+        table.add_row(str(step.at_offset_ms), step.screen, step.headline, nums[:60])
+    console.print(table)
+    if out is not None:
+        Path(out).write_text(
+            json.dumps(sc.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        console.print(f"[green]Wrote[/green] {out}")
+
+
+@demo_app.command("rehearse")
+def demo_rehearse(
+    data: Path = typer.Option(_DEMO_DEFAULT, "--data", help="Demo corpus directory."),
+    out: Path = typer.Option(
+        REPO_ROOT / "reports" / "demo", "--out", help="Directory for the replay JSON."
+    ),
+    speed: float = typer.Option(1.0, "--speed", min=0.1, help="Playback speed multiplier."),
+) -> None:
+    """Build every scenario (the full 7-minute script) and write the replay sequences.
+
+    Deterministic and offline; ``scripts/record-demo.sh`` calls this to drive the
+    fallback recording.
+    """
+    import json
+
+    from provenance.ops import demo as demo_mod
+
+    frame, meta = _load_demo_drop(data)
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    scenarios = demo_mod.build_all(frame, meta, speed=speed)
+    index = []
+    for name, sc in scenarios.items():
+        path = out / f"{name}.json"
+        path.write_text(
+            json.dumps(sc.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        index.append({"scenario": name, "file": path.name, "n_steps": len(sc.steps)})
+    (out / "index.json").write_text(
+        json.dumps(index, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    console.print(f"[green]Wrote[/green] {len(scenarios)} scenario(s) and an index to {out}")
 
 
 if __name__ == "__main__":  # pragma: no cover
