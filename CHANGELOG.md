@@ -4,7 +4,24 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Added
+- **Real street basemap for the demo map** (ADR 0006, resolving the flag-review
+  escalation). `make basemap` extracts the Debrecen region (~6 MB) from a Protomaps
+  planet build into a gitignored path; the dashboard renders it under the markers
+  when present and falls back to the token ground otherwise. Offline after the first
+  fetch, never committed, neutral palette so it never competes with the state colours.
+
 ### Fixed
+- Second phase-3 flag-review pass:
+  - **Defect list truncation is surfaced.** The cursor walk reports when it stops at
+    its page cap; the evidence panel shows a banner instead of presenting a prefix as
+    the whole set.
+  - **The defect table's dense code chip carries its row's evidence**, so its tooltip
+    and screen-reader text read the full sentence, not "Value of — — exceeds the
+    physical maximum for —".
+  - **Trust component evidence keys are pinned pairwise-disjoint** by a test.
+  - **The map re-themes on a theme switch** (a latent bug: the token ground never
+    repainted), surfaced while wiring the basemap.
 - Phase-3 flag-review resolutions:
   - **Trust reason codes carry their figures.** `TrustComponent` gains an `evidence`
     dict keyed by the placeholder names the registry sentences use, and `TrustScore`
