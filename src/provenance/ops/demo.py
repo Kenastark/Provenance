@@ -278,25 +278,41 @@ def _contrast_fault(frame: pd.DataFrame, meta: dict[str, Any]) -> tuple[list[_Sp
     if not adjudications:
         return ([("no-event", "No candidate events to contrast", {}, [])], "Contrast")
     lead = adjudications[0]
-    # A contrasting event with a different verdict, else the next-ranked event.
-    contrast = next((a for a in adjudications[1:] if a.verdict != lead.verdict), None) or (
-        adjudications[1] if len(adjudications) > 1 else None
+    # Prefer a genuinely contrasting *verdict*; failing that, a *different station* so
+    # the two cards are never the same event shown twice; only then the next event.
+    # (On a wind-less corpus every event routes to AMBIGUOUS, so no verdict contrast
+    # exists — the label below stays honest about that rather than implying one.)
+    by_verdict = next((a for a in adjudications[1:] if a.verdict != lead.verdict), None)
+    by_station = next(
+        (a for a in adjudications[1:] if a.event.station_id != lead.event.station_id), None
     )
+    contrast = by_verdict or by_station or (adjudications[1] if len(adjudications) > 1 else None)
+    verdicts_differ = contrast is not None and contrast.verdict != lead.verdict
 
     def _card(a) -> dict[str, Any]:  # type: ignore[no-untyped-def]
         return {
             "station_id": a.event.station_id,
             "parameter": a.event.parameter,
+            "timestamp_utc": a.event.timestamp.isoformat(),
             "verdict": a.verdict.value,
             "confidence": round(float(a.confidence), 3),
         }
 
+    headline = (
+        "Different verdicts, same-looking number"
+        if verdicts_differ
+        else "Both route to human review (no verdict contrast in this window)"
+    )
     specs: list[_Spec] = [
         ("lead-event", "Same shape on the screen", _card(lead), []),
         (
             "contrast-verdicts",
-            "Different verdicts",
-            {"a": _card(lead), "b": _card(contrast) if contrast is not None else None},
+            headline,
+            {
+                "a": _card(lead),
+                "b": _card(contrast) if contrast is not None else None,
+                "verdicts_differ": verdicts_differ,
+            },
             [],
         ),
     ]

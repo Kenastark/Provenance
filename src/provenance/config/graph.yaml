@@ -128,6 +128,16 @@ topology:
 # from the GTFS file at runtime, never from here. A station with no GTFS coordinate,
 # or a drop with no GTFS bundle, keeps exposure at 1.0 and reports it as stubbed
 # (graceful degradation, standing rule 6) — the flag is no longer permanently true.
+#
+# CAVEAT (phase-7 flag review): the normalisation is RELATIVE — min-max across the
+# stations in the current drop — so a station's factor depends on the rest of the
+# network and is NOT comparable across two different drops without renormalising. This
+# is a deliberate provisional choice: an absolute scale would need a fixed population /
+# ridership reference the confirmed feeds do not yet give us (the GTFS schema is
+# unconfirmed, ADR 0003). It affects only Risk *ranking* and maintenance priority, never
+# the defect rate or completeness, and it is inert on the demo/stage corpus (which
+# carries no GTFS bundle, so exposure stays stubbed). Revisit when a real GTFS feed and a
+# ridership reference are confirmed.
 exposure:
   status: provisional
   # Corridor half-width: a stop within this many metres of a station counts toward
