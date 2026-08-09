@@ -320,6 +320,28 @@ def graph_adjudicate(
         )
     console.print(f"[green]Wrote[/green] {len(adjudications)} bundle(s) and an index to {out}")
 
+    # Learned mode with a loaded model also exports the attention overlay for the map —
+    # "which neighbours most influenced this call" (§8) — for the top-ranked event.
+    if learned and factory is not None:
+        from provenance.config.loading import load_graph_config
+        from provenance.graph.build import station_points_from_metadata
+        from provenance.graph.wind import WindField
+        from provenance.io import loaders
+        from provenance.models.hstgat.attention import write_overlay_for_drop
+
+        frame = loaders.load_data(data)
+        pts = station_points_from_metadata(dict(loaders.load_station_metadata(data)))
+        overlay_path = write_overlay_for_drop(
+            frame,
+            pts,
+            WindField.from_frame(frame),
+            load_graph_config(),
+            out,
+            at_time=adjudications[0].event.timestamp,
+        )
+        if overlay_path is not None:
+            console.print(f"[green]Wrote attention overlay[/green] {overlay_path}")
+
 
 @graph_app.command("adjudicate-db")
 def graph_adjudicate_db(
@@ -532,7 +554,7 @@ def models_train_hstgat(
         console.print(f"[green]GCN baseline[/green] {gcn.parameter_count} parameters (comparison).")
 
     conf_cfg = mcfg.get("conformal", {})
-    _, coverage = calibrate_and_coverage(
+    conformal, coverage = calibrate_and_coverage(
         trained.model,
         trained.mean,
         trained.std,
@@ -549,8 +571,15 @@ def models_train_hstgat(
     else:
         console.print(f"[yellow]Conformal not calibrated:[/yellow] {coverage.get('reason')}")
 
+    # Persist the calibrator itself (not just its coverage): the q travels with the
+    # artefact so the learned adjudication can attach a calibrated interval per event.
+    conformal_dict = conformal.to_dict() if conformal is not None else None
     paths = store.save_model(
-        trained, config_hash=config_hash(), coverage=coverage, baseline=baseline_metrics
+        trained,
+        config_hash=config_hash(),
+        coverage=coverage,
+        baseline=baseline_metrics,
+        conformal=conformal_dict,
     )
     console.print(f"[green]Saved[/green] {paths['model'].name}, card {paths['doc']}")
     console.print("[dim]No propagation accuracy/F1 is reported (standing rule 4).[/dim]")

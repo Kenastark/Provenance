@@ -54,6 +54,10 @@ class NeighbourExpectation:
     expected_excess: float
     within_horizon: bool
     sigma: float | None = None
+    interval: tuple[float, float] | None = None
+    """A calibrated (split-conformal) interval on ``expected_excess`` — present only on
+    the learned path, and only when a conformal calibrator was persisted with the model.
+    ``None`` for the analytic prior (a point expectation with no distribution)."""
 
 
 @runtime_checkable

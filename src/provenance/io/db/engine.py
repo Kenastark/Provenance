@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool, StaticPool
 
 from provenance.config.settings import get_settings
 from provenance.io.db.base import Base
@@ -33,8 +34,31 @@ def _async_url(url: str) -> str:
 
 
 def make_engine(url: str | None = None) -> AsyncEngine:
-    """Create an async engine for ``url`` (defaults to the configured database)."""
+    """Create an async engine for ``url`` (defaults to the configured database).
+
+    SQLite (the test path, never production) picks the pool that keeps the database
+    correct *and* leaves no aiosqlite worker thread alive between operations:
+
+    * an in-memory database must reuse one connection (:class:`StaticPool`), or each new
+      connection gets its own empty database;
+    * a file-backed database uses :class:`NullPool`, which closes every connection on
+      return, so no aiosqlite ``_connection_worker_thread`` outlives the fixture that
+      opened it. A leftover worker thread racing the native math pools of a later
+      torch-heavy test is the root cause of the macOS OpenMP segfault noted in
+      ``tests/conftest.py`` (ADR 0009); disposing connections eagerly removes it at source.
+
+    Production (psycopg/TimescaleDB) keeps the default pooled engine with pre-ping.
+    """
     resolved = _async_url(url or get_settings().database_url)
+    if resolved.startswith("sqlite"):
+        if ":memory:" in resolved:
+            return create_async_engine(
+                resolved,
+                future=True,
+                poolclass=StaticPool,
+                connect_args={"check_same_thread": False},
+            )
+        return create_async_engine(resolved, future=True, poolclass=NullPool)
     return create_async_engine(resolved, future=True, pool_pre_ping=True)
 
 

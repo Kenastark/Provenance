@@ -132,6 +132,85 @@ def test_conformal_wraps_the_hstgat_output(gcfg: dict, trained_dir: Path) -> Non
     assert lo[0] < 30.0 < hi[0]
 
 
+def test_learned_adjudication_surfaces_calibrated_interval(gcfg: dict, tmp_path: Path) -> None:
+    # Flag-3 resolution: the calibrated interval must reach the *evidence bundle*, not
+    # just the model card. A learned neighbour carries its predictive sigma and a
+    # conformal interval that brackets the expected excess.
+    from provenance.models.hstgat import store
+    from provenance.models.hstgat.conformalize import calibrate_and_coverage
+    from provenance.models.hstgat.forecast import learned_provider_factory
+
+    sc = S.corroborated_plume()
+    batch = build_batch(sc.frame, sc.points, sc.wind, gcfg, target_parameter="PM10")
+    trained = train_model(
+        batch, kind="hstgat", cfg=load_models_config(), epochs=30, data_checksum="int00001"
+    )
+    conformal, _ = calibrate_and_coverage(
+        trained.model, trained.mean, trained.std, batch, alpha=0.1, min_calibration=10
+    )
+    assert conformal is not None
+    store.save_model(
+        trained, artefacts_dir=tmp_path, docs_dir=tmp_path / "d", conformal=conformal.to_dict()
+    )
+    loaded = store.load_latest(artefacts_dir=tmp_path)
+    assert loaded is not None and loaded.conformal is not None  # calibrator persisted
+
+    factory = learned_provider_factory(
+        sc.frame, sc.points, sc.wind, gcfg, baseline_window_hours=48, artefacts_dir=tmp_path
+    )
+    adj = validate_event(
+        sc.event, sc.points, sc.wind, sc.frame, gcfg, expectation=factory(sc.event)
+    )
+    with_interval = [n for n in adj.evidence.downwind_neighbours if n.expected_interval is not None]
+    assert with_interval  # at least one neighbour got a calibrated interval
+    for n in with_interval:
+        lo, hi = n.expected_interval
+        assert lo <= n.expected_excess <= hi  # the interval brackets the point estimate
+        assert n.sigma is not None and n.sigma >= 0.0
+    # And it is JSON-safe for the bundle a human reviews.
+    nd = adj.to_dict()["evidence"]["downwind_neighbours"][0]
+    assert "expected_interval" in nd and "sigma" in nd
+
+
+def test_attention_overlay_is_produced_for_a_drop(gcfg: dict, tmp_path: Path) -> None:
+    # Flag-1 resolution: the attention export must be reachable from the product flow,
+    # not only from a unit test. The drop-level helper the CLI calls writes an artefact.
+    from provenance.models.hstgat import store
+    from provenance.models.hstgat.attention import write_overlay_for_drop
+
+    sc = S.corroborated_plume()
+    batch = build_batch(sc.frame, sc.points, sc.wind, gcfg, target_parameter="PM10")
+    trained = train_model(
+        batch, kind="hstgat", cfg=load_models_config(), epochs=20, data_checksum="ov000001"
+    )
+    store.save_model(trained, artefacts_dir=tmp_path, docs_dir=tmp_path / "d")
+    out = write_overlay_for_drop(
+        sc.frame,
+        sc.points,
+        sc.wind,
+        gcfg,
+        tmp_path / "adj",
+        at_time=sc.event.timestamp,
+        artefacts_dir=tmp_path,
+    )
+    assert out is not None and out.exists()
+    import json
+
+    overlay = json.loads(out.read_text())
+    assert overlay["relations"]["wind_conditioned"]
+
+
+def test_overlay_helper_degrades_without_artefact(gcfg: dict, tmp_path: Path) -> None:
+    from provenance.models.hstgat.attention import write_overlay_for_drop
+
+    sc = S.corroborated_plume()
+    # No artefact → no overlay, no error (graceful degradation, standing rule 6).
+    out = write_overlay_for_drop(
+        sc.frame, sc.points, sc.wind, gcfg, tmp_path, artefacts_dir=tmp_path
+    )
+    assert out is None
+
+
 def test_attention_overlay_structure(gcfg: dict, trained_dir: Path) -> None:
     from provenance.models.hstgat import store
     from provenance.models.hstgat.attention import attention_overlay, write_overlay
