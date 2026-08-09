@@ -90,10 +90,14 @@ test.describe("keyboard traversal", () => {
 
   test("the layer toggle that is not ready is disabled and explained", async ({ page }) => {
     await gotoRoute(page, "/");
-    const toggle = page.getByTestId("layer-toggle-windEdges");
+    // The wind-conditioned edge layer is live as of phase 4; the traffic-counter layer
+    // is still the not-ready one (Enclod is unconfirmed), so it carries the pattern.
+    const toggle = page.getByTestId("layer-toggle-trafficCounter");
     await expect(toggle).toBeDisabled();
-    // The explanation is available to a screen reader, not only as a tooltip.
-    await expect(page.getByText(/Available in graph view/i)).toBeAttached();
+    // The explanation is available to a screen reader, not only as a tooltip. Match the
+    // Enclod-specific wording, which is unique to this layer (busStop shares the "not
+    // yet placed on the map" phrasing).
+    await expect(page.getByText(/Enclod counters/i)).toBeAttached();
   });
 });
 

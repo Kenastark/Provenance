@@ -5,21 +5,31 @@ import { evidenceFor, reasonCode, severityTone } from "../../api/reason-codes";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { useEvents } from "../../api/queries";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
+import { parseAdjudication } from "../../lib/adjudication";
 import { formatTimestamp, toDate } from "../../lib/format";
 import { withinWindow } from "../../lib/timeWindow";
+import { verdictMeta } from "../../lib/verdict";
 import { useWindowState } from "../../lib/windowContext";
+import { AdjudicationDetail } from "./AdjudicationDetail";
 
 /**
  * Candidate notable events on a time axis.
  *
- * The verdict column says "pending adjudication" and will keep saying it until the
- * phase-4 wind-conditioned graph exists to decide. The API already carries the
- * field - it is null, not absent - so nothing about this screen changes shape when
- * adjudication lands, only the words change. Writing a plausible-looking verdict
- * now would be the exact failure this product exists to detect.
+ * Each event carries a verdict once the phase-4 wind-conditioned graph has
+ * adjudicated it — GENUINE_EVENT / LIKELY_FAULT / AMBIGUOUS — and the field stays
+ * null (rendered "pending adjudication") until then. The chip is coloured by the
+ * verdict, and selecting an event opens its full evidence bundle below. An
+ * unrecognised verdict string is shown verbatim; the dashboard never invents one.
  */
 
 export type EventTone = "fault" | "degraded" | "neutral";
+
+const VERDICT_TONE_CLASS = {
+  verified: "prov-state-verified",
+  degraded: "prov-state-degraded",
+  fault: "prov-state-fault",
+  unknown: "text-text-tertiary",
+} as const;
 
 /** Category and severity together, so shape and colour both carry meaning. */
 export function eventTone(event: ProvEvent): EventTone {
@@ -106,10 +116,24 @@ function Mark({ mark, size = 12 }: { mark: string; size?: number }) {
   );
 }
 
+function VerdictChip({ verdict }: { verdict: string | null | undefined }) {
+  const meta = verdictMeta(verdict);
+  return (
+    <span
+      className={`rounded-sm border border-current px-2 text-caption ${VERDICT_TONE_CLASS[meta.tone]}`}
+      data-testid="event-verdict"
+      data-verdict-kind={meta.kind}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 export function EventTimeline() {
   const events = useEvents();
   const { resolved } = useWindowState();
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedEventId = searchParams.get("event");
 
   const inWindow = useMemo(
     () =>
@@ -129,6 +153,15 @@ export function EventTimeline() {
     [inWindow, resolved],
   );
 
+  const selectedEvent = useMemo(
+    () => (events.data ?? []).find((event) => String(event.id) === selectedEventId) ?? null,
+    [events.data, selectedEventId],
+  );
+  const selectedAdjudication = useMemo(
+    () => (selectedEvent ? parseAdjudication(selectedEvent.evidence) : null),
+    [selectedEvent],
+  );
+
   if (events.isLoading) return <LoadingState label="Loading events" />;
   if (events.error) {
     return <ErrorState error={events.error} what="load the event list" onRetry={events.refetch} />;
@@ -141,7 +174,8 @@ export function EventTimeline() {
         <p className="text-caption text-text-tertiary">
           {plotted.length} candidate event{plotted.length === 1 ? "" : "s"} in the{" "}
           {resolved.label.toLowerCase()} window. Adjudication — deciding whether an event is a real
-          plume or a sensor fault — needs the wind-conditioned graph and lands in phase 4.
+          plume or a sensor fault — runs over the wind-conditioned graph; select an event to see its
+          verdict and the evidence behind it.
         </p>
       </header>
 
@@ -168,7 +202,7 @@ export function EventTimeline() {
                   data-event-id={event.id}
                   data-tone={tone}
                   data-mark={mark}
-                  aria-label={`${event.headline} at ${formatTimestamp(event.timestamp_utc)}, pending adjudication`}
+                  aria-label={`${event.headline} at ${formatTimestamp(event.timestamp_utc)}, ${verdictMeta(event.verdict).label}`}
                   title={`${event.headline} — ${formatTimestamp(event.timestamp_utc)}`}
                   onClick={() =>
                     setSearchParams((previous) => {
@@ -198,12 +232,10 @@ export function EventTimeline() {
                   </span>
                   <span className="font-mono text-caption text-text-tertiary">#{event.rank}</span>
                   <h3 className="text-subhead">{event.headline}</h3>
-                  <span
-                    className="rounded-sm border border-border px-2 text-caption text-text-tertiary"
-                    data-testid="event-verdict"
-                  >
-                    {event.verdict ?? "pending adjudication"}
-                  </span>
+                  <VerdictChip verdict={event.verdict} />
+                  {String(event.id) === selectedEventId && (
+                    <span className="text-micro text-interactive">selected</span>
+                  )}
                 </div>
                 {/* The headline above *is* the rendered sentence, computed by the
                     audit engine. Repeating it here would say the same thing twice;
@@ -221,6 +253,21 @@ export function EventTimeline() {
                   {event.severity}
                 </p>
                 <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    className="prov-button"
+                    data-testid="event-adjudication-toggle"
+                    onClick={() =>
+                      setSearchParams((previous) => {
+                        const next = new URLSearchParams(previous);
+                        if (String(event.id) === selectedEventId) next.delete("event");
+                        else next.set("event", String(event.id));
+                        return next;
+                      })
+                    }
+                  >
+                    {String(event.id) === selectedEventId ? "Hide adjudication" : "Adjudication"}
+                  </button>
                   <Link
                     className="prov-button"
                     to={`/evidence?station=${encodeURIComponent(event.station_id)}&code=${encodeURIComponent(event.reason_code)}`}
@@ -237,6 +284,19 @@ export function EventTimeline() {
               </li>
             ))}
           </ol>
+
+          {selectedEvent &&
+            (selectedAdjudication ? (
+              <AdjudicationDetail event={selectedEvent} adjudication={selectedAdjudication} />
+            ) : (
+              <p
+                className="prov-panel p-3 text-caption text-text-tertiary"
+                data-testid="adjudication-pending"
+              >
+                This event has not been adjudicated yet. Run `prov graph adjudicate-db` after loading
+                a drop; the verdict and its evidence appear here once the wind graph has weighed it.
+              </p>
+            ))}
         </>
       )}
     </section>

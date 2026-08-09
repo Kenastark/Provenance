@@ -2,6 +2,7 @@ import { StateGlyph } from "../../components/StateGlyph";
 import { formatMeasurement, formatTimestamp } from "../../lib/format";
 import { trustStateLabel, type TrustState } from "../../lib/trust";
 import { compassPoint, MAP_LAYERS, type LayerId, type StationMarker, type WindVector } from "./stationMarkers";
+import type { WindEdge } from "./windEdges";
 
 /**
  * Everything drawn *over* the basemap: markers, wind, legend, layer switches.
@@ -88,6 +89,67 @@ export function StationMarkerLayer({
         );
       })}
     </ul>
+  );
+}
+
+export interface WindEdgeLayerProps {
+  edges: readonly WindEdge[];
+  project: (lon: number, lat: number) => { x: number; y: number } | null;
+}
+
+/**
+ * The wind-conditioned edges, drawn under the markers.
+ *
+ * Each edge is a line from a station to a downwind neighbour, its width and opacity
+ * scaled by the edge weight so the strongest downwind links read first, ending in an
+ * arrowhead that points the way the plume would travel. Pure SVG over the projected
+ * positions; when the GL engine has not initialised (no WebGL, e.g. under jsdom) the
+ * projection returns null and the layer renders nothing rather than at the origin.
+ */
+export function WindEdgeLayer({ edges, project }: WindEdgeLayerProps) {
+  const maxWeight = edges.reduce((m, e) => Math.max(m, e.weight), 0) || 1;
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      data-testid="wind-edge-layer"
+      aria-hidden="true"
+    >
+      <defs>
+        <marker
+          id="wind-edge-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="5"
+          markerHeight="5"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--prov-interactive)" />
+        </marker>
+      </defs>
+      {edges.map((edge) => {
+        const a = project(edge.srcLon, edge.srcLat);
+        const b = project(edge.dstLon, edge.dstLat);
+        if (!a || !b) return null;
+        const strength = edge.weight / maxWeight;
+        return (
+          <line
+            key={`${edge.srcId}-${edge.dstId}`}
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke="var(--prov-interactive)"
+            strokeWidth={0.75 + strength * 2.5}
+            strokeOpacity={0.2 + strength * 0.6}
+            markerEnd="url(#wind-edge-arrow)"
+            data-testid="wind-edge"
+            data-src={edge.srcId}
+            data-dst={edge.dstId}
+          />
+        );
+      })}
+    </svg>
   );
 }
 

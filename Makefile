@@ -163,10 +163,12 @@ demo-corpus: ## generate the 18-station demo corpus (synthetic, with coordinates
 	$(VENV)/bin/prov fixtures make --out $(DEMO_DIR) --stations $(DEMO_STATIONS)
 
 .PHONY: demo-data
-demo-data: demo-corpus ## schema, demo corpus, audit - everything but the servers
+demo-data: demo-corpus ## schema, demo corpus, audit, adjudication - everything but the servers
 	$(VENV)/bin/prov db upgrade
 	$(VENV)/bin/prov db load --source $(DEMO_DIR)
 	$(VENV)/bin/prov audit run --data $(DEMO_DIR) --out reports
+	$(VENV)/bin/prov graph adjudicate-db --source $(DEMO_DIR)
+	$(VENV)/bin/prov graph adjudicate --data $(DEMO_DIR) --out reports/adjudications
 
 API_PID := .demo-api.pid
 # Loopback locally. CI overrides it to 0.0.0.0 so the browser running inside the

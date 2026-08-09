@@ -5,7 +5,13 @@ import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { useTheme } from "../../lib/theme";
 import { useWindowState } from "../../lib/windowContext";
 import { StationDetailPanel } from "../station/StationDetailPanel";
-import { LayerToggles, MapLegend, StationMarkerLayer, WindOverlay } from "./MapOverlays";
+import {
+  LayerToggles,
+  MapLegend,
+  StationMarkerLayer,
+  WindEdgeLayer,
+  WindOverlay,
+} from "./MapOverlays";
 import { useMapEngine } from "./useMapEngine";
 import {
   buildStationMarkers,
@@ -16,6 +22,7 @@ import {
   type LayerId,
   type StationMarker,
 } from "./stationMarkers";
+import { computeWindEdges } from "./windEdges";
 
 /**
  * The primary screen: the network, coloured by trust.
@@ -127,6 +134,10 @@ function MapSurface({
   });
   const wind = useMemo(() => currentWind(windReadings.data ?? []), [windReadings.data]);
   const counts = useMemo(() => summariseMarkers(markers), [markers]);
+  const windEdges = useMemo(
+    () => (layers.windEdges ? computeWindEdges(markers, wind) : []),
+    [layers.windEdges, markers, wind],
+  );
 
   return (
     // overflow-hidden matters: the marker overlay is absolutely positioned and a
@@ -157,6 +168,7 @@ function MapSurface({
         </div>
       ) : (
         <>
+          {layers.windEdges && <WindEdgeLayer edges={windEdges} project={project} />}
           <StationMarkerLayer
             markers={markers}
             project={project}

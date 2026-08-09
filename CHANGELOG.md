@@ -49,6 +49,51 @@ Format: Keep a Changelog. Versioning: SemVer.
 - `docs/demo/checkpoint-3-capture-checklist-v1.0.md` records the outstanding human
   demo-capture task durably.
 
+## [0.4.0] - 2026-08-09
+### Added
+- **The heterogeneous graph (`graph/`).** A `GraphSnapshot` value object carries
+  node tables (EnvStation, TrafficCounter, BusStop, WeatherNode) and edge tables
+  (spatial_proximity, wind_conditioned, road_adjacency, transit_corridor,
+  weather_influence) at one timestamp, backed by numpy/pandas today and designed as
+  the exact seam phase 6 will back with a PyG `HeteroData` without changing a caller.
+  BusStop nodes are **aggregated to a bounded number of corridors** (§16 critique 6),
+  enforced by a test. Traffic/bus/weather geometry is honest, clearly-labelled
+  `synthetic-provisional` placeholder topology until the Enclod/GTFS feeds are
+  confirmed; env-station coordinates and the weather-node centroid are real/computed.
+- **Wind-conditioned edge weights** (ADR 0007): `w = exp(-Δθ/sigma_angle) · f(speed)
+  · g(distance)`, a lightweight, differentiable **plume approximation, not a
+  dispersion model**. Geodesic bearings and haversine distance on a sphere; correct
+  angular wraparound at the 0/360 seam; a saturating speed response and a distance
+  decay. Zero wind produces a degenerate but finite graph (no NaN, no division by
+  zero). Station-local wind with a **city-level HungaroMet fallback** (KER15 carries
+  no wind sensor), provenance tracked per edge.
+- **Analytic propagation expectation**: expected arrival delay, attenuated
+  magnitude, and an expected series over a 15–60 min horizon, bucketed to the hourly
+  cadence (documented, not interpolated).
+- **The propagation adjudicator (`graph/adjudicate.py`)**: `validate_event()` returns
+  `GENUINE_EVENT` / `LIKELY_FAULT` / `AMBIGUOUS` with a confidence and a full
+  `EvidenceBundle` (wind, downwind neighbours + weights, expected vs actual, match
+  score, covariate state, reason codes). **AMBIGUOUS is first-class** — it routes to
+  human review and can never render as high confidence, enforced in the value object.
+  Reason codes R22 (PLUME_CORROBORATED) and R23 (ADJUDICATION_AMBIGUOUS) join the
+  registry under a new `adjudication` category; the fault case surfaces R17. **No
+  headline accuracy figure is reported** (standing rule 4) — see the model card.
+- **Replay harness (`graph/replay.py`)** and `prov graph adjudicate` / `snapshot` /
+  `adjudicate-db`: rank the corpus's candidate events by magnitude and anomaly,
+  adjudicate each, and write evidence bundles to `reports/adjudications/`. Pointed at
+  the real drop the top event is the ~4,100 µg/m³ KER11 spike, surfaced by ranking —
+  no station or verdict is hardcoded, hinted at, or assumed anywhere.
+- **Dashboard**: the wind-conditioned edge layer is enabled on the map (opacity/width
+  by weight, direction shown); the event timeline colours each verdict and opens a
+  full **event detail** — expected vs actual downwind series, verdict + confidence,
+  downwind neighbours, and the covariate stubs; verdict labels populate for
+  adjudicated events. Stored events are adjudicated back into `Event.verdict` and
+  `Event.evidence.adjudication` by a graph-layer persister (io/db stays upstream of
+  graph), so the API serves them with no contract change.
+
+### Documentation
+- ADR 0007 (wind edges), `docs/model-cards/propagation-adjudicator-v1.md`.
+
 ## [0.3.0] - 2026-08-08
 ### Added
 - **Dashboard v1** (`apps/web`) — the operator-facing second screen, and the first

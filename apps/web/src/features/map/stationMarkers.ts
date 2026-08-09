@@ -51,8 +51,7 @@ export const MAP_LAYERS: readonly LayerDefinition[] = [
   {
     id: "windEdges",
     label: "Wind-conditioned edges",
-    available: false,
-    unavailableReason: "Available in graph view — the wind-conditioned graph lands in phase 4.",
+    available: true,
     defaultOn: false,
   },
 ];

@@ -1,0 +1,29 @@
+{
+  "_comment": "Characterization of the KER11-analogue corroborated-plume adjudication. Generated from provenance.graph.scenarios.corroborated_plume() by the run, NOT hand-authored. Regenerate deliberately if the model changes; a diff here means the demo centrepiece moved.",
+  "confidence": 1.0,
+  "confidence_band": "high",
+  "match_score": 1.0,
+  "n_downwind": 2,
+  "n_usable": 2,
+  "neighbours": [
+    {
+      "actual_excess": 1628.9359,
+      "corroborated": true,
+      "edge_weight": 0.391528,
+      "expected_excess": 1628.9359,
+      "station_id": "SCEN-N1"
+    },
+    {
+      "actual_excess": 893.4116,
+      "corroborated": true,
+      "edge_weight": 0.214612,
+      "expected_excess": 893.4116,
+      "station_id": "SCEN-N2"
+    }
+  ],
+  "reason_codes": [
+    "R22"
+  ],
+  "routes_to_review": false,
+  "verdict": "GENUINE_EVENT"
+}

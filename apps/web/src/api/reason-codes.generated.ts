@@ -4,7 +4,7 @@
 // `sentence` is the operator-facing template; placeholders are filled from a
 // detector's evidence dict by renderReasonSentence() in ./reason-codes.ts.
 
-export type ReasonCodeCategory = "structural" | "physical" | "statistical" | "coverage" | "trust";
+export type ReasonCodeCategory = "structural" | "physical" | "statistical" | "coverage" | "trust" | "adjudication";
 
 export type ReasonCodeSeverity = "info" | "low" | "medium" | "high" | "critical";
 
@@ -208,6 +208,24 @@ export const REASON_CODES: Readonly<Record<string, ReasonCodeDef>> = {
     severity: "critical",
     countsTowardDefectRate: true,
     implementedInPhase: 1,
+  },
+  R22: {
+    code: "R22",
+    name: "PLUME_CORROBORATED",
+    sentence: "The rise is corroborated by {n} downwind neighbour(s), consistent with a real plume.",
+    category: "adjudication",
+    severity: "info",
+    countsTowardDefectRate: false,
+    implementedInPhase: 4,
+  },
+  R23: {
+    code: "R23",
+    name: "ADJUDICATION_AMBIGUOUS",
+    sentence: "Evidence is mixed; this event is routed to human review.",
+    category: "adjudication",
+    severity: "medium",
+    countsTowardDefectRate: false,
+    implementedInPhase: 4,
   },
   T00: {
     code: "T00",

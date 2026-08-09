@@ -46,6 +46,11 @@ class Category(StrEnum):
     """An explanation attached to a trust score. Never a defect: these say *why* a
     score is what it is, so a score is never a bare number (standing rule 9)."""
 
+    ADJUDICATION = "adjudication"
+    """A verdict the propagation adjudicator reached about a candidate event. Never a
+    defect: these explain a GENUINE/FAULT/AMBIGUOUS call over the wind graph and do
+    not touch the statistics-layer defect rate (the adjudicator is not a detector)."""
+
 
 class Severity(StrEnum):
     INFO = "info"
@@ -262,6 +267,33 @@ _REGISTRY: tuple[ReasonCode, ...] = (
         Category.STATISTICAL,
         Severity.CRITICAL,
         notes="Two traffic counters in the Enclod bundle are silently dead.",
+    ),
+    # ------------------------------------ adjudication verdicts: NOT defects
+    # The phase-4 propagation adjudicator reaches one of these over the wind graph.
+    # They explain a plume-vs-fault call for a candidate event; they are not detector
+    # flags and never enter the defect rate. The LIKELY_FAULT case reuses R17
+    # (SPATIAL_INCONSISTENCY) — "contradicts N connected neighbours" is exactly it.
+    _c(
+        "R22",
+        "PLUME_CORROBORATED",
+        "The rise is corroborated by {n} downwind neighbour(s), consistent with a real plume.",
+        Category.ADJUDICATION,
+        Severity.INFO,
+        counts=False,
+        phase=4,
+        notes="The GENUINE_EVENT verdict. Corroboration is the edge-weighted share of "
+        "downwind neighbours whose actual rise matched the expected attenuated rise.",
+    ),
+    _c(
+        "R23",
+        "ADJUDICATION_AMBIGUOUS",
+        "Evidence is mixed; this event is routed to human review.",
+        Category.ADJUDICATION,
+        Severity.MEDIUM,
+        counts=False,
+        phase=4,
+        notes="The AMBIGUOUS verdict — a designed first-class outcome, never a forced "
+        "binary. Its confidence is capped and never presented as high.",
     ),
     # ------------------------------------------------- coverage: NOT defects
     _c(

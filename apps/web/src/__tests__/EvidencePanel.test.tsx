@@ -58,10 +58,12 @@ describe("EvidencePanel", () => {
     expect(slots[1]).toHaveTextContent(/phase 6/);
   });
 
-  it("never shows an adjudication verdict before phase 4", async () => {
+  it("points to the event timeline for the adjudication verdict", async () => {
+    // The defect view is the statistical evidence; the plume-vs-fault verdict is
+    // adjudicated per event over the wind graph, and lives on the timeline.
     renderWithProviders(<EvidencePanel />, { route: "/evidence" });
     expect(await screen.findByTestId("evidence-verdict")).toHaveTextContent(
-      "pending adjudication (phase 4)",
+      "decided per event on the timeline",
     );
   });
 

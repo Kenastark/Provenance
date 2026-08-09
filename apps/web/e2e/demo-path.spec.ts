@@ -63,7 +63,11 @@ test.describe("the demo path", () => {
 
     // SHAP and attention are slots, not fabrications.
     await expect(page.getByTestId("not-yet-computed")).toHaveCount(2);
-    await expect(page.getByTestId("evidence-verdict")).toContainText("pending adjudication");
+    // The plume-vs-fault verdict is adjudicated per event on the timeline, not per
+    // defect here; this panel points there rather than restating a verdict.
+    await expect(page.getByTestId("evidence-verdict")).toContainText(
+      "decided per event on the timeline",
+    );
   });
 
   test("the audit report shows the completeness figure beside the defect rate", async ({ page }) => {
@@ -83,7 +87,7 @@ test.describe("the demo path", () => {
     await expect(headline).toContainText(/\d+\.\d+%/);
   });
 
-  test("events are listed and none claims a verdict", async ({ page }) => {
+  test("events carry only real adjudicator verdicts, never a fabricated one", async ({ page }) => {
     await gotoRoute(page, "/timeline");
     const verdicts = page.getByTestId("event-verdict");
 
@@ -96,9 +100,18 @@ test.describe("the demo path", () => {
 
     const labels = await verdicts.allTextContents();
     expect(labels.length, "the demo corpus must produce events to inspect").toBeGreaterThan(0);
-    expect(new Set(labels.map((label) => label.trim()))).toEqual(
-      new Set(["pending adjudication"]),
-    );
+    // Every label is one of the adjudicator's own verdicts (or the pending state) —
+    // never an invented one. The wind-less demo corpus cannot corroborate a plume, so
+    // its honest verdict is AMBIGUOUS ("Ambiguous — review"), routed to a human.
+    const allowed = new Set([
+      "pending adjudication",
+      "Genuine plume",
+      "Likely fault",
+      "Ambiguous — review",
+    ]);
+    for (const label of labels) {
+      expect(allowed.has(label.trim()), `unexpected verdict label: ${label}`).toBe(true);
+    }
   });
 
   test("the quality monitor lists every station in the run", async ({ page }) => {
