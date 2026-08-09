@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createMapEngine, overlayPadding, type MapEngine } from "./mapEngine";
-import { boundsForStations } from "./mapStyle";
+import {
+  boundsForStations,
+  buildBasemapStyle,
+  LOCAL_BASEMAP_URL,
+  probeBasemap,
+  resolveStyle,
+} from "./mapStyle";
 
 /**
  * Owning the GL map, and surviving without one.
@@ -36,10 +42,18 @@ export interface UseMapEngineResult {
 }
 
 
-export function useMapEngine(stations: readonly Positionable[]): UseMapEngineResult {
+export function useMapEngine(
+  stations: readonly Positionable[],
+  theme: "dark" | "light",
+): UseMapEngineResult {
   const engineRef = useRef<MapEngine | null>(null);
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const [basemapAvailable, setBasemapAvailable] = useState(true);
+  // Whether the fetched street basemap is actually present. Starts false and only
+  // flips true after a successful probe, so the default everywhere - fresh clone,
+  // CI, every test - is the token ground.
+  const [basemapPresent, setBasemapPresent] = useState(false);
+  const [engineGeneration, setEngineGeneration] = useState(0);
   const [viewVersion, setViewVersion] = useState(0);
   const [isIdle, setIsIdle] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -56,6 +70,9 @@ export function useMapEngine(stations: readonly Positionable[]): UseMapEngineRes
     try {
       engineRef.current = createMapEngine({
         container: node,
+        // Always start on the token ground; the style effect below swaps in the
+        // basemap once the probe confirms it, and re-themes on a theme change.
+        initialStyle: resolveStyle(),
         onViewChange: () => {
           setIsIdle(false);
           setViewVersion((version) => version + 1);
@@ -64,6 +81,8 @@ export function useMapEngine(stations: readonly Positionable[]): UseMapEngineRes
         onIdle: () => setIsIdle(true),
       });
       setBasemapAvailable(true);
+      // Signal that an engine exists, so the style effect runs against it.
+      setEngineGeneration((generation) => generation + 1);
     } catch {
       engineRef.current = null;
       setBasemapAvailable(false);
@@ -72,6 +91,35 @@ export function useMapEngine(stations: readonly Positionable[]): UseMapEngineRes
       setIsIdle(true);
     }
   }, []);
+
+  // Probe once for the fetched basemap. Absence is the normal case and resolves to
+  // false, leaving the token ground in place.
+  useEffect(() => {
+    const controller = new AbortController();
+    probeBasemap(LOCAL_BASEMAP_URL, controller.signal).then(setBasemapPresent).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
+  // Re-apply the style when the theme or basemap presence *changes* - which
+  // re-themes the token ground (`resolveStyle` reads the `--prov-map-*` tokens at
+  // call time) and swaps in the streets once the probe confirms them.
+  //
+  // The engine is created with the correct initial style already, so the first run
+  // here is a no-op: calling setStyle again mid-load restarts the render cycle and
+  // the map never reaches `idle`. A ref, not the engine generation, gates it, so a
+  // remount re-arms the skip.
+  const styleApplied = useRef<{ theme: string; present: boolean } | null>(null);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    void engineGeneration; // re-run after a fresh engine mounts
+    const last = styleApplied.current;
+    styleApplied.current = { theme, present: basemapPresent };
+    // Skip the redundant apply on the first run against a given engine; only act on
+    // an actual change of theme or basemap presence.
+    if (last === null || (last.theme === theme && last.present === basemapPresent)) return;
+    engine.applyStyle(basemapPresent ? buildBasemapStyle(theme) : resolveStyle());
+  }, [engineGeneration, theme, basemapPresent]);
 
   // Keep the fallback projection honest about the container it is drawing into.
   useEffect(() => {

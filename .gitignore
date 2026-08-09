@@ -38,6 +38,10 @@ dist/
 build/
 *.egg-info/
 
+# ---- basemap (fetched by scripts/fetch-basemap.sh; large, never committed) ----
+apps/web/public/basemap/
+.cache/pmtiles/
+
 # ---- node ----
 node_modules/
 apps/web/dist/

@@ -161,17 +161,13 @@ describe("truncation is surfaced, never silent", () => {
     let served = 0;
     const client = {
       config: base.config,
-      async get<T>(path: string, options?: { query?: Record<string, unknown> }): Promise<T> {
+      get: (async (path: string, options?: Parameters<typeof base.get>[1]) => {
         if (path === "/v1/defects") {
           served += 1;
-          return {
-            items: [{ ...fixtures.defect({ id: served }) }],
-            next_cursor: `more-${served}`,
-            count: 1,
-          } as T;
+          return { items: [fixtures.defect({ id: served })], next_cursor: `more-${served}`, count: 1 };
         }
-        return base.get<T>(path, options);
-      },
+        return base.get(path, options);
+      }) as typeof base.get,
     } as typeof base;
 
     renderWithProviders(<EvidencePanel />, { route: "/evidence", client });
