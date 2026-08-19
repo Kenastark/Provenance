@@ -94,7 +94,26 @@ value touched.
 
 ## Deviations from the prompt
 
-None.
+- **The first round of baselines was captured against contaminated local state
+  and had to be redone.** The local API had been running for hours with trained
+  model artefacts (`src/provenance/models/artefacts/`, gitignored, left over from
+  earlier session work) already loaded, so `station-detail-{dark,light}` on both
+  platforms rendered the "live" Trust trajectory chart instead of the pinned
+  "Degraded mode — statistics layer only" state that `make demo-data` (without
+  `make demo-models`) is documented to produce. CI's `e2e` check caught this: it
+  runs `make demo-data` on a clean checkout with no artefacts, so its own capture
+  of `station-detail-dark` disagreed with the committed baseline by ~5-7% of
+  pixels — same station, same trust score, same date, but with an extra
+  "Degraded mode" banner CI's build. Root-caused by diffing CI's `actual.png`
+  artifact against the local baseline: content matched everywhere except that
+  banner and everything below it, which is a data-availability difference, not a
+  font or platform rendering difference. Fixed by moving
+  `src/provenance/models/artefacts/` aside, restarting the local API so it
+  reported no trained models (verified via `GET /version`), and re-capturing only
+  the four affected files on both platforms. The other twelve — regenerated
+  correctly the first time — were untouched by this. Model artefacts were moved
+  back and the API restarted again afterward, restoring the local dev environment
+  to how it was found.
 
 ## Flag for review
 
