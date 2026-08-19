@@ -76,6 +76,10 @@ Format: Keep a Changelog. Versioning: SemVer.
   larger mark keeps breathing room against both edges. No artwork, gradient, or
   palette value changed. All sixteen visual baselines regenerated on both
   platforms.
+- The primary nav in `TopBar.tsx` gains `ml-6` (`--prov-space-6`, 32px) so the tab
+  group reads as its own region rather than sitting against the lockup. No nav
+  item, route, or ordering changed. No visual baseline changed - the shift falls
+  within the visual gate's pixel-diff tolerance on both platforms.
 
 ## [1.0.0-demo] - 2026-08-09
 Phase 7: the operational layer and the submission build — the freeze tag. Adds the
