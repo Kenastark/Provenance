@@ -62,7 +62,7 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
         data-testid="lockup"
       />
 
-      <nav aria-label="Primary" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <nav aria-label="Primary" className="ml-6 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {NAV.map((item) => (
           <NavLink
             key={item.to}
