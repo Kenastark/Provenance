@@ -130,7 +130,12 @@
 
   --prov-topbar-height: 72px;
   --prov-rail-width: 240px;
-  --prov-drawer-width: 380px;
+  /* Measured against the longest realistic station detail: a full 4-component
+     trust breakdown, 5 reason codes, and 7 parameter rows. Below ~516px the
+     component table (Component/Value/Weight/Contribution, unconstrained auto
+     table layout) overflows its container rather than wrapping - 520px keeps a
+     few pixels of headroom for cross-platform font-metric differences. */
+  --prov-drawer-width: 520px;
   --prov-row-height: 32px;
   --prov-row-height-compact: 28px;
 

@@ -80,6 +80,24 @@ Format: Keep a Changelog. Versioning: SemVer.
   group reads as its own region rather than sitting against the lockup. No nav
   item, route, or ordering changed. No visual baseline changed - the shift falls
   within the visual gate's pixel-diff tolerance on both platforms.
+- **Station detail panel is now resizable, and its default width no longer clips
+  the trust-component table.** `--prov-drawer-width` moves 380px -> 520px in both
+  `design/tokens/tokens.css` and its `apps/web` mirror - measured, not guessed,
+  against the longest realistic content (a full 4-component breakdown, 5 reason
+  codes, 7 parameter rows): below ~516px the `<table>` in `TrustBreakdown.tsx`
+  (unconstrained auto layout) overflows its container rather than wrapping, which
+  is what was cutting off the Value/Weight/Contribution columns. A new drag
+  handle (`DrawerResizeHandle.tsx`, `lib/drawerWidth.ts`) sits on the panel's left
+  edge from the `lg` breakpoint up: `role="separator"`, keyboard-operable
+  (arrow keys, Home/End), double-click resets to the token default, and the
+  chosen width persists to `localStorage` (clamped to [360px, 60% of the
+  viewport]) and restores on load. The trust-trajectory `Sparkline` now takes a
+  `fluid` prop so it scales with the panel instead of staying pinned at a fixed
+  320px. Visual baselines regenerated on both platforms: the network map, the
+  station detail panel, and the data quality monitor all shift a few px, since
+  the resize handle occupies space even in the empty (no station selected)
+  state and its neighbouring flex-1 region narrows to match; the event timeline,
+  which never renders the drawer, is unchanged.
 
 ## [1.0.0-demo] - 2026-08-09
 Phase 7: the operational layer and the submission build — the freeze tag. Adds the

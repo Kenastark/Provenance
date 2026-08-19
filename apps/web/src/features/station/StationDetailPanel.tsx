@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import type { QualityStation, Station, TrustComponent } from "../../api/client";
 import { evidenceFor, sortCodesBySeverity } from "../../api/reason-codes";
 import { useDefects, useReadings, useTrust, useTrustSeries } from "../../api/queries";
+import { DrawerResizeHandle } from "../../components/DrawerResizeHandle";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { Sparkline } from "../../components/Sparkline";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { TrustBreakdown } from "../../components/TrustBreakdown";
 import { TrustChip, type NonEmpty } from "../../components/TrustChip";
+import { useDrawerWidth } from "../../lib/drawerWidth";
 import { formatCount, formatRelative, formatTimestamp } from "../../lib/format";
 import { queueAction, queuedActionsFor, QUEUE_DISCLOSURE } from "../../lib/queue";
 import { trustBandDescription, trustState } from "../../lib/trust";
@@ -50,35 +53,62 @@ export function StationDetailPanel({
   qualityRow,
   onClose,
 }: StationDetailPanelProps) {
+  const { width, min, max, setWidth, reset } = useDrawerWidth();
+  // Only the `lg` layout resizes - below it the drawer is stacked full-width, so
+  // the custom width must not leak into that layout as a max-width.
+  const style = { "--prov-drawer-width": `${width}px` } as CSSProperties;
+
   if (!stationId) {
     return (
       <aside
-        className="hidden w-full min-w-0 shrink-0 border-l border-border bg-bg-raised lg:block"
-        style={{ maxWidth: "var(--prov-drawer-width)" }}
+        className="hidden w-full min-w-0 shrink-0 border-l border-border bg-bg-raised lg:flex"
+        style={{ maxWidth: "var(--prov-drawer-width)", ...style }}
         aria-label="Station detail"
       >
-        <EmptyState
-          title="No station selected"
-          description="Choose a marker on the map, or a row in the data quality monitor, to see its trust score, the reasons behind it, and the series it rests on."
+        <DrawerResizeHandle
+          width={width}
+          min={min}
+          max={max}
+          onResize={setWidth}
+          onReset={reset}
+          className="hidden lg:block"
         />
+        <div className="min-w-0 flex-1">
+          <EmptyState
+            title="No station selected"
+            description="Choose a marker on the map, or a row in the data quality monitor, to see its trust score, the reasons behind it, and the series it rests on."
+          />
+        </div>
       </aside>
     );
   }
 
   return (
     <aside
-      // Stacked and full width on a narrow screen; a fixed rail beside the content
-      // from `lg` up. `min-w-0` so a long station name cannot widen the page.
-      className="flex w-full min-w-0 shrink-0 flex-col overflow-y-auto border-t border-border bg-bg-raised lg:max-w-[var(--prov-drawer-width)] lg:border-l lg:border-t-0"
+      // Stacked and full width on a narrow screen; a fixed, resizable rail beside
+      // the content from `lg` up. `min-w-0` so a long station name cannot widen
+      // the page.
+      className="flex w-full min-w-0 shrink-0 flex-col border-t border-border bg-bg-raised lg:max-w-[var(--prov-drawer-width)] lg:flex-row lg:border-l lg:border-t-0"
+      style={style}
       aria-label={`Station detail for ${stationId}`}
       data-testid="station-detail-panel"
     >
-      <StationDetailBody
-        stationId={stationId}
-        station={station}
-        qualityRow={qualityRow}
-        onClose={onClose}
+      <DrawerResizeHandle
+        width={width}
+        min={min}
+        max={max}
+        onResize={setWidth}
+        onReset={reset}
+        className="hidden lg:block"
       />
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <StationDetailBody
+          stationId={stationId}
+          station={station}
+          qualityRow={qualityRow}
+          onClose={onClose}
+        />
+      </div>
     </aside>
   );
 }
@@ -226,6 +256,7 @@ function StationDetailBody({
             label={`Trust at ${stationId}`}
             width={320}
             height={44}
+            fluid
             points={series.data.map((point) => ({
               t: point.timestamp_utc,
               value: point.trust,
