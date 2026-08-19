@@ -99,6 +99,29 @@ def test_reversed_lockup_is_not_stale() -> None:
     assert main(["--check"]) == 0
 
 
+# A double hyphen inside an XML comment is illegal per the XML spec. lxml and other
+# lenient tools tolerate it; browsers parsing SVG-in-<img> do not, and reject the
+# whole file - which is how a reversed lockup shipped through a phase gate and
+# sixteen visual baselines as a silent broken image on the default (dark) theme.
+ALL_LOGO_SVGS = sorted(
+    (*DESIGN_LOGO.glob("*.svg"), *APP_PUBLIC.glob("*.svg")),
+    key=lambda p: str(p.relative_to(REPO)),
+)
+
+
+@pytest.mark.parametrize(
+    "svg_path", ALL_LOGO_SVGS, ids=[str(p.relative_to(REPO)) for p in ALL_LOGO_SVGS]
+)
+def test_logo_svgs_are_well_formed_xml(svg_path: Path) -> None:
+    """Every served or source logo asset must parse under a strict XML parser."""
+    import xml.etree.ElementTree as ET
+
+    try:
+        ET.parse(svg_path)
+    except ET.ParseError as exc:
+        pytest.fail(f"{svg_path.relative_to(REPO)} is not well-formed XML: {exc}")
+
+
 # Colour lives in CSS. Classes composed at runtime are invisible to Tailwind's
 # content scanner, so the ones the UI builds from a state name must be safelisted
 # or the rules are stripped from the bundle - which is how a whole trust state
