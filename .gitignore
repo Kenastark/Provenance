@@ -83,3 +83,6 @@ apps/web/*.tsbuildinfo
 # and must never be committed, since it can silently widen what auto-approves
 # on someone else's clone.
 .claude/settings.local.json
+
+# TypeScript incremental build artefact
+apps/web/*.tsbuildinfo

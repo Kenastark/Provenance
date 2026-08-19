@@ -43,9 +43,14 @@ weights:
   physical_plausibility: 0.30   # w4: distance from physical bounds
 
 health:
-  # Trailing window over which active defects depress HealthConf.
+  # Trailing window over which active faults depress HealthConf.
   window_hours: 168            # one week
-  # Severity weights: how much one active defect of each severity costs.
+  # Severity weight carried by ONE DEFECTIVE CELL of each severity. Load is the
+  # severity-weighted FRACTION of the station's cells that are defective:
+  #   load = sum(worst_severity per defective cell) / covered cells in window
+  # A cell counts once at its worst severity however many codes fired on it - the
+  # same discipline the defect rate uses. Load is therefore bounded by 1.0 (every
+  # cell critical) no matter how long the window is.
   severity_weights:
     critical: 1.0
     high: 0.7
@@ -53,10 +58,19 @@ health:
     low: 0.2
     info: 0.05
   # HealthConf = exp(-load / scale); scale sets how fast trust decays with load.
-  decay_scale: 3.0
+  decay_scale: 0.3
   basis: >-
-    A single critical defect (load 1.0) drops HealthConf to exp(-1/3) ≈ 0.72; a
-    frozen sensor plus a physical impossibility (load ≈ 1.7) drops it below 0.6.
+    Anchored on the case the fault threshold has to catch: a sensor frozen across
+    a station's whole record spoils 100% of its cells at high severity, so
+    load = 0.7 and HealthConf = exp(-0.7/0.3) ~= 0.10. Such a station also scores 0
+    on CrossSensorConsistency, putting total trust near 0.48 - below the 0.5 fault
+    threshold in the design tokens, as a wholly frozen station must be. A station
+    losing one of thirteen parameters carries load ~0.054 and stays near 0.84,
+    which is the correct answer: twelve good channels are still good.
+    SUPERSEDES v1.0, which summed one weight per flag ROW rather than per cell
+    fraction. That made load scale with window length and flag volume, drove
+    HealthConf to ~1e-30 for every station in the real network, and removed 35% of
+    the trust score from play without failing a single test.
 
 imputation:
   # Placeholder term. ImputationUncertainty is 1.0 for an absent reading and

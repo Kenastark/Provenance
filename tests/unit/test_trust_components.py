@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import pandas as pd
+import pytest
 from tests.support import series_rows
 
 from provenance.config.loading import load_thresholds
@@ -38,9 +39,13 @@ def _at(frame: pd.DataFrame) -> pd.Timestamp:
     return pd.Timestamp(frame[C.TIMESTAMP].max())
 
 
+def _health(frame: pd.DataFrame, station: str = "S1"):
+    return comp.health_conf(_defects(frame), build_coverage(frame), station, _at(frame), _WCFG)
+
+
 def test_health_conf_is_one_for_a_clean_station() -> None:
     frame = _frame([("S1", "PM10", _CLEAN)])
-    c, codes, _ = comp.health_conf(_defects(frame), "S1", _at(frame), _WCFG)
+    c, codes, _ = _health(frame)
     assert c.value == 1.0
     assert codes == []
 
@@ -50,9 +55,40 @@ def test_health_conf_decays_with_active_defects() -> None:
     values = list(_CLEAN)
     values[10] = values[20] = values[30] = 5000.0
     frame = _frame([("S1", "PM10", values)])
-    c, codes, _ = comp.health_conf(_defects(frame), "S1", _at(frame), _WCFG)
+    c, codes, _ = _health(frame)
     assert 0.0 < c.value < 1.0
     assert "T01" in codes
+
+
+def test_health_conf_load_is_bounded_however_long_the_freeze() -> None:
+    """The v1.0 bug: load summed one weight per flag ROW, so it grew without bound
+    with window length and drove the component to ~1e-30. Load is now a fraction,
+    so a freeze twice as long spoils the same 100% of the station and scores the
+    same — bounded below by exp(-worst_severity / scale).
+    """
+    hcfg = _WCFG["health"]
+    floor = math.exp(-hcfg["severity_weights"]["critical"] / hcfg["decay_scale"])
+
+    short = _health(_frame([("S1", "PM10", [42.0] * 48)]))[0].value
+    long_ = _health(_frame([("S1", "PM10", [42.0] * 96)]))[0].value
+
+    assert short == pytest.approx(long_, abs=1e-9), "load must not scale with window length"
+    assert short >= floor - 1e-9
+    assert short > 1e-3, "a wholly frozen station must not saturate to zero"
+
+
+def test_health_conf_scales_with_how_much_of_the_station_is_spoiled() -> None:
+    """One frozen parameter out of four is less damaging than the only one frozen."""
+    frozen_only = _frame([("S1", "PM10", [42.0] * 48)])
+    frozen_one_of_four = _frame(
+        [
+            ("S1", "PM10", [42.0] * 48),
+            ("S1", "NO2", _CLEAN),
+            ("S1", "O3", _CLEAN),
+            ("S1", "CO", _CLEAN),
+        ]
+    )
+    assert _health(frozen_only)[0].value < _health(frozen_one_of_four)[0].value
 
 
 def test_imputation_is_placeholder_and_full_for_present_data() -> None:

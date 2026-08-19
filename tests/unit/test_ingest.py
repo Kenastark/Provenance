@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from provenance.config.loading import load_schema_assumptions
 from provenance.io import ingest
 from provenance.io.ingest import (
     EnclodAdapter,
@@ -47,6 +48,22 @@ def test_discover_maps_sources_to_files(tmp_path: Path) -> None:
 def test_enclod_fails_loudly_while_columns_are_unconfirmed(tmp_path: Path) -> None:
     with pytest.raises(SchemaDriftError, match="unconfirmed"):
         EnclodAdapter().read(tmp_path)
+
+
+def test_observing_enclod_columns_does_not_open_the_parse_gate() -> None:
+    """Writing the real column names down is not the same as being able to parse.
+
+    ADR 0005 records the observed wide schema and the canonical mapping, which
+    moves `enclod_traffic.status` to `observed`. Only `confirmed` may open the
+    gate, and promoting it is the same change that implements the parse — so a
+    config edit on its own must never route callers into unwritten code.
+    """
+    cfg = load_schema_assumptions()["enclod_traffic"]
+    assert cfg["status"] == "observed"
+    assert cfg["measure_columns"], "the observed wide schema must be recorded"
+    assert cfg["counter_id_column"] == "uuid"
+    with pytest.raises(SchemaDriftError):
+        EnclodAdapter().read(Path())
 
 
 def test_weather_and_gtfs_report_not_ready(tmp_path: Path) -> None:

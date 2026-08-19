@@ -82,10 +82,17 @@ web-e2e: ## Playwright end-to-end suite (needs the stack + demo data)
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.62.1-noble
 VISUAL_API_URL ?= http://host.docker.internal:8000
 
+# CI runs on amd64. Pinning the container to it (Rosetta/QEMU-emulated on an
+# Apple Silicon host) keeps the baseline captured here identical to CI's,
+# rather than each Mac's native arm64 build of the image - which font-hints
+# text just differently enough to fail the gate on every push from one.
+
 define run_visual_in_container
 	docker run --rm \
+	  --platform linux/amd64 \
 	  -v "$(PWD)/apps/web:/host:ro" \
 	  -v "$(PWD)/apps/web/e2e/visual.spec.ts-snapshots:/out" \
+	  -v "$(PWD)/apps/web/test-results:/results" \
 	  -e VITE_API_BASE_URL=$(VISUAL_API_URL) \
 	  --add-host=host.docker.internal:host-gateway \
 	  $(PLAYWRIGHT_IMAGE) \
@@ -100,8 +107,10 @@ define run_visual_in_container
 	    rm -rf /build/node_modules /build/dist /build/test-results /build/playwright-report; \
 	    rm -rf /build/public/basemap; \
 	    cd /build && pnpm install --no-frozen-lockfile --silent; \
-	    npx playwright test --project=chromium e2e/visual.spec.ts $(1); \
-	    cp /build/e2e/visual.spec.ts-snapshots/*-linux.png /out/ 2>/dev/null || true'
+	    set +e; npx playwright test --project=chromium e2e/visual.spec.ts $(1); status=$$?; set -e; \
+	    cp /build/e2e/visual.spec.ts-snapshots/*-linux.png /out/ 2>/dev/null || true; \
+	    cp -r /build/test-results/. /results/ 2>/dev/null || true; \
+	    exit $$status'
 endef
 
 .PHONY: web-visual-linux
