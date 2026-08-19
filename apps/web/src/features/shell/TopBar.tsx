@@ -12,7 +12,7 @@ import { TIME_WINDOWS, type TimeWindowKey } from "../../lib/timeWindow";
  * front of this for a shift does not need to be asked a rhetorical question every
  * time they look at the toolbar.
  *
- * The lockup is the fixed SVG asset at 28px. The wordmark is never re-set in the
+ * The lockup is the fixed SVG asset at 56px. The wordmark is never re-set in the
  * display face - that is what the asset is for.
  */
 
@@ -56,9 +56,9 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
       <img
         src={lockup}
         alt="Provenance"
-        height={28}
+        height={56}
         className="w-auto shrink-0"
-        style={{ height: 28 }}
+        style={{ height: 56 }}
         data-testid="lockup"
       />
 

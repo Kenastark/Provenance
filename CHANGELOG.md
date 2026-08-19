@@ -10,8 +10,21 @@ Format: Keep a Changelog. Versioning: SemVer.
   CLAUDE.md's rules. `tests/architecture/test_agents_md.py` guards its length and
   bans a numbered rules list, so it cannot silently grow into a duplicate that
   drifts out of sync with CLAUDE.md.
+- `tests/architecture/test_brand.py`: every `.svg` under `design/logo/` and
+  `apps/web/public/` is now parsed with a strict XML parser. This is the guard that
+  should have caught the dark-mode lockup shipping as an unparseable file.
 
 ### Fixed
+- **The dark-mode top-bar lockup did not render at all.** The generator at
+  `scripts/gen_reversed_lockup.py` wrote a comment containing `--prov-white`, and a
+  double hyphen is illegal inside an XML comment. Browsers parsing SVG-in-`<img>`
+  are strict and reject the whole file, so the dashboard's default (dark) theme
+  showed a broken image where the lockup belongs; the light theme was unaffected,
+  since it uses the unreversed asset. Fixed at the source by rewording the
+  generator's note, then regenerating both `design/logo/` and its
+  `apps/web/public/` mirror. All sixteen visual baselines had been captured with
+  the broken image in place on every dark-theme screen, so the visual-regression
+  gate had been blessing the bug rather than catching it.
 - **Trust Score: `HealthConf` was a constant zero for every station.** It summed one
   severity weight per defect *flag row*, and detectors flag every defective cell, so
   load scaled with window length and flag volume rather than with how broken a
@@ -58,6 +71,11 @@ Format: Keep a Changelog. Versioning: SemVer.
   `observed` - columns known, parse not written - and only `confirmed` opens the
   adapter gate, pinned by a test so a config edit alone can never route callers into
   code that does not exist.
+- The top-bar lockup renders at 56px (was 28px). `--prov-topbar-height` moves
+  56px -> 72px in both `design/tokens/tokens.css` and its `apps/web` mirror so the
+  larger mark keeps breathing room against both edges. No artwork, gradient, or
+  palette value changed. All sixteen visual baselines regenerated on both
+  platforms.
 
 ## [1.0.0-demo] - 2026-08-09
 Phase 7: the operational layer and the submission build — the freeze tag. Adds the
