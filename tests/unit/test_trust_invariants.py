@@ -59,7 +59,7 @@ def test_health_conf_strictly_decreases_as_impossible_readings_accumulate() -> N
     scores = []
     for v in values:
         frame = _frame([("S1", "PM10", v)])
-        c, _, _ = comp.health_conf(_defects(frame), "S1", _at(frame), _WCFG)
+        c, _, _ = comp.health_conf(_defects(frame), build_coverage(frame), "S1", _at(frame), _WCFG)
         scores.append(c.value)
     # Strictly decreasing: each additional critical defect lowers HealthConf.
     assert all(scores[i] > scores[i + 1] for i in range(len(scores) - 1)), scores
