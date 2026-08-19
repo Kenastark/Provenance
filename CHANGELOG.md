@@ -4,6 +4,13 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Added
+- `AGENTS.md`: a short pointer at the repo root so agents that look for that
+  filename by convention land somewhere useful, without becoming a second copy of
+  CLAUDE.md's rules. `tests/architecture/test_agents_md.py` guards its length and
+  bans a numbered rules list, so it cannot silently grow into a duplicate that
+  drifts out of sync with CLAUDE.md.
+
 ### Fixed
 - **Trust Score: `HealthConf` was a constant zero for every station.** It summed one
   severity weight per defect *flag row*, and detectors flag every defective cell, so

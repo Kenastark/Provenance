@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-Read this before doing anything in this repository.
+Read this before doing anything in this repository. `AGENTS.md` exists too, as a
+short pointer back here — this file stays the one authoritative rulebook.
 
 ## What this is
 
