@@ -29,6 +29,14 @@ export interface SparklineProps {
   width?: number;
   height?: number;
   className?: string;
+  /**
+   * Stretch to the width of the containing block instead of the fixed `width`.
+   * `width`/`height` still set the coordinate system (and so the aspect ratio) -
+   * the drawn series just scales with the SVG's intrinsic aspect ratio rather than
+   * pinning it in pixels, which matters wherever the container's width can change
+   * under the caller, like the resizable station detail panel.
+   */
+  fluid?: boolean;
 }
 
 interface Scaled {
@@ -44,6 +52,7 @@ export function Sparkline({
   width = 160,
   height = 32,
   className,
+  fluid = false,
 }: SparklineProps) {
   const titleId = useId();
   const values = points.map((p) => p.value).filter((v): v is number => v !== null);
@@ -106,6 +115,7 @@ export function Sparkline({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
+      style={fluid ? { width: "100%", height: "auto" } : undefined}
       className={className}
       role="img"
       aria-labelledby={titleId}
