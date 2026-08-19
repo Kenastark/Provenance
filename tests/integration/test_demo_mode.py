@@ -55,6 +55,22 @@ def test_cli_demo_run_is_byte_for_byte_reproducible(demo_drop: dict, tmp_path) -
     assert payload["steps"]
 
 
+def test_contrast_scenario_shows_two_distinct_events(demo_drop: dict) -> None:
+    # The contrast must never be the same event shown twice. On a wind-less corpus no
+    # verdict contrast exists, so it falls back to a different station and says so
+    # honestly (verdicts_differ=False) rather than implying a contrast that isn't there.
+    sc = demo.build_scenario("contrast-fault", demo_drop["frame"], demo_drop["meta"])
+    step = next(s for s in sc.steps if s.screen == "contrast-verdicts")
+    a, b = step.numbers["a"], step.numbers["b"]
+    assert b is not None
+    assert (a["station_id"], a["timestamp_utc"]) != (b["station_id"], b["timestamp_utc"])
+    assert "verdicts_differ" in step.numbers
+    # The step headline must not claim differing verdicts when there are none.
+    if not step.numbers["verdicts_differ"]:
+        assert a["verdict"] == b["verdict"]
+        assert "Different verdicts" not in step.headline
+
+
 def test_cli_demo_run_rejects_an_unknown_scenario(demo_drop: dict) -> None:
     result = runner.invoke(
         app, ["demo", "run", "--scenario", "nope", "--data", str(demo_drop["path"])]

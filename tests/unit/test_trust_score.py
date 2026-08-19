@@ -71,6 +71,34 @@ def test_risk_carries_the_population_exposure_stub_flag() -> None:
     assert score.risk.population_exposure == 1.0
 
 
+# The station-detail panel renders the trust notes, so the *stubbed* exposure note is
+# part of the pinned Playwright visual baseline (the demo corpus carries no GTFS). A
+# reword drifts the baseline and only the CI-only e2e job catches it — this pins the
+# exact string in fast pytest so a change fails here first. See engine.py comment and
+# the e2e-visual-baselines memo.
+_STUBBED_NOTE = "PopulationExposure is stubbed at 1.0 until GTFS ridership lands (§7.8)."
+
+
+def test_stubbed_exposure_note_text_is_pinned() -> None:
+    frame = _frame([("S1", _CLEAN), ("S2", _CLEAN), ("S3", _CLEAN)])
+    score = _score(frame, "S1")  # no exposure passed -> stubbed path
+    assert _STUBBED_NOTE in score.notes
+
+
+def test_measured_exposure_note_and_flag_when_exposure_is_given() -> None:
+    frame = _frame([("S1", _CLEAN), ("S2", _CLEAN), ("S3", _CLEAN)])
+    coverage = build_coverage(frame)
+    ctx = AuditContext(thresholds=load_thresholds(), coverage=coverage)
+    defects = registry.run_detectors(frame, ctx)
+    score = compute_trust(
+        frame, defects, "S1", latest_timestamp(frame), coverage=coverage, exposure=1.4
+    )
+    assert score.risk.population_exposure_stubbed is False
+    assert score.risk.population_exposure == 1.4
+    assert _STUBBED_NOTE not in score.notes
+    assert any("from the GTFS transit-corridor layer" in n for n in score.notes)
+
+
 def test_trust_score_refuses_to_construct_without_components() -> None:
     risk = Risk(value=1.0, trust=1.0, severity_vs_threshold=1.0, population_exposure=1.0)
     with pytest.raises(ValueError, match="component breakdown"):
