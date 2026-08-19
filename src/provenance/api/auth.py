@@ -1,15 +1,22 @@
-"""API-key authentication with three roles.
+"""API-key authentication with four roles.
 
-Phase 2 uses static API keys mapped to roles, not full OIDC — a deliberate,
-recorded deferral (see ``docs/decisions/0004-api-auth-phase2.md``). The three
-roles form a strict hierarchy of read access:
+Phase 2 shipped three roles behind static API keys, not full OIDC — a deliberate,
+recorded deferral (see ``docs/decisions/0004-api-auth-phase2.md``). Phase 7 adds the
+``admin`` role and the operational write surface, and records the OIDC-shaped
+migration in ``docs/decisions/0010-signoff-and-rbac-phase7.md``: the keys are the credential
+transport, but the role model (the RBAC matrix below) is exactly the one an OIDC
+``roles`` claim would carry, so the swap is a transport change, not a policy change.
+
+The four roles form a strict hierarchy of access:
 
 * ``public_read`` — the public trust product: stations, trust scores, quality
   summary, events, and the meta endpoints.
 * ``researcher`` — everything public plus the raw and quality-flagged readings,
   the defect ledger, audit runs, and the regulator-facing audit-trail export.
-* ``operator`` — everything a researcher can see; the role that will carry the
-  write and sign-off surface added in phase 7.
+* ``operator`` — everything a researcher can see, plus the operational surface: the
+  maintenance queue, the Alert Centre, and the sign-off / dispatch actions.
+* ``admin`` — everything an operator can do, plus the admin dashboard: model
+  versions, retraining triggers, config hashes, and export history.
 
 Keys come from ``PROVENANCE_API_KEYS`` (a JSON ``{key: role}`` map) when set, else
 the documented local-dev defaults below. The meta endpoints (health, readiness,
@@ -34,17 +41,20 @@ class Role(StrEnum):
     PUBLIC_READ = "public_read"
     RESEARCHER = "researcher"
     OPERATOR = "operator"
+    ADMIN = "admin"
 
 
-# Read access each role is granted, resolved transitively below.
+# Access each role is granted, resolved transitively below.
 _GRANTS: dict[Role, set[Role]] = {
     Role.PUBLIC_READ: {Role.PUBLIC_READ},
     Role.RESEARCHER: {Role.PUBLIC_READ, Role.RESEARCHER},
     Role.OPERATOR: {Role.PUBLIC_READ, Role.RESEARCHER, Role.OPERATOR},
+    Role.ADMIN: {Role.PUBLIC_READ, Role.RESEARCHER, Role.OPERATOR, Role.ADMIN},
 }
 
 # Local-dev keys. Override in any real environment via PROVENANCE_API_KEYS.
 _DEFAULT_KEYS: dict[str, Role] = {
+    "prov-admin-key": Role.ADMIN,
     "prov-operator-key": Role.OPERATOR,
     "prov-researcher-key": Role.RESEARCHER,
     "prov-public-key": Role.PUBLIC_READ,

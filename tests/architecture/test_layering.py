@@ -27,6 +27,17 @@ FORBIDDEN: dict[str, set[str]] = {
     "io": {"api", "report", "models", "graph"},
     "audit": {"api", "report"},
     "trust": {"api", "report"},
+    # graph sits after trust and before the neural stack: it may lean on everything
+    # upstream (io/schema/grid/detectors/audit/trust/config) but never the
+    # presentation layers or anything downstream of it.
+    "graph": {"api", "report", "models", "explain"},
+    # models sits after graph: it may import everything upstream (io included, so it
+    # can persist residuals) but never the presentation layers or explain, which is
+    # downstream of it.
+    "models": {"api", "report", "explain"},
+    # explain is the last layer: it may import models and everything upstream, and is
+    # imported only by the presentation layers.
+    "explain": {"api", "report"},
     "config": {"api", "report", "models", "graph", "detectors", "audit", "io"},
 }
 
@@ -109,3 +120,11 @@ def test_schema_assumptions_declare_their_status() -> None:
 
     cfg = yaml.safe_load((SRC / "config" / "schema_assumptions.yaml").read_text())
     assert cfg["status"] in {"unconfirmed", "confirmed"}
+
+
+def test_models_config_declares_its_status() -> None:
+    """The model hyperparameters are modelling choices, not calibrated values, and say so."""
+    import yaml
+
+    cfg = yaml.safe_load((SRC / "config" / "models.yaml").read_text())
+    assert cfg["status"] in {"placeholder", "provisional", "calibrated"}

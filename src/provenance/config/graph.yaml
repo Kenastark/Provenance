@@ -1,0 +1,155 @@
+# Wind-conditioned graph and propagation-adjudicator parameters (phase 4).
+#
+# These are PHYSICALLY-REASONED DEFAULTS, not calibrated values. There are far too
+# few real corroborated events to fit them (§16 critique 2), so `status` stays
+# `provisional`: the numbers encode a defensible dispersion-cone intuition and are
+# the single place to tune it, never a claim of empirical calibration. The wind
+# edge is a lightweight, differentiable approximation of a Gaussian plume, NOT an
+# atmospheric dispersion model — see docs/decisions/0007-wind-edges.md.
+#
+# Nothing here is a data-derived constant (standing rule 1): every figure is a
+# modelling choice. The defect rate, completeness, station counts and event
+# verdicts are all computed elsewhere from the readings and never appear here.
+
+version: 1
+status: provisional            # placeholder | provisional | calibrated
+
+# --- Wind-conditioned edge weight -------------------------------------------
+# w(i,j,t) = exp(-Δθ / sigma_angle) · f(|wind_speed|) · g(distance)
+#   Δθ  = angular gap between the i→j bearing and the direction the air is TRAVELLING
+#         (the wind's "to" bearing, i.e. reported meteorological bearing + 180°),
+#         wrapped into [0, 180]°.
+#   f   = a saturating response to wind speed: s / (s + half_saturation).
+#   g   = an exponential decay with distance: exp(-d / decay_km).
+wind_edges:
+  # Half-width of the downwind dispersion cone, in degrees. A plume disperses into
+  # a cone of order 20–30° half-angle at neutral stability; 25° makes a neighbour
+  # ~2 cone-widths off-axis (perpendicular, Δθ=90°) fall to exp(-3.6) ≈ 0.027 of a
+  # perfectly aligned one, and an upwind neighbour (Δθ=180°) to ≈ 0.0007 — which is
+  # what makes "downwind" a sharp, testable notion rather than a soft gradient.
+  sigma_angle_deg: 25.0
+  # Wind-speed half-saturation, m/s. f(2)=0.5, f(6)=0.75: the response rises fast
+  # from calm then saturates, because beyond a moderate breeze the *direction* of
+  # transport, not its raw speed, is what decides where a plume lands.
+  wind_speed_half_saturation: 2.0
+  # Distance e-folding, km. g(5 km)=0.37, g(10 km)=0.14. The Debrecen network spans
+  # ~15 km, so this keeps edges local without severing the far corners.
+  distance_decay_km: 5.0
+  # Hard cutoff, km: no wind edge is drawn beyond this. Bounds the edge set and keeps
+  # the graph sparse; ~ the network's own extent.
+  max_neighbour_distance_km: 15.0
+  # Below this wind speed (m/s) the air is treated as calm: every wind edge collapses
+  # to weight 0 and the direction term is never evaluated, so a zero-wind timestep is
+  # degenerate but finite (no NaN, no division by zero). sigma_angle_deg is required
+  # to be > 0 for the same reason.
+  min_wind_speed: 0.1
+
+# --- Analytic propagation expectation ---------------------------------------
+propagation:
+  # The corroboration horizon, minutes. An event's signal is expected to reach a
+  # downwind neighbour within this window.
+  horizon_minutes_min: 15
+  horizon_minutes_max: 60
+  # Data cadence, minutes. Readings are hourly, so a sub-hourly analytic arrival is
+  # bucketed to the hourly grid: we WIDEN the evaluation to the cadence and compare
+  # the neighbour's reading in the hour(s) spanning [t+horizon_min, t+horizon_max],
+  # rather than interpolating a sub-hourly value we did not measure. The analytic
+  # (sub-hourly) delay is still reported in the evidence bundle. See the model card.
+  cadence_minutes: 60
+  # Floor on the along-bearing wind component (m/s) used for the arrival-delay
+  # estimate, so a near-perpendicular or near-calm neighbour yields a finite delay
+  # rather than an infinite one.
+  effective_speed_floor: 0.3
+  # Floor on g() so a distant neighbour still carries a defined (tiny) expectation
+  # instead of exactly zero, which keeps the match arithmetic well-defined.
+  attenuation_floor: 0.02
+
+# --- Adjudicator ------------------------------------------------------------
+adjudicator:
+  # Corroboration score (edge-weighted fraction of downwind neighbours whose actual
+  # rise matches the expected attenuated rise) at or above which the event reads as
+  # a real, propagating plume.
+  genuine_match_threshold: 0.6
+  # At or below which — AND with no covariate explanation — the event reads as an
+  # isolated fault that contradicts its downwind neighbours (reason code R17).
+  fault_match_threshold: 0.2
+  # Fewer than this many usable downwind neighbours (carrying the parameter, within
+  # range) means the plume simply cannot be corroborated either way → AMBIGUOUS,
+  # routed to human review. A designed outcome, never a forced binary.
+  min_downwind_neighbours: 2
+  # Relative tolerance band around the expected magnitude within which a neighbour's
+  # actual rise counts as corroborating (±50%). Propagation here is approximate, so
+  # the band is deliberately generous.
+  corroboration_tolerance: 0.5
+  # A neighbour counts as "downwind" of the event only if its wind-edge weight is at
+  # or above this floor — off-axis and upwind neighbours are excluded from the
+  # corroboration surface rather than diluting it.
+  downwind_weight_floor: 0.05
+  # Trailing hours used to estimate each station's own baseline (its median level for
+  # the parameter) so an "excess" is measured against normal, not against zero.
+  baseline_window_hours: 48
+  # AMBIGUOUS is never presented as a confident call: its confidence is capped here
+  # and its band is never "high" (enforced in the Adjudication value object).
+  ambiguous_confidence_cap: 0.5
+  # Confidence band thresholds, for the operator-facing label.
+  confidence_high_at: 0.75
+  confidence_moderate_at: 0.5
+
+# --- Auxiliary network topology (synthetic-provisional) ---------------------
+# The non-monitored node types — traffic counters, bus stops, the city weather node
+# — are NOT yet sourced from their real feeds: the Enclod and GTFS schemas are
+# unconfirmed (schema_assumptions.yaml) and their adapters fail loudly rather than
+# invent columns (ADR 0003). Until they are confirmed, these nodes are placed
+# DETERMINISTICALLY over the envelope of the real env-station coordinates, purely so
+# the graph has the right *shape* for the map and the layering. This is honest
+# placeholder topology, marked as such — never passed off as Enclod or GTFS data,
+# and never used as a data-derived constant. Only counts and a seed live here; the
+# coordinates are generated, and the env stations and the weather-node centroid come
+# from the real station coordinates.
+topology:
+  status: synthetic-provisional
+  traffic_counters: 42          # Enclod counter count (topology fact, provisional)
+  bus_stops_raw: 300            # raw GTFS-scale stop count before aggregation
+  bus_corridor_max: 24          # BusStop nodes are aggregated to AT MOST this many corridors
+  road_adjacency_k: 3           # each env station links to its k nearest traffic counters
+  seed: 20260907
+
+# --- PopulationExposure from the aggregated GTFS transit-corridor layer ------
+# Risk = Trust × SeverityVsThreshold × PopulationExposure (§7.8). Until phase 7
+# PopulationExposure was a permanent 1.0 stub; it is now COMPUTED per station from
+# a GTFS static bundle (stops.txt + routes.txt), as a proxy for how many people a
+# station's readings speak for. The proxy is the transit *service intensity* around
+# each station: every GTFS stop within `corridor_radius_m` contributes the number of
+# distinct routes serving it, and the per-station intensities are min-max normalised
+# across the network into a bounded multiplier in [floor, ceil].
+#
+# These four figures are MODELLING CHOICES (the corridor width, the multiplier band),
+# NOT data-derived constants (standing rule 1): the per-station intensity counts come
+# from the GTFS file at runtime, never from here. A station with no GTFS coordinate,
+# or a drop with no GTFS bundle, keeps exposure at 1.0 and reports it as stubbed
+# (graceful degradation, standing rule 6) — the flag is no longer permanently true.
+#
+# CAVEAT (phase-7 flag review): the normalisation is RELATIVE — min-max across the
+# stations in the current drop — so a station's factor depends on the rest of the
+# network and is NOT comparable across two different drops without renormalising. This
+# is a deliberate provisional choice: an absolute scale would need a fixed population /
+# ridership reference the confirmed feeds do not yet give us (the GTFS schema is
+# unconfirmed, ADR 0003). It affects only Risk *ranking* and maintenance priority, never
+# the defect rate or completeness, and it is inert on the demo/stage corpus (which
+# carries no GTFS bundle, so exposure stays stubbed). Revisit when a real GTFS feed and a
+# ridership reference are confirmed.
+exposure:
+  status: provisional
+  # Corridor half-width: a stop within this many metres of a station counts toward
+  # that station's transit service intensity. ~500 m is a standard walkable transit
+  # catchment.
+  corridor_radius_m: 500.0
+  # The exposure multiplier band. The least-served station in the network maps to
+  # `floor`, the busiest to `ceil`; a flat network (all intensities equal) maps every
+  # station to 1.0 rather than collapsing the band.
+  floor: 0.6
+  ceil: 1.6
+  # A station needs at least this many route-weighted stops in its corridor for the
+  # exposure to be treated as measured; below it the station falls back to the neutral
+  # 1.0 and is flagged, so a coverage gap never masquerades as low exposure.
+  min_service: 1.0

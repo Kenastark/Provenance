@@ -60,4 +60,18 @@ def test_up_down_up_round_trip() -> None:
             )
         ).fetchone()
         assert geom is not None
+
+        # The geom column is generated from lat/lon: inserting coordinates alone
+        # must populate a matching PostGIS point (flag-review resolution).
+        conn.execute(
+            text(
+                "INSERT INTO stations (station_id, lat, lon, coverage) "
+                "VALUES ('GEOM-TEST', 47.53, 21.62, '{}')"
+            )
+        )
+        conn.commit()
+        x, y = conn.execute(
+            text("SELECT ST_X(geom), ST_Y(geom) FROM stations WHERE station_id='GEOM-TEST'")
+        ).fetchone()
+        assert (round(x, 5), round(y, 5)) == (21.62, 47.53)  # X=lon, Y=lat
     engine.dispose()

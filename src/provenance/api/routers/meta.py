@@ -57,12 +57,14 @@ async def readyz(request: Request) -> ReadyOut:
 
 @router.get("/version", response_model=VersionOut)
 async def version() -> VersionOut:
-    # No ML model artefacts exist yet (phase 2 is statistics-only), so model
-    # versions carry the trust score's own version and nothing more.
+    # The trust score always has a version; the ML model versions appear once their
+    # artefacts are trained and present, and are simply absent when running degraded.
+    from provenance.api.models_status import model_versions
+
     return VersionOut(
         version=__version__,
         git_sha=_git_sha(),
         config_hash=config_hash(),
         trust_config_hash=trust_config_hash(),
-        model_versions={"trust_score": "v1"},
+        model_versions={"trust_score": "v1", **model_versions()},
     )

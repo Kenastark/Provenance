@@ -13,10 +13,28 @@
 # imputation model lands.
 
 version: 1
-status: elicited            # elicited | fitted
+status: endorsed            # elicited | endorsed | fitted
+endorsed_by: "project lead (kenastark)"
+endorsed_on: "2026-08-08"
 provenance: >-
-  Domain-expert elicitation for the v1 statistics-only trust score. Pending a
-  logistic refit against labelled events (§7.8). Weights sum to 1.0.
+  Domain-expert elicitation for the v1 statistics-only trust score, ENDORSED by the
+  project lead on 2026-08-08 after reviewing the weights' behaviour on the network's
+  documented real events (see endorsement_evidence). This is a governance sign-off on
+  the elicited values for the demo, NOT a logistic refit — that still awaits labelled
+  events (§7.8). Weights sum to 1.0.
+endorsement_evidence: >-
+  On the real Green Sentinel export (149,683 readings, 16 stations, 2026-05-21..06-19)
+  the weights score the documented physical-impossibility event correctly: DEB-KER11's
+  trust drops 0.577 -> 0.275 at the 4100.7 ug/m3 PM10 reading on 2026-06-02 20:00
+  (PhysicalPlausibility -> 0, code T04), then recovers to ~0.565 once the event leaves
+  the 7-day window. Frozen sensors (R12: 12,194 flags across 13 stations) and the NO
+  detection-limit floor (R11: 2,111 flags) reproduce as expected.
+endorsement_caveat: >-
+  The point-in-time distribution is pessimistic and compressed on real data (all 16
+  stations fall in ~0.26-0.58 at the window end) because the network genuinely carries
+  pervasive frozen sensors and cross-sensor disagreement - on-message for "looks
+  healthy, isn't", but it means discrimination lives in the trajectory (the series),
+  not the snapshot. A logistic refit against labelled events should widen the spread.
 
 weights:
   health_conf: 0.35             # w1: deterministic active-defect load
@@ -90,3 +108,14 @@ risk:
   basis: >-
     SeverityVsThreshold scales risk by how far the worst active defect's severity
     sits above nominal; PopulationExposure is a stub of 1.0 pending GTFS ridership.
+
+scoring:
+  # How trust is persisted over time. A load scores each station at a fixed cadence
+  # across the ingest window, not just at the final instant, so /v1/trust/{id}?series
+  # returns a real trajectory rather than a single point. The trailing window of each
+  # component still governs how much history each score sees.
+  cadence_hours: 24            # one score per station per day
+  max_points: 120              # safety cap on scores per station per load
+  basis: >-
+    Daily cadence matches the operator cadence for a data-quality review and keeps a
+    30-day load to ~30 scores per station. max_points bounds the cost of a long load.

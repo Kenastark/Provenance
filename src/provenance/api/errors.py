@@ -94,6 +94,16 @@ def install_error_handlers(app: FastAPI) -> None:
         # not a server fault — again important under the schemathesis fuzz.
         return problem_response(request, 400, "A request value could not be interpreted.")
 
+    @app.exception_handler(OverflowError)
+    async def _overflow(request: Request, exc: OverflowError) -> JSONResponse:
+        # An integer path parameter (e.g. a maintenance item id) larger than the
+        # database can represent — SQLite's 64-bit INTEGER — is a client error, not a
+        # server fault. Without this it surfaces as a 500 under the schemathesis fuzz,
+        # which sends arbitrarily large integers for every int path param.
+        return problem_response(
+            request, 400, "A numeric path value is out of the representable range."
+        )
+
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:  # pragma: no cover
         return problem_response(request, 500, "An unexpected error occurred.")

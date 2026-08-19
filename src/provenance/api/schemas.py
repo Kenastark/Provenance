@@ -55,6 +55,10 @@ class ComponentOut(BaseModel):
     contribution: float
     is_placeholder: bool
     detail: str
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """The figures behind this term, keyed by the placeholder names the reason-code
+    sentences use. ``detail`` is the same information as prose; this is the form a
+    renderer can substitute, so a client never has to show an unfilled sentence."""
 
 
 class RiskOut(BaseModel):
@@ -80,6 +84,11 @@ class TrustScoreOut(BaseModel):
     risk: RiskOut
     degraded: bool = False
     notes: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """Every component's figures, merged: the substitution map for ``reason_codes``.
+
+    A consumer renders a code's registry sentence against this. Without it the only
+    way to show a reason was to print the template, placeholders and all."""
 
 
 class EventOut(BaseModel):
@@ -123,11 +132,73 @@ class QualityStationOut(BaseModel):
     # explanation the trust endpoint does (standing rule 9).
     components: list[ComponentOut] = Field(default_factory=list)
     reason_codes: list[str] = Field(default_factory=list)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    """As :class:`TrustScoreOut.evidence`: the map a reason-code sentence renders
+    against, so the at-a-glance table can say a sentence too."""
 
 
 class QualitySummaryOut(BaseModel):
     audit_run_id: str
     stations: list[QualityStationOut]
+
+
+class AttributionOut(BaseModel):
+    feature: str
+    value: float
+    feature_value: float
+    provenance: str
+
+
+class ExplainOut(BaseModel):
+    """A per-defect explanation. Never a bare score: it always carries a sentence.
+
+    ``method`` records how the explanation was produced — ``model`` (SHAP over a tree
+    model), ``rule`` (a deterministic detector decided it), or ``degraded`` (no model
+    artefact was available, so the statistics-layer reason is returned instead). When
+    ``degraded`` is true the ``attributions`` list is empty by construction and the
+    response says so, per standing rule 6.
+    """
+
+    defect_id: int
+    station_id: str
+    parameter: str
+    timestamp_utc: str
+    reason_code: str
+    method: str
+    fault_class: str | None = None
+    predicted_class: str | None = None
+    sentence: str
+    degraded: bool = False
+    model_versions: dict[str, str] = Field(default_factory=dict)
+    base_value: float | None = None
+    prediction: float | None = None
+    residual: float | None = None
+    reconstructs: bool | None = None
+    attributions: list[AttributionOut] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class DeweatherPointOut(BaseModel):
+    timestamp_utc: str
+    actual: float
+    predicted: float
+    residual: float
+
+
+class DeweatherSeriesOut(BaseModel):
+    """A station's deweathered series for one pollutant: raw vs weather-predicted vs residual.
+
+    The before/after view (§7.6): ``actual`` is what the sensor reported, ``predicted`` is
+    what weather and time alone explain, and ``residual`` is what is left — the part
+    anomaly detection should see. ``degraded`` is true when no residuals have been stored
+    (no model trained), in which case ``series`` is empty and the client says so.
+    """
+
+    station_id: str
+    parameter: str
+    model_version: str | None = None
+    degraded: bool = False
+    series: list[DeweatherPointOut] = Field(default_factory=list)
 
 
 class VersionOut(BaseModel):

@@ -26,10 +26,12 @@ from provenance.config import reason_codes
 from provenance.detectors import registry
 from provenance.detectors.base import AuditContext
 from provenance.grid.coverage import CoverageModel, build_coverage
+from provenance.grid.exposure import ExposureLayer
 from provenance.io.db import models as m
+from provenance.io.loaders import StationLocation
 from provenance.schema import canonical as C
 from provenance.schema.observe import observe
-from provenance.trust.engine import compute_trust, latest_timestamp
+from provenance.trust.engine import compute_trust
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +52,15 @@ async def load_frame(
     *,
     source: str,
     path: str,
+    station_meta: dict[str, StationLocation] | None = None,
+    exposure: ExposureLayer | None = None,
 ) -> LoadReport:
-    """Persist a canonical frame plus its audit and trust scores, idempotently."""
+    """Persist a canonical frame plus its audit and trust scores, idempotently.
+
+    ``station_meta`` (from the loader) supplies each station's site name and
+    coordinates; when absent (e.g. the synthetic corpus, which carries no Location)
+    those columns stay null rather than being invented.
+    """
     obs = observe(frame)
     checksum = obs.checksum
     batch_id = f"ib_{checksum}"
@@ -84,13 +93,13 @@ async def load_frame(
     run_id = _run_id(frame)
 
     readings_inserted = await _insert_readings(session, frame, batch_id)
-    _insert_stations(session, coverage, batch_id)
+    _insert_stations(session, coverage, batch_id, station_meta or {})
     _insert_parameters(session, coverage)
     _insert_audit_run(session, result, run_id, batch_id)
     defects_inserted = _insert_defects(session, result, run_id)
     _insert_coverage_facts(session, result, run_id)
     _insert_events(session, result, run_id)
-    trust_inserted = _insert_trust_scores(session, frame, coverage, run_id)
+    trust_inserted = _insert_trust_scores(session, frame, coverage, run_id, exposure=exposure)
 
     await session.commit()
     return LoadReport(
@@ -110,7 +119,37 @@ async def load_path(
     from provenance.io import loaders
 
     frame = loaders.load_data(data_dir)
-    return await load_frame(session, frame, source=source, path=str(data_dir))
+    station_meta = loaders.load_station_metadata(data_dir)
+    exposure = exposure_for_drop(data_dir, station_meta)
+    return await load_frame(
+        session,
+        frame,
+        source=source,
+        path=str(data_dir),
+        station_meta=station_meta,
+        exposure=exposure,
+    )
+
+
+def exposure_for_drop(
+    data_dir: Path, station_meta: dict[str, StationLocation]
+) -> ExposureLayer | None:
+    """Build the PopulationExposure layer for a data drop, or None when it cannot be.
+
+    Needs both a GTFS bundle under ``data_dir`` and station coordinates; without either
+    the trust scores fall back to the neutral, stubbed exposure factor rather than
+    inventing one (standing rule 6). Kept here (io) so the trust layer stays a pure
+    function of a per-station factor and never learns how GTFS is discovered.
+    """
+    from provenance.grid.exposure import build_exposure_layer
+    from provenance.io.ingest.gtfs import find_gtfs_bundle, stops_with_route_counts
+
+    bundle = find_gtfs_bundle(data_dir)
+    points = {sid: (loc.lat, loc.lon) for sid, loc in station_meta.items()}
+    if bundle is None or not points:
+        return None
+    stops = stops_with_route_counts(bundle)
+    return build_exposure_layer(stops, points)
 
 
 def _run_id(frame: pd.DataFrame) -> str:
@@ -149,7 +188,15 @@ async def _insert_readings(session: AsyncSession, frame: pd.DataFrame, batch_id:
     return len(to_insert)
 
 
-def _insert_stations(session: AsyncSession, coverage: CoverageModel, batch_id: str) -> None:
+def _insert_stations(
+    session: AsyncSession,
+    coverage: CoverageModel,
+    batch_id: str,
+    station_meta: dict[str, StationLocation],
+) -> None:
+    from provenance.config.loading import load_station_zones
+
+    zones = load_station_zones()
     matrix = coverage.coverage_matrix
     for station in coverage.stations:
         cov = (
@@ -157,13 +204,17 @@ def _insert_stations(session: AsyncSession, coverage: CoverageModel, batch_id: s
             if station in matrix.index
             else {}
         )
+        meta = station_meta.get(station)
         session.add(
             m.Station(
                 station_id=station,
-                name=None,
-                lat=None,
-                lon=None,
-                zone_type=None,
+                name=None if meta is None else meta.name,
+                lat=None if meta is None else meta.lat,
+                lon=None if meta is None else meta.lon,
+                # zone_type has no source column in the export; it comes from the
+                # curated, provisional station_zones.yaml. Stations not in that map
+                # (e.g. the synthetic fixtures) stay null — never invented.
+                zone_type=zones.get(station),
                 coverage=cov,
                 ingest_batch_id=batch_id,
             )
@@ -257,32 +308,61 @@ def _insert_events(session: AsyncSession, result: AuditResult, run_id: str) -> N
 
 
 def _insert_trust_scores(
-    session: AsyncSession, frame: pd.DataFrame, coverage: CoverageModel, run_id: str
+    session: AsyncSession,
+    frame: pd.DataFrame,
+    coverage: CoverageModel,
+    run_id: str,
+    *,
+    exposure: ExposureLayer | None = None,
 ) -> int:
     from provenance.config.loading import load_thresholds
+    from provenance.trust.engine import scoring_instants
+    from provenance.trust.weights import load_trust_weights
 
-    ctx = AuditContext(thresholds=load_thresholds(), coverage=coverage)
+    thresholds = load_thresholds()
+    weights_cfg = load_trust_weights()
+    scfg = weights_cfg.get("scoring", {})
+    ctx = AuditContext(thresholds=thresholds, coverage=coverage)
     defects = registry.run_detectors(frame, ctx)
-    at = latest_timestamp(frame)
+    instants = scoring_instants(
+        frame,
+        cadence_hours=int(scfg.get("cadence_hours", 24)),
+        max_points=int(scfg.get("max_points", 120)),
+    )
     n = 0
     for station in coverage.stations:
-        score = compute_trust(frame, defects, station, at, coverage=coverage)
-        session.add(
-            m.TrustScore(
-                timestamp_utc=at.to_pydatetime(),
-                station_id=station,
-                trust=score.value,
-                risk_value=score.risk.value,
-                components=[c.to_dict() for c in score.components],
-                reason_codes=score.reason_codes,
-                risk=score.risk.to_dict(),
-                notes=score.notes,
-                degraded=score.degraded,
-                population_exposure_stubbed=score.risk.population_exposure_stubbed,
-                audit_run_id=run_id,
-            )
+        factor = (
+            exposure.factor_for(station)
+            if exposure is not None and exposure.is_measured(station)
+            else None
         )
-        n += 1
+        for at in instants:
+            score = compute_trust(
+                frame,
+                defects,
+                station,
+                at,
+                coverage=coverage,
+                thresholds=thresholds,
+                weights_cfg=weights_cfg,
+                exposure=factor,
+            )
+            session.add(
+                m.TrustScore(
+                    timestamp_utc=at.to_pydatetime(),
+                    station_id=station,
+                    trust=score.value,
+                    risk_value=score.risk.value,
+                    components=[c.to_dict() for c in score.components],
+                    reason_codes=score.reason_codes,
+                    risk=score.risk.to_dict(),
+                    notes=score.notes,
+                    degraded=score.degraded,
+                    population_exposure_stubbed=score.risk.population_exposure_stubbed,
+                    audit_run_id=run_id,
+                )
+            )
+            n += 1
     return n
 
 

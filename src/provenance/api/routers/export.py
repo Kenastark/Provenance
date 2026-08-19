@@ -1,121 +1,90 @@
-"""The regulator-facing audit-trail export (§2).
+"""The regulator-facing audit-trail export (§2). Researcher access.
 
-For one audit run it emits, deterministically, which readings were judged defective
-and why (the defects) and which cells were excluded as structural absences and why
-(the coverage facts). The CSV is byte-for-byte reproducible for a fixed run id —
-sorted rows, sorted evidence keys — so a regulator can diff two exports and a test
-can assert stability. The defect row count reconciles exactly against the defects
-table for that run.
+For one reporting period (an audit run) it emits, deterministically, the reading
+accounting, the itemised defects and structural exclusions, the model versions, the
+sign-off records for any public alerts, and a verification hash — rendered as JSON, a
+CSV ledger, or a printable PDF summary. All three come from one
+:class:`~provenance.report.regulatory.RegulatoryExport`, so a figure never disagrees
+between formats, and the CSV/JSON/hash are byte-for-byte reproducible for a fixed run.
 """
 
 from __future__ import annotations
 
-import csv
-import io
-import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, Response
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from provenance.api.auth import Role
 from provenance.api.deps import get_session, require
 from provenance.api.errors import ProblemException
 from provenance.grid.defect_rate import DEFINITION
+from provenance.io.db import models as m
 from provenance.io.db import repository as repo
+from provenance.report.regulatory import RegulatoryExport
 
 router = APIRouter(prefix="/v1/export", tags=["export"])
 
-_CSV_COLUMNS = [
-    "record_type",
-    "station_id",
-    "parameter",
-    "timestamp_utc",
-    "reason_code",
-    "severity",
-    "counts_toward_rate",
-    "excluded_cells",
-    "evidence",
-]
 
-
-async def _resolve_run_id(session: AsyncSession, run_id: str | None) -> str:
+async def _resolve_run(session: AsyncSession, run_id: str | None) -> m.AuditRun:
     if run_id is None:
         latest = await repo.latest_audit_run(session)
         if latest is None:
             raise ProblemException(404, "No audit run exists yet. Load a data drop first.")
-        return latest.id
-    if await repo.get_audit_run(session, run_id) is None:
+        return latest
+    run = await repo.get_audit_run(session, run_id)
+    if run is None:
         raise ProblemException(404, f"No audit run with id {run_id!r}.")
-    return run_id
+    return run
 
 
-@router.get("/audit-trail")
-async def audit_trail(
-    run_id: str | None = Query(default=None, description="Audit run; defaults to the latest."),
-    fmt: str = Query(default="json", pattern="^(json|csv)$", alias="format"),
-    session: AsyncSession = Depends(get_session),
-    _: Role = Depends(require(Role.RESEARCHER)),
-) -> Response:
-    run_id = await _resolve_run_id(session, run_id)
-    defects = await repo.defects_for_audit_run(session, run_id)
-    coverage_facts = await repo.coverage_facts_for_audit_run(session, run_id)
+async def _build_export(session: AsyncSession, run: m.AuditRun) -> RegulatoryExport:
+    defects = await repo.defects_for_audit_run(session, run.id)
+    coverage_facts = await repo.coverage_facts_for_audit_run(session, run.id)
 
-    if fmt == "csv":
-        return _csv_response(run_id, defects, coverage_facts)
-    return _json_response(run_id, defects, coverage_facts)
-
-
-def _csv_response(run_id: str, defects: Any, coverage_facts: Any) -> Response:
-    buf = io.StringIO(newline="")
-    writer = csv.DictWriter(buf, fieldnames=_CSV_COLUMNS, extrasaction="ignore")
-    writer.writeheader()
-    for d in defects:
-        writer.writerow(
-            {
-                "record_type": "defect",
-                "station_id": d.station_id,
-                "parameter": d.parameter,
-                "timestamp_utc": d.timestamp_utc.isoformat(),
-                "reason_code": d.reason_code,
-                "severity": d.severity,
-                "counts_toward_rate": d.counts_toward_rate,
-                "excluded_cells": "",
-                "evidence": json.dumps(d.evidence or {}, sort_keys=True, ensure_ascii=False),
-            }
+    # Readings in the period: those loaded by the run's ingest batch (the run and the
+    # batch share the data checksum), so the accounting reconciles against the table.
+    n_readings = 0
+    if run.ingest_batch_id is not None:
+        n_readings = int(
+            (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(m.Reading)
+                    .where(m.Reading.ingest_batch_id == run.ingest_batch_id)
+                )
+            )
+            or 0
         )
-    for c in coverage_facts:
-        writer.writerow(
-            {
-                "record_type": "structural_exclusion",
-                "station_id": c.station_id,
-                "parameter": c.parameter,
-                "timestamp_utc": "",
-                "reason_code": c.reason_code,
-                "severity": "info",
-                "counts_toward_rate": False,
-                "excluded_cells": c.excluded_cells,
-                "evidence": json.dumps({"domain": c.domain}, sort_keys=True, ensure_ascii=False),
-            }
-        )
-    body = buf.getvalue().replace("\r\n", "\n")
-    return Response(
-        content=body,
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f'attachment; filename="audit-trail-{run_id}.csv"',
-            "X-Audit-Run-Id": run_id,
-            "X-Defect-Row-Count": str(len(defects)),
-        },
+
+    event_ids = list(
+        (await session.scalars(select(m.Event.id).where(m.Event.audit_run_id == run.id))).all()
     )
+    signoffs, dispatches = await _signoffs_and_dispatches(session, event_ids)
 
+    from provenance.api.models_status import model_versions
 
-def _json_response(run_id: str, defects: Any, coverage_facts: Any) -> JSONResponse:
-    payload = {
-        "audit_run_id": run_id,
-        "definition": DEFINITION,
-        "defects": [
+    return RegulatoryExport(
+        run={
+            "id": run.id,
+            "code_version": run.code_version,
+            "config_hash": run.config_hash,
+            "data_checksum": run.data_checksum,
+            "generated_at": run.generated_at.isoformat(),
+            "n_rows": run.n_rows,
+        },
+        definition=DEFINITION,
+        accounting={
+            "n_readings": n_readings,
+            "n_covered_cells": run.n_covered_cells,
+            "n_defective_cells": run.n_defective_cells,
+            "n_structural_exclusions": len(coverage_facts),
+            "defect_rate": run.defect_rate,
+            "conventional_completeness_pct": run.conventional_completeness_pct,
+        },
+        defects=[
             {
                 "station_id": d.station_id,
                 "parameter": d.parameter,
@@ -123,11 +92,11 @@ def _json_response(run_id: str, defects: Any, coverage_facts: Any) -> JSONRespon
                 "reason_code": d.reason_code,
                 "severity": d.severity,
                 "counts_toward_rate": d.counts_toward_rate,
-                "evidence": d.evidence or {},
+                "evidence": dict(d.evidence or {}),
             }
             for d in defects
         ],
-        "structural_exclusions": [
+        structural_exclusions=[
             {
                 "station_id": c.station_id,
                 "parameter": c.parameter,
@@ -137,9 +106,89 @@ def _json_response(run_id: str, defects: Any, coverage_facts: Any) -> JSONRespon
             }
             for c in coverage_facts
         ],
-        "reconciliation": {
-            "n_defect_rows": len(defects),
-            "n_structural_exclusions": len(coverage_facts),
-        },
+        model_versions={"trust_score": "v1", **model_versions()},
+        signoffs=signoffs,
+        dispatches=dispatches,
+    )
+
+
+async def _signoffs_and_dispatches(
+    session: AsyncSession, event_ids: list[int]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not event_ids:
+        return [], []
+    so_rows = (
+        await session.scalars(
+            select(m.SignoffToken)
+            .where(m.SignoffToken.event_id.in_(event_ids))
+            .order_by(m.SignoffToken.created_at, m.SignoffToken.id)
+        )
+    ).all()
+    dp_rows = (
+        await session.scalars(
+            select(m.Dispatch)
+            .where(m.Dispatch.event_id.in_(event_ids))
+            .order_by(m.Dispatch.dispatched_at, m.Dispatch.id)
+        )
+    ).all()
+    signoffs = [
+        {
+            "signoff_id": s.id,
+            "event_id": s.event_id,
+            "channel": s.channel,
+            "operator": s.operator,
+            "evidence_hash": s.evidence_hash,
+            "model_version": s.model_version,
+            "created_at": s.created_at.isoformat(),
+            "expires_at": s.expires_at.isoformat(),
+        }
+        for s in so_rows
+    ]
+    dispatches = [
+        {
+            "dispatch_id": d.id,
+            "event_id": d.event_id,
+            "channel": d.channel,
+            "signoff_id": d.signoff_id,
+            "status": d.status,
+            "dispatched_at": d.dispatched_at.isoformat(),
+        }
+        for d in dp_rows
+    ]
+    return signoffs, dispatches
+
+
+@router.get("/audit-trail")
+async def audit_trail(
+    run_id: str | None = Query(default=None, description="Audit run; defaults to the latest."),
+    fmt: str = Query(default="json", pattern="^(json|csv|pdf)$", alias="format"),
+    session: AsyncSession = Depends(get_session),
+    _: Role = Depends(require(Role.RESEARCHER)),
+) -> Response:
+    run = await _resolve_run(session, run_id)
+    export = await _build_export(session, run)
+    headers = {
+        "X-Audit-Run-Id": run.id,
+        "X-Defect-Row-Count": str(len(export.defects)),
+        "X-Verification-Hash": export.verification_hash(),
     }
-    return JSONResponse(content=payload, headers={"X-Defect-Row-Count": str(len(defects))})
+
+    if fmt == "csv":
+        return Response(
+            content=export.to_csv(),
+            media_type="text/csv",
+            headers={
+                **headers,
+                "Content-Disposition": f'attachment; filename="audit-trail-{run.id}.csv"',
+            },
+        )
+    if fmt == "pdf":
+        return Response(
+            content=export.to_pdf(),
+            media_type="application/pdf",
+            headers={
+                **headers,
+                "Content-Disposition": f'attachment; filename="audit-trail-{run.id}.pdf"',
+            },
+        )
+    return JSONResponse(content=export.to_json_dict(), headers=headers)

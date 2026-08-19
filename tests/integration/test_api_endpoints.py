@@ -51,6 +51,19 @@ async def test_trust_series_is_paginated_and_explained(api_client: httpx.AsyncCl
         assert item["components"] and item["reason_codes"]
 
 
+async def test_trust_series_is_a_real_trajectory(api_client: httpx.AsyncClient) -> None:
+    # Not a single point: the loader scores each station daily across the window, so
+    # the series carries multiple ascending, distinct, fully-explained timestamps.
+    body = (await api_client.get("/v1/trust/STA-01?series=true&limit=500", headers=PUBLIC)).json()
+    stamps = [item["timestamp_utc"] for item in body["items"]]
+    assert len(stamps) > 1, "trust series should be a trajectory, not one point"
+    assert stamps == sorted(stamps)
+    assert len(stamps) == len(set(stamps))
+    assert stamps[-1] == "2026-05-14T23:00:00"  # anchored on the last reading
+    for item in body["items"]:
+        assert len(item["components"]) == 4 and item["reason_codes"]
+
+
 async def test_trust_unknown_station_is_404_problem(api_client: httpx.AsyncClient) -> None:
     resp = await api_client.get("/v1/trust/NOPE", headers=PUBLIC)
     assert resp.status_code == 404
@@ -62,6 +75,15 @@ async def test_quality_summary_shape(api_client: httpx.AsyncClient) -> None:
     assert body["stations"]
     row = body["stations"][0]
     assert {"station_id", "trust", "health", "flag_count"} <= set(row)
+
+
+async def test_quality_summary_reports_last_reading_time(api_client: httpx.AsyncClient) -> None:
+    # last_reading_at must be the real max reading time, not null. The seeded corpus
+    # runs 14 hourly days from 2026-05-01, so the last hour is 2026-05-14T23:00:00.
+    body = (await api_client.get("/v1/quality/summary", headers=PUBLIC)).json()
+    by_station = {r["station_id"]: r for r in body["stations"]}
+    assert all(r["last_reading_at"] is not None for r in body["stations"])
+    assert by_station["STA-01"]["last_reading_at"] == "2026-05-14T23:00:00"
 
 
 async def test_readings_quality_flagged_annotates_defect_cells(

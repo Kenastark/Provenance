@@ -26,6 +26,20 @@ dependencies = [
     "psycopg[binary]>=3.1",
     "aiosqlite>=0.20",
     "scipy>=1.13",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.3",
+    "shap>=0.46",
+    # shap pulls in numba/llvmlite; pin numba modern so the resolver never falls
+    # back to an ancient llvmlite that predates Python 3.12 (it will otherwise, when
+    # a newer numpy is already present and biases resolution).
+    "numba>=0.60",
+    # Phase-6 neural stack (HST-GAT). CPU-only in CI, MPS optional locally. The exact
+    # working install on Apple Silicon is recorded in docs/decisions/0009-pyg-install.md;
+    # torch-geometric is pure-Python here (no compiled torch-scatter/torch-sparse — PyG
+    # falls back to torch.scatter_reduce, which is why this resolves and runs on arm64
+    # macOS and on the Linux CI runner without a companion wheel index).
+    "torch>=2.2,<2.9",
+    "torch-geometric>=2.5,<2.7",
 ]
 
 [project.optional-dependencies]
@@ -67,12 +81,26 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "PTH", "R
 # alias for the canonical column-name namespace; the uppercase C reads as a
 # constant namespace, not a class.
 ignore = ["E501", "N812"]
+# This is a scientific codebase: Greek letters carry their standard mathematical
+# meaning (σ predictive std, α miscoverage rate, β attention-bias scale, Δθ the
+# dispersion-cone gap, µ/π in the Gaussian NLL). They are intentional and legible, so
+# the confusable-character check (RUF001/2/3) is told to allow exactly these.
+allowed-confusables = ["σ", "α", "β", "µ", "μ", "π", "θ", "Δ", "ŷ", "·", "×"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ARG"]
+"tests/**" = ["ARG", "N803", "N806"]
+# N803/N806: `X`, `Xp`, `X_ml` are the universal scikit-learn/LightGBM convention for a
+# feature matrix (capital X, feature matrix; lowercase y, target). Using it keeps the
+# model code readable to anyone who has touched an ML library; it is not a class name.
+"src/provenance/models/**" = ["N803", "N806"]
+"src/provenance/explain/**" = ["N803", "N806"]
 # Detectors implement a fixed Protocol signature (frame, ctx); some do not use
 # both arguments, which is correct, not dead code.
 "src/provenance/detectors/**" = ["ARG002"]
+# GCNBaseline.forward mirrors HSTGAT.forward's signature so the two are
+# interchangeable behind a union type; the baseline has no attention, so it accepts
+# and ignores `return_attention_step`. That is interface parity, not dead code.
+"src/provenance/models/hstgat/model.py" = ["ARG002", "N803", "N806"]
 # B008: `typer.Option(...)` in a parameter default is Typer's documented idiom for
 # declaring CLI options; it is evaluated once at import, not per call.
 "src/provenance/cli/main.py" = ["B008"]
@@ -96,7 +124,15 @@ files = ["src/provenance"]
 plugins = []
 
 [[tool.mypy.overrides]]
-module = ["pandera.*", "lightgbm.*", "shap.*", "torch_geometric.*", "scipy.*"]
+module = [
+    "pandera.*",
+    "lightgbm.*",
+    "shap.*",
+    "torch_geometric.*",
+    "scipy.*",
+    "sklearn.*",
+    "joblib.*",
+]
 ignore_missing_imports = true
 
 # ----------------------------------------------------------------------------

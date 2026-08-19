@@ -183,6 +183,141 @@ class Event(Base):
     audit_run: Mapped[AuditRun] = relationship(back_populates="events")
 
 
+class Residual(Base):
+    """A deweathered residual: actual minus weather-predicted, per reading.
+
+    The residual, not the raw value, is what anomaly detection sees downstream (§7.6),
+    so it is stored alongside the ``model_version`` that produced it — a residual is
+    meaningless without knowing which deweather model left it behind. Hypertable in
+    Postgres, chunked by day; the partition column ``timestamp_utc`` is part of the
+    primary key so Timescale accepts it.
+    """
+
+    __tablename__ = "residuals"
+
+    timestamp_utc: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    station_id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    parameter: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    model_version: Mapped[str] = mapped_column(String, primary_key=True)
+    actual: Mapped[float] = mapped_column(Float, nullable=False)
+    predicted: Mapped[float] = mapped_column(Float, nullable=False)
+    residual: Mapped[float] = mapped_column(Float, nullable=False)
+    audit_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("audit_runs.id"), nullable=True, index=True
+    )
+
+
+class MaintenanceItem(Base):
+    """A maintenance ticket, auto-raised from a fault classification (§9.5).
+
+    Priority = severity weight × station importance (importance is the station's
+    PopulationExposure), so the queue puts a fault at a busy corridor above the same
+    fault at a rural background site. The lifecycle is
+    ``open → acknowledged → dispatched → resolved`` and every move is recorded in
+    :class:`MaintenanceTransition`. One item per (run, station, parameter, reason
+    code) — re-running the population step never duplicates a ticket.
+    """
+
+    __tablename__ = "maintenance_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "audit_run_id",
+            "station_id",
+            "parameter",
+            "reason_code",
+            name="uq_maintenance_dedupe",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    audit_run_id: Mapped[str] = mapped_column(
+        ForeignKey("audit_runs.id"), nullable=False, index=True
+    )
+    station_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    parameter: Mapped[str] = mapped_column(String, nullable=False)
+    reason_code: Mapped[str] = mapped_column(String, nullable=False)
+    severity: Mapped[str] = mapped_column(String, nullable=False)
+    severity_weight: Mapped[float] = mapped_column(Float, nullable=False)
+    importance: Mapped[float] = mapped_column(Float, nullable=False)
+    priority: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    headline: Mapped[str] = mapped_column(String, nullable=False)
+    n_flags: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    transitions: Mapped[list[MaintenanceTransition]] = relationship(
+        back_populates="item", order_by="MaintenanceTransition.id"
+    )
+
+
+class MaintenanceTransition(Base):
+    """One state change of a maintenance item — the full, append-only history."""
+
+    __tablename__ = "maintenance_transitions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("maintenance_items.id"), nullable=False, index=True
+    )
+    from_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_status: Mapped[str] = mapped_column(String, nullable=False)
+    actor: Mapped[str] = mapped_column(String, nullable=False)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    item: Mapped[MaintenanceItem] = relationship(back_populates="transitions")
+
+
+class SignoffToken(Base):
+    """An operator's recorded sign-off authorising a public-facing dispatch (§4, §16-5).
+
+    No public alert leaves the system without one of these: it records who signed off,
+    when, exactly what evidence they saw, and the model version that produced the call.
+    A token is single-purpose (one event, one channel) and expires — a stale token can
+    never authorise a fresh dispatch.
+    """
+
+    __tablename__ = "signoff_tokens"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String, nullable=False)
+    operator: Mapped[str] = mapped_column(String, nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String, nullable=False)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    model_version: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class Dispatch(Base):
+    """A recorded public-facing dispatch. Idempotent on (event, channel, sign-off).
+
+    The unique key is what makes a retry a no-op: a second attempt with the same
+    ``(event_id, channel, signoff_id)`` collides and returns the first result rather
+    than sending twice.
+    """
+
+    __tablename__ = "dispatches"
+    __table_args__ = (
+        UniqueConstraint("event_id", "channel", "signoff_id", name="uq_dispatch_idempotency"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String, nullable=False)
+    signoff_id: Mapped[str] = mapped_column(
+        ForeignKey("signoff_tokens.id"), nullable=False, index=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    dispatched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class TrustScore(Base):
     """A trust score at a point in time. Hypertable in Postgres, chunked by day.
 

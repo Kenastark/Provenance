@@ -13,7 +13,9 @@ Standing rules honoured here:
 
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,41 @@ from provenance.schema.canonical import SchemaDriftError
 # Station id is the DEB-KERnn prefix of every workbook file name.
 _STATION_RE = re.compile(r"(DEB-KER\d+)", re.IGNORECASE)
 _TIMESTAMP_FORMAT = "%Y-%m-%d-%H-%M"
+
+# The Green Sentinel Location column, verified from the real export, is
+# "<site name> (<lat>, <lon>)" in decimal degrees, e.g.
+# "ÉNYGÖ, BMW körút (47.577175, 21.502204)". The coordinate pair is anchored at the
+# end so a site name containing commas still parses; anything else fails loudly
+# (standing rule 2: read the format, never invent it).
+_LOCATION_RE = re.compile(
+    r"^(?P<name>.*?)\s*\(\s*(?P<lat>-?\d+(?:\.\d+)?)\s*,\s*(?P<lon>-?\d+(?:\.\d+)?)\s*\)\s*$"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StationLocation:
+    """A station's human-readable site name and decimal-degree coordinates."""
+
+    station_id: str
+    name: str
+    lat: float
+    lon: float
+
+
+def parse_location(value: str) -> tuple[str, float, float]:
+    """Parse a Green Sentinel ``Location`` string into (name, lat, lon).
+
+    Raises :class:`SchemaDriftError` if the ``<name> (lat, lon)`` shape is absent,
+    rather than guessing coordinates.
+    """
+    m = _LOCATION_RE.match(str(value).strip())
+    if not m:
+        raise SchemaDriftError(
+            f"Green Sentinel Location {value!r} is not of the confirmed form "
+            "'<site name> (<lat>, <lon>)'. Update schema_assumptions.yaml if the "
+            "export's Location format really changed."
+        )
+    return m.group("name").strip(), float(m.group("lat")), float(m.group("lon"))
 
 
 def _station_from_name(name: str) -> str:
@@ -133,3 +170,61 @@ def load_data(data_dir: Path) -> pd.DataFrame:
     if parquet.exists():
         return load_canonical(parquet)
     return load_green_sentinel(data_dir)
+
+
+def _load_station_sidecar(path: Path) -> dict[str, StationLocation]:
+    """Read a fixture ``stations.json``. Fails loudly on a malformed entry."""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, StationLocation] = {}
+    for station_id, entry in raw.items():
+        try:
+            out[station_id] = StationLocation(
+                station_id=station_id,
+                name=str(entry["name"]),
+                lat=float(entry["lat"]),
+                lon=float(entry["lon"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SchemaDriftError(
+                f"{path} entry for {station_id!r} is missing a name/lat/lon. The station "
+                "sidecar is the only source of fixture coordinates, so a malformed entry "
+                "is an error rather than a station quietly losing its position."
+            ) from exc
+    return out
+
+
+def load_station_metadata(data_dir: Path) -> dict[str, StationLocation]:
+    """Read one site name + coordinate pair per station from the Green Sentinel drop.
+
+    Cheap: only the ``Location`` column's first row of each workbook is read.
+
+    A fixture drop has no ``Location`` column, so it may ship a ``stations.json``
+    sidecar instead (written by ``fixtures.generator.write_corpus``). That file is
+    the *only* way synthetic coordinates enter the system: without it a canonical
+    parquet still yields an empty map, and the loader leaves lat/lon null rather
+    than inventing a coordinate.
+    """
+    data_dir = Path(data_dir)
+    if (data_dir / "corpus.parquet").exists():
+        return _load_station_sidecar(data_dir / "stations.json")
+    root = find_green_sentinel_root(data_dir)
+    if root is None:
+        return {}
+    assumptions = load_schema_assumptions()
+    location_col = assumptions["green_sentinel"]["location_column"]
+    sheet = assumptions["green_sentinel"]["sheet_name"]
+    out: dict[str, StationLocation] = {}
+    for path in sorted(root.glob("DEB-KER*/*.xlsx")):
+        station = _station_from_name(path.name)
+        if station in out:
+            continue
+        raw = pd.read_excel(
+            path, sheet_name=sheet, engine="openpyxl", usecols=[location_col], nrows=1
+        )
+        if raw.empty or location_col not in raw.columns:
+            continue
+        name, lat, lon = parse_location(str(raw[location_col].iloc[0]))
+        out[station] = StationLocation(station_id=station, name=name, lat=lat, lon=lon)
+    return out

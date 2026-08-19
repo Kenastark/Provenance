@@ -52,6 +52,358 @@ Format: Keep a Changelog. Versioning: SemVer.
   adapter gate, pinned by a test so a config edit alone can never route callers into
   code that does not exist.
 
+## [1.0.0-demo] - 2026-08-09
+Phase 7: the operational layer and the submission build — the freeze tag. Adds the
+maintenance queue and Alert Centre, the human sign-off gate on public dispatch, the
+completed regulatory export, four-role RBAC, two-plane monitoring, and deterministic
+offline demo mode.
+
+### Added
+- **PopulationExposure is computed, not stubbed** (`grid/exposure.py`, §7.8). The Risk
+  factor is now derived per station from a GTFS static bundle — every stop within a
+  ~500 m corridor contributes its distinct-route count, min–max normalised into a bounded
+  multiplier — so a broken reading in a busy transit corridor outranks the same fault at a
+  rural background site. A station with no coordinate or a drop with no GTFS bundle keeps
+  the neutral 1.0 and reports `population_exposure_stubbed=true` (graceful degradation):
+  the flag is no longer permanently true. A synthetic GTFS fixture (`fixtures/gtfs.py`)
+  gives tests and the offline demo a real bundle to aggregate.
+- **Maintenance queue** (`ops/maintenance.py`, `ops/store.py`, §9.5): tickets auto-raised
+  from the deterministic fault flags, ranked by **severity × station importance**
+  (importance = PopulationExposure), with an `open → acknowledged → dispatched → resolved`
+  state machine and a full, append-only transition history. Idempotent rebuild.
+- **Alert Centre ranked by RISK, not certainty** (`ops/alerts.py`, §9.5):
+  `genuineness × exposure × hazard × confidence`, so a high-exposure **genuine event**
+  outranks a confident low-exposure **sensor fault**. Asserted with a constructed pair.
+- **Human sign-off gate + idempotent dispatch** (`api/decision/`, §2, standing rule 5):
+  every public dispatch passes through one choke point that refuses to send without a
+  valid, non-expired operator sign-off (who / when / evidence hash / model version) and
+  is idempotent on `(event, channel, sign-off)` — retries and concurrent calls never
+  double-send. A **static call-graph test** proves the senders are unreachable except
+  through the validated gate.
+- **Completed regulatory export** (`report/regulatory.py`, §2): reading accounting, the
+  itemised defects and structural exclusions, model versions, sign-off records, and a
+  **reproducible verification hash** over the certified content — rendered as CSV, JSON,
+  and a dependency-free printable **PDF** summary, all from one bundle. `?format=pdf` and
+  an `X-Verification-Hash` header added to `/v1/export/audit-trail`.
+- **Four-role RBAC** (`api/auth.py`, §11): adds `admin` above `operator`; a full endpoint
+  × role matrix test pins the policy (ADR 0010). An **admin dashboard** surface exposes
+  model versions, config hashes, retraining triggers, and export/dispatch history.
+- **Two-plane monitoring** (§11): Prometheus service-health metrics at `/metrics` (infra
+  plane) and a separate **model-drift monitor** at `/v1/admin/model-drift` (deweathering
+  R², conformal coverage, fault confusion, defect-rate drift by station). Grafana
+  dashboards and the rationale for the split in `docs/monitoring-v1.0-two-planes.md`.
+- **Deterministic offline demo mode** (`cli/demo.py`, `ops/demo.py`, §demo-critical):
+  `prov demo run --scenario <name>` replays a fixed window at a controllable speed as an
+  ordered sequence of screen states with computed numbers; five scenarios
+  (`audit-headline`, `ker11-adjudication`, `contrast-fault`, `deweathering-reveal`,
+  `explainability`). Two runs are byte-identical; the suite runs with the network blocked;
+  basemap tiles are vendored for the Debrecen bbox. `scripts/record-demo.sh` captures the
+  fallback recording.
+- **Submission artefacts** (`docs/demo/`): the timed 7-minute `demo-script-v1.0.md`, a
+  one-page description, a 3-minute video storyboard, and `judge-questions-v1.0.md`
+  (prepared answers to the §16 critiques).
+
+### Tests
+- Sign-off architecture (static call-graph), alert risk ordering, dispatch idempotency
+  under retry **and** concurrency, the RBAC matrix, audit-export reconciliation + hash
+  reproducibility, demo-mode determinism, a full network-blocked offline run, a
+  scenario-layer full-script rehearsal, and a 50-client load smoke.
+
+### Fixed
+- **A huge integer path parameter no longer 500s.** The maintenance detail/transition
+  endpoints are the API's first `int` path params; an id larger than SQLite's 64-bit
+  `INTEGER` raised `OverflowError`. A global `OverflowError → 400` handler
+  (`api/errors.py`) maps it to a client error, found by the schemathesis fuzz and pinned
+  by a regression test.
+- **Test databases no longer leak an aiosqlite worker thread.** `io/db/engine.make_engine`
+  now backs file-based SQLite (the test path) with a `NullPool`, which closes each
+  connection on return, and keeps a `StaticPool` for `:memory:`. This removes at source the
+  leftover `_connection_worker_thread` that could race the native OpenMP math pools of a
+  later torch-heavy test and segfault the process on macOS (surfaced by the HST-GAT
+  "real corpus shape" test once it was included in the full local run; CI-Linux was
+  unaffected). Torch is also pinned to a single intra-op thread (`train.py`,
+  `tests/conftest.py`) for the CPU determinism the repo already requires (ADR 0009).
+- **Phase-6 flag review — the attention export and the calibrated interval are now
+  produced in the product flow, not only in tests.** Two capabilities that phase 6 built
+  and coverage-tested were reachable only from unit tests:
+  - The **attention overlay** (§8) is now written by `prov graph adjudicate --learned`
+    (via `models/hstgat/attention.py:write_overlay_for_drop`) as
+    `attention_overlay.json` for the top-ranked event — the map-ready "which neighbours
+    influenced this call" export. The live MapLibre rendering remains a deliberate
+    frontend follow-up (would drift the pinned visual baselines).
+  - The **split-conformal calibrator (`q`) is now persisted with the artefact** and
+    loaded at inference, so a learned adjudication attaches a **calibrated interval on
+    the expected excess of every downwind neighbour** (`NeighbourEvidence.sigma` /
+    `expected_interval`) — the "calibrated confidence intervals on every score" the demo
+    checkpoint asks for. Previously the model's predictive σ was computed and dropped and
+    the `q` was discarded after coverage was recorded. The analytic path is unchanged
+    (both fields are `None`; the KER11 characterization still passes byte-for-byte).
+
+## [0.6.0] - 2026-08-09
+Phase 6: the research contribution — a heterogeneous spatio-temporal graph-attention
+network (HST-GAT), split-conformal intervals, a learned propagation validator behind a
+feature flag, and inspectable attention. Sequenced last on purpose: it converged, so it
+ships; had it not, Phase 5 would have shipped unchanged.
+
+### Added
+- **PyTorch Geometric adaptation** (`graph/pyg.py`) — `GraphSnapshot.to_hetero_data()`
+  materialises the same node/edge tables as a PyG `HeteroData` **without any caller
+  changing**, with torch imported lazily so the statistics layers still run on a machine
+  with no torch. The exact working install (CPU-first, MPS-optional, no compiled
+  `torch-scatter`) is recorded in **ADR 0009**.
+- **HST-GAT** (`models/hstgat/`, §6.4): `h_i(t) = GRU(h_i(t-1), HetGAT({h_j(t)}, edge_weights(t)))`.
+  A hand-rolled heterogeneous graph-attention layer over all five edge types with a
+  per-`EnvStation` GRU memory, predicting a **mean and a variance** per station-hour. The
+  wind-conditioned weight enters attention as an **additive pre-softmax bias**: zeroing it
+  recovers a plain HetGAT (tested), and raising it monotonically shifts attention to the
+  wind-connected neighbour (tested). Deliberately small — **3,299 parameters** against 720
+  timesteps/station (§5.1) — justified in the model card. A **GCN baseline** is included
+  for comparison, as the blueprint specifies.
+- **Masked-autoencoder training** (`models/hstgat/train.py`): hide known values,
+  reconstruct from wind-weighted neighbours, score with **masked Gaussian NLL**.
+  Time-blocked splits (never random K-fold, standing rule 7), full seeding
+  (byte-identical reruns on CPU, standing rule 8), and a **run manifest** per training —
+  seed, config hash, data checksum, git sha, metrics and parameter count.
+- **Split conformal prediction** (`models/conformal/`, §7.7): a small, hand-rolled,
+  distribution-free interval with the exact finite-sample quantile and adaptive
+  (σ-normalised) width. Every model output gains a calibrated interval; the calibration
+  set is always a held-out **time** block. Empirical coverage on held-out data lands
+  inside the nominal band (90% nominal → 85–95% empirical, tested).
+- **Learned propagation validation, behind a feature flag** (`models/hstgat/forecast.py`).
+  The Phase-4 adjudicator's analytic expectation is swapped for the HST-GAT forecast via a
+  `graph.ExpectationProvider` Protocol (dependency injection — `graph` never imports
+  `models`, so the layering holds). If the artefact is absent or fails to load, the
+  adjudicator **falls back to the analytic prior automatically** and the evidence bundle
+  records which path produced the verdict (`expectation_provenance`). Both paths stay
+  tested and demoable. Flag: `PROVENANCE_LEARNED_PROPAGATION`; CLI: `prov graph adjudicate --learned`.
+- **Attention explainability** (`models/hstgat/attention.py`, §8): per-prediction
+  attention exported as weighted, highlighted edges — "which neighbours most influenced
+  this call" — ready for the network map.
+- **Model card** `docs/model-cards/hst-gat-v1.md` (hand-written, committed): parameter
+  count, small-data justification, achieved conformal coverage, GCN-baseline comparison,
+  honest limitations. Auto-generated per-training cards (checksum-suffixed) are gitignored,
+  like the tree models'. New CLI: `prov models train-hstgat`.
+
+### Changed
+- The propagation adjudicator (`graph/adjudicate.py`) now takes an optional injected
+  expectation provider; the default `AnalyticExpectation` reproduces Phase-4 verdicts
+  **byte-for-byte** (the KER11 characterization test is unchanged).
+
+### Explicitly not done (standing rule 4)
+- **No headline accuracy or F1 for the propagation validator.** With this few real
+  corroborated events such a number would describe the synthetic injection process, not
+  the world. The model reports reconstruction NLL/RMSE, per-case evidence, and calibrated
+  intervals instead — enforced by a test that scans the metrics for "accuracy"/"f1".
+
+## [0.5.0] - 2026-08-09
+Phase 5: meteorological normalization, the supervised fault classifier, and the
+explainability layer — completing the B1 → B3 → B2 demo order.
+
+### Added
+- **Deweathering (B2)** — one gradient-boosted regressor per pollutant predicts the
+  reading from meteorology and time alone; the residual (actual − weather-predicted)
+  is what anomaly detection sees downstream. Trained forward-chaining only
+  (`models/cv.py`), never random K-fold, and held to a **0.15–0.90 R² sanity band**
+  whose two failure modes are named. Residual series are stored in the database
+  (`residuals` hypertable) alongside the model version that produced them.
+- **Feature layer with honest provenance** (`models/features/`). Wind direction is
+  encoded as `(sin, cos)` so 359° and 1° are neighbours, not a cliff at north — a
+  property the test gate pins. Temperature/precipitation come from HungaroMet (flagged
+  imputed until the feed is confirmed), the boundary-layer height is a documented
+  time-of-day/season **proxy** (§5.3), and every feature column carries its provenance.
+- **Hybrid fault classifier** (`models/fault/`, §7.3). The deterministic Phase-1
+  detectors run **first and short-circuit**; LightGBM only ever chooses among the
+  subtle classes (`none`, `calibration_drift`, `meteorological_artefact`). A test
+  proves the ML can never override a physical-impossibility flag. Class-weighted
+  cross-entropy, a per-class confusion matrix, per-signature recall floors, and a
+  watched `meteorological_artefact` precision — **no headline accuracy figure**
+  (standing rule 4).
+- **Explainability (`explain/`, §8)** — SHAP over the tree models with a stable
+  feature-name mapping; the additivity invariant (base + attributions reconstruct the
+  prediction) is asserted. A renderer turns attributions into the operator sentence
+  ("driven primarily by the shallow overnight mixing layer, then wind speed").
+- **`GET /v1/explain/{defect_id}`** serves per-defect SHAP attributions, the fault
+  class, the residual and the sentence — degrading to the statistics-layer reason,
+  flagged `degraded`, when no model artefact is loaded. **`GET /v1/deweather/{station}`**
+  serves the raw-vs-predicted-vs-residual series behind the before/after chart.
+- **Model cards, auto-generated at training** (`models/cards.py`, §5): data window,
+  feature list with provenance, CV scheme, metrics, class balance, limitations and the
+  training-data checksum. A model without a card sidecar (or with a mismatched
+  checksum) **refuses to load** (`models/registry.py`).
+- **Graceful degradation, end to end** (standing rule 6): with every model artefact
+  deleted the API still returns trust scores from the statistics layer, flagged
+  `degraded` and complete with their breakdown — pinned by a `demo_critical` test.
+- **Dashboard**: the evidence panel's SHAP slot now populates (signed attribution bars
+  + the operator sentence), and a toggleable **before/after deweathering chart** (raw
+  vs residual) is drawn beside it. Both degrade honestly when no model is loaded.
+- **`prov models train` / `prov models residuals`** CLI, and `make demo-models` wires
+  training into `make demo` (deliberately not into `make demo-data`, so the pinned
+  visual baselines keep their statistics-only state).
+- **Real street basemap for the demo map** (ADR 0006, resolving the flag-review
+  escalation). `make basemap` extracts the Debrecen region (~6 MB) from a Protomaps
+  planet build into a gitignored path; the dashboard renders it under the markers
+  when present and falls back to the token ground otherwise. Offline after the first
+  fetch, never committed, neutral palette so it never competes with the state colours.
+
+### Fixed
+- Second phase-3 flag-review pass:
+  - **Defect list truncation is surfaced.** The cursor walk reports when it stops at
+    its page cap; the evidence panel shows a banner instead of presenting a prefix as
+    the whole set.
+  - **The defect table's dense code chip carries its row's evidence**, so its tooltip
+    and screen-reader text read the full sentence, not "Value of — — exceeds the
+    physical maximum for —".
+  - **Trust component evidence keys are pinned pairwise-disjoint** by a test.
+  - **The map re-themes on a theme switch** (a latent bug: the token ground never
+    repainted), surfaced while wiring the basemap.
+- Phase-3 flag-review resolutions:
+  - **Trust reason codes carry their figures.** `TrustComponent` gains an `evidence`
+    dict keyed by the placeholder names the registry sentences use, and `TrustScore`
+    merges them into the substitution map the API now serves as
+    `TrustScoreOut.evidence`. No migration: `components` is already a JSON column of
+    arbitrary dicts. T03 reads "disagreement with 15 neighbouring station(s)" instead
+    of an em dash with a prose fallback beneath it.
+  - **The audit report's per-code breakdown is complete.** It read one 500-row page
+    and counted it, which on the 18-station demo corpus showed 6 of 13 reason codes
+    with R10 at 145 instead of 336. It now reads `summary.defects_by_code`, computed
+    by the engine over every row, and `useDefects` follows the cursor so no windowed
+    count can silently truncate.
+  - **The defect table's code chip carries its row's evidence**, so its tooltip and
+    screen-reader text no longer read "Value of — — exceeds the physical maximum
+    for —" beside a row holding every one of those numbers.
+  - **The contract drift check moved to `ci.yml`**, which has no `paths:` filter and
+    therefore cannot be skipped by a change nobody thought to list.
+  - **CI starts the API through `make api-bg`**, the same target `make demo` uses, so
+    a `make demo` that does not start the API fails a check.
+  - Uptime and last-calibration stay derived in the dashboard but are tethered by
+    backend tests asserting the two properties their formula assumes.
+
+### Documentation
+- `dashboard-v1.1-operator-screens.md` supersedes v1.0.
+- `docs/demo/checkpoint-3-capture-checklist-v1.0.md` records the outstanding human
+  demo-capture task durably.
+
+## [0.4.0] - 2026-08-09
+### Added
+- **The heterogeneous graph (`graph/`).** A `GraphSnapshot` value object carries
+  node tables (EnvStation, TrafficCounter, BusStop, WeatherNode) and edge tables
+  (spatial_proximity, wind_conditioned, road_adjacency, transit_corridor,
+  weather_influence) at one timestamp, backed by numpy/pandas today and designed as
+  the exact seam phase 6 will back with a PyG `HeteroData` without changing a caller.
+  BusStop nodes are **aggregated to a bounded number of corridors** (§16 critique 6),
+  enforced by a test. Traffic/bus/weather geometry is honest, clearly-labelled
+  `synthetic-provisional` placeholder topology until the Enclod/GTFS feeds are
+  confirmed; env-station coordinates and the weather-node centroid are real/computed.
+- **Wind-conditioned edge weights** (ADR 0007): `w = exp(-Δθ/sigma_angle) · f(speed)
+  · g(distance)`, a lightweight, differentiable **plume approximation, not a
+  dispersion model**. Geodesic bearings and haversine distance on a sphere; correct
+  angular wraparound at the 0/360 seam; a saturating speed response and a distance
+  decay. Zero wind produces a degenerate but finite graph (no NaN, no division by
+  zero). Station-local wind with a **city-level HungaroMet fallback** (KER15 carries
+  no wind sensor), provenance tracked per edge.
+- **Analytic propagation expectation**: expected arrival delay, attenuated
+  magnitude, and an expected series over a 15–60 min horizon, bucketed to the hourly
+  cadence (documented, not interpolated).
+- **The propagation adjudicator (`graph/adjudicate.py`)**: `validate_event()` returns
+  `GENUINE_EVENT` / `LIKELY_FAULT` / `AMBIGUOUS` with a confidence and a full
+  `EvidenceBundle` (wind, downwind neighbours + weights, expected vs actual, match
+  score, covariate state, reason codes). **AMBIGUOUS is first-class** — it routes to
+  human review and can never render as high confidence, enforced in the value object.
+  Reason codes R22 (PLUME_CORROBORATED) and R23 (ADJUDICATION_AMBIGUOUS) join the
+  registry under a new `adjudication` category; the fault case surfaces R17. **No
+  headline accuracy figure is reported** (standing rule 4) — see the model card.
+- **Replay harness (`graph/replay.py`)** and `prov graph adjudicate` / `snapshot` /
+  `adjudicate-db`: rank the corpus's candidate events by magnitude and anomaly,
+  adjudicate each, and write evidence bundles to `reports/adjudications/`. Pointed at
+  the real drop the top event is the ~4,100 µg/m³ KER11 spike, surfaced by ranking —
+  no station or verdict is hardcoded, hinted at, or assumed anywhere.
+- **Dashboard**: the wind-conditioned edge layer is enabled on the map (opacity/width
+  by weight, direction shown); the event timeline colours each verdict and opens a
+  full **event detail** — expected vs actual downwind series, verdict + confidence,
+  downwind neighbours, and the covariate stubs; verdict labels populate for
+  adjudicated events. Stored events are adjudicated back into `Event.verdict` and
+  `Event.evidence.adjudication` by a graph-layer persister (io/db stays upstream of
+  graph), so the API serves them with no contract change.
+
+### Documentation
+- ADR 0007 (wind edges), `docs/model-cards/propagation-adjudicator-v1.md`.
+
+## [0.3.0] - 2026-08-08
+### Added
+- **Dashboard v1** (`apps/web`) — the operator-facing second screen, and the first
+  complete demoable product. Vite + React 18 + TS strict, TanStack Query, React
+  Router, MapLibre GL, Recharts, Tailwind reading the design tokens.
+  - **Network map**: 18 station markers coloured by trust (green > 0.85, amber
+    0.5–0.85, red < 0.5) and *shaped* by trust as well, so colour is never the only
+    channel. Wind vector overlay (circular mean, so the 360/0 wrap does not point
+    the arrow backwards), event glyphs on actively-flagged stations, layer toggles
+    with the wind-conditioned-edge layer built disabled and explained.
+  - **Station detail**: trust score with its component breakdown and its reason
+    codes as plain-language sentences, per-parameter sparklines that break at gaps
+    rather than interpolating, structural-absence coverage notes, and
+    [View evidence] / [Acknowledge] / [Dispatch] — the last two writing to a local
+    queue that has no transport out of the browser (standing rule 5).
+  - **Data quality monitor**: dense, sortable, filterable, virtualised table.
+    Uptime is derived as 1 − (R01 absent cells ÷ expected cells) and the last
+    calibration epoch from the newest R15 discontinuity; both derivations are
+    stated on screen next to the number.
+  - **Event timeline**: events on a time axis, coloured *and* shaped by
+    classification. Every verdict reads "pending adjudication" until phase 4.
+  - **Evidence panel**: reason-code sentence, the detector's own evidence numbers,
+    the raw series ±24h with the flagged point marked, and the neighbouring
+    stations measuring the same parameter. SHAP and attention render as explicit
+    "not yet computed" slots.
+  - **Audit report**: the phase-1 report rendered natively, with the defect-rate
+    definition displayed beside the number and drill-down by reason code.
+- Generated frontend contract (`scripts/gen_frontend_contract.py`): OpenAPI schema,
+  the reason-code registry including every operator sentence, and the numeric design
+  tokens the UI branches on. `--check` is the CI drift gate — nothing about the API,
+  the registry, or the palette is restated by hand in TypeScript.
+- 18-station demo corpus: `prov fixtures make --stations N` appends clean stations
+  beyond the four the injection layout targets, and writes a `stations.json` sidecar
+  carrying synthetic coordinates. `make demo` loads it, audits it, and opens the
+  dashboard; the four-station test corpus and its golden ledger are unchanged.
+- Reversed horizontal lockup (`design/logo/provenance-lockup-horizontal-reversed.svg`),
+  generated from the approved lockup by substituting only the wordmark's ink for
+  `--prov-white`. The approved lockup's near-black wordmark is invisible on the dark
+  theme, which is the default. Geometry equality is asserted by a brand test.
+- CORS on the API (`PROVENANCE_CORS_ORIGINS`, an allow-list, never `*`). The
+  dashboard is a browser client on another origin; without this every request fails
+  preflight and every screen renders empty against a perfectly healthy API.
+- Test gate: 152 Vitest component tests (94.7% line coverage on `apps/web/src`,
+  gate 80%), and 51 Playwright end-to-end tests covering the demo path, axe-core
+  scans of every route in both themes with zero critical violations, keyboard-only
+  traversal, visual regression baselines for four screens in both themes, and the
+  390px responsive floor.
+
+### Changed
+- Phase-2 flag-review escalation decisions (both Option A):
+  - **Trust weights endorsed.** `trust_weights.yaml → status: endorsed` (project lead,
+    2026-08-08), backed by real-event evidence: on the real export the weights drop
+    DEB-KER11's trust 0.577 → 0.275 at the 4100.7 µg/m³ PM10 event (T04), recovering
+    once it leaves the window. Endorsement ≠ logistic refit; the compressed real-data
+    distribution and "discrimination lives in the series" caveat are recorded in the
+    config and in methodology **v1.2** (supersedes v1.1).
+  - **zone_type populated** from a curated, provisional `config/station_zones.yaml`
+    (16 stations classified urban/suburban/industrial/background from site names, each
+    with a rationale + confidence, `status: provisional`). Never inferred from
+    readings; fixtures stay null.
+- Phase-2 flag-review resolutions:
+  - Trust scores are persisted as a **daily series** across the ingest window, not a
+    single instant, so `/v1/trust/{id}?series=true` returns a real trajectory
+    (`trust_weights.yaml → scoring`). Superseding methodology doc
+    `trust-score-methodology-v1.1-invariants-and-series.md`.
+  - Station **name and coordinates** now populate from the Green Sentinel `Location`
+    column (verified real format `"<name> (lat, lon)"`, parsed by
+    `io/loaders.parse_location`, failing loudly otherwise); the PostGIS `geom` point
+    is now a STORED generated column derived from lat/lon. `zone_type` stays null —
+    it has no source in the export (recorded in `schema_assumptions.yaml`).
+  - `quality/summary.last_reading_at` now reports the real per-station max reading
+    time instead of null.
+  - The engineering-judgement trust formulas are pinned by invariant tests
+    (`tests/unit/test_trust_invariants.py`): HealthConf monotonicity, plausibility
+    ceiling-softening, Trust = weighted sum, scoring-instant cadence/cap/anchor.
+
 ## [0.2.0] - 2026-08-08
 ### Added
 - Persistence layer (`io/db/`): SQLAlchemy 2.0 async ORM for stations, parameters,

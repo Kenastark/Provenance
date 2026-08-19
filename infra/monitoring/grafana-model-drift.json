@@ -1,0 +1,49 @@
+{
+  "__plane": "model",
+  "__note": "Model-drift dashboard (MODEL plane). Reads the API /v1/admin/model-drift endpoint via a JSON/Infinity datasource (admin-scoped). Deliberately NOT a Prometheus dashboard: model health is a different question, with a different owner, from service health.",
+  "title": "Provenance — Model Drift (model)",
+  "uid": "prov-model-drift",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["provenance", "model"],
+  "time": {"from": "now-30d", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Deweathering R² over time",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {"refId": "A", "source": "url", "url": "/v1/admin/model-drift", "root_selector": "deweather_r2.points"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Conformal empirical coverage vs nominal",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {"refId": "A", "source": "url", "url": "/v1/admin/model-drift", "root_selector": "conformal_coverage.points"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Defect-rate drift by station (% counting defects ÷ covered cells)",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+      "targets": [
+        {"refId": "A", "source": "url", "url": "/v1/admin/model-drift", "root_selector": "defect_rate_by_station"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Fault-classifier confusion matrix over time",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 18},
+      "targets": [
+        {"refId": "A", "source": "url", "url": "/v1/admin/model-drift", "root_selector": "fault_confusion"}
+      ]
+    }
+  ]
+}

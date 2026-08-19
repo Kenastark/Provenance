@@ -1,0 +1,36 @@
+# Station land-use zone classification.
+#
+# The Green Sentinel export has NO zone_type column (its only columns are
+# timestamp/Location/parameter/value/unit). This file is a CURATED, PROVISIONAL
+# classification of each station into urban / suburban / industrial / background,
+# reasoned from the confirmed site name and coordinates in the Location column.
+#
+# IMPORTANT: this is human curation, not a measurement. It is provisional and needs
+# a domain expert (or the municipality) to confirm before it drives anything beyond
+# display. Each row carries the rationale it was assigned from and a confidence.
+# Do NOT treat a zone as data-derived, and do not let it influence the defect rate
+# or any physical detector.
+
+version: 1
+status: provisional            # provisional | confirmed
+curated_by: "Claude Code, from site names/coordinates (flag-review escalation)"
+curated_on: "2026-08-08"
+categories: [urban, suburban, industrial, background]
+
+stations:
+  DEB-KER01: { zone: industrial, confidence: medium, rationale: "ÉNYGÖ, BMW körút — NW ring road by the BMW industrial park" }
+  DEB-KER02: { zone: suburban,   confidence: medium, rationale: "M35 Józsa junction — motorway node at the northern Józsa suburb" }
+  DEB-KER03: { zone: background, confidence: medium, rationale: "Szepes, Sárga dűlő — 'dűlő' (field/farm track) on the southern outskirts" }
+  DEB-KER04: { zone: suburban,   confidence: low,    rationale: "481-47 road crossing on the southern edge" }
+  DEB-KER05: { zone: urban,      confidence: medium, rationale: "Szabó Pál utca 59 — residential street, eastern city" }
+  DEB-KER06: { zone: urban,      confidence: high,   rationale: "Karácsony György utca nursery — central city street" }
+  DEB-KER07: { zone: urban,      confidence: medium, rationale: "Szávay Gyula street care home — southern residential" }
+  DEB-KER08: { zone: urban,      confidence: medium, rationale: "Benczúr Gyula u. 5 — northern residential street" }
+  DEB-KER09: { zone: urban,      confidence: medium, rationale: "Sétakert utca — central, by the promenade garden" }
+  DEB-KER10: { zone: urban,      confidence: high,   rationale: "Angyalföld tér — central city square" }
+  DEB-KER11: { zone: urban,      confidence: high,   rationale: "Petőfi tér — main city square by the rail station" }
+  DEB-KER12: { zone: background, confidence: high,   rationale: "Haláp Hármashegy forest school — far-eastern rural woodland" }
+  DEB-KER13: { zone: suburban,   confidence: low,    rationale: "Vezér út water reservoir on the northern edge" }
+  DEB-KER14: { zone: suburban,   confidence: medium, rationale: "Mikepércs, Rózsás utca — residential street in a village south of the city" }
+  DEB-KER15: { zone: urban,      confidence: medium, rationale: "Bem tér, ATOMKI research institute — central-north" }
+  DEB-KER18: { zone: suburban,   confidence: high,   rationale: "Józsa, Klastrompart playground — northern Józsa suburb" }

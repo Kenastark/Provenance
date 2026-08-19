@@ -73,6 +73,45 @@ jobs:
         # coverage gate does not apply here (the backend job enforces it).
         run: .venv/bin/pytest tests/architecture -p no:randomly --no-cov
 
+  contract:
+    # Deliberately here, in the workflow with no `paths:` filter, rather than in
+    # frontend.yml. The generated client is a second copy of the API schema, the
+    # reason-code registry and the design tokens; a path filter only protects it
+    # from the changes someone thought to list. Changing trust/score.py's to_dict,
+    # or a repository row builder, alters the served contract without touching any
+    # filtered path - and the dashboard would then describe a system that no longer
+    # exists, with CI green.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Install project
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - run: pnpm install --no-frozen-lockfile
+        working-directory: apps/web
+
+      - name: Frontend contract is current
+        run: .venv/bin/python scripts/gen_frontend_contract.py --check
+      - name: Generated types are current
+        run: |
+          cd apps/web && pnpm gen:types
+          git diff --exit-code -- src/api/schema.d.ts
+      - name: Reversed lockup is current
+        run: .venv/bin/python scripts/gen_reversed_lockup.py --check
+
   no-data-required:
     # Guards a standing rule: the test suite must never need the real dataset.
     runs-on: ubuntu-latest
