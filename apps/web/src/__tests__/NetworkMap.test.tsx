@@ -20,6 +20,7 @@ import {
   graticule,
   LOCAL_BASEMAP_URL,
   probeBasemap,
+  probeGlyphs,
 } from "../features/map/mapStyle";
 import * as fixtures from "../test/fixtures";
 import { page, renderWithProviders } from "../test/harness";
@@ -352,13 +353,21 @@ describe("fetched street basemap", () => {
     expect(source.attribution).toMatch(/OpenStreetMap/);
   });
 
-  it("carries no symbol layers, so it needs no glyph fonts and stays offline", () => {
+  it("carries no symbol layers by default, so it needs no glyph fonts and stays offline", () => {
     for (const theme of ["dark", "light"] as const) {
       const style = buildBasemapStyle(theme);
       expect(style.layers.length).toBeGreaterThan(20);
       expect(style.layers.some((layer) => layer.type === "symbol")).toBe(false);
       // A symbol-free style must not declare a glyphs endpoint.
       expect(style.glyphs).toBeUndefined();
+    }
+  });
+
+  it("keeps symbol layers and declares a glyphs endpoint once fonts are confirmed present (ADR 0011)", () => {
+    for (const theme of ["dark", "light"] as const) {
+      const style = buildBasemapStyle(theme, undefined, true);
+      expect(style.layers.some((layer) => layer.type === "symbol")).toBe(true);
+      expect(style.glyphs).toContain("/fonts/{fontstack}/{range}.pbf");
     }
   });
 
@@ -459,6 +468,36 @@ describe("probeBasemap", () => {
   it("is false, not a throw, when the request fails entirely", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("probeGlyphs", () => {
+  const bytes = (...values: number[]): Response =>
+    ({ ok: true, arrayBuffer: async () => new Uint8Array(values).buffer }) as Response;
+
+  it("is false when the font file is absent (a 404)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false } as Response));
+    await expect(probeGlyphs("/fonts/Noto Sans Regular/0-255.pbf")).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("is true only when the first byte is a real glyph PBF's protobuf tag", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(bytes(0x0a, 0x88, 0xd2, 0x04)));
+    await expect(probeGlyphs("/fonts/Noto Sans Regular/0-255.pbf")).resolves.toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("is false on an SPA HTML fallback that answered 200 - the same bug probeBasemap guards", async () => {
+    // "<" is 0x3c, not the glyph PBF's 0x0a tag byte.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(bytes(0x3c, 0x21, 0x64, 0x6f)));
+    await expect(probeGlyphs("/fonts/Noto Sans Regular/0-255.pbf")).resolves.toBe(false);
+    vi.unstubAllGlobals();
+  });
+
+  it("is false, not a throw, when the request fails entirely", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(probeGlyphs("/fonts/Noto Sans Regular/0-255.pbf")).resolves.toBe(false);
     vi.unstubAllGlobals();
   });
 });

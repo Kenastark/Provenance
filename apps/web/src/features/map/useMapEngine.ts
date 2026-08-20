@@ -5,6 +5,7 @@ import {
   buildBasemapStyle,
   LOCAL_BASEMAP_URL,
   probeBasemap,
+  probeGlyphs,
   resolveStyle,
 } from "./mapStyle";
 
@@ -69,6 +70,9 @@ export function useMapEngine(
   // default everywhere - fresh clone, CI, every test - is the token ground with no
   // premature claim either way.
   const [basemapPresent, setBasemapPresent] = useState<boolean | null>(null);
+  // Same tri-state, for the fetched glyph fonts (ADR 0011): null until probed,
+  // then whether street/place labels are actually being served.
+  const [glyphsPresent, setGlyphsPresent] = useState<boolean | null>(null);
   const [engineGeneration, setEngineGeneration] = useState(0);
   const [viewVersion, setViewVersion] = useState(0);
   const [isIdle, setIsIdle] = useState(false);
@@ -116,6 +120,14 @@ export function useMapEngine(
     return () => controller.abort();
   }, []);
 
+  // Probe once for the fetched glyph fonts (ADR 0011). Absence is the normal case
+  // and resolves to false, leaving street/place labels stripped from the style.
+  useEffect(() => {
+    const controller = new AbortController();
+    probeGlyphs(undefined, controller.signal).then(setGlyphsPresent).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
   // Re-apply the style when the theme or basemap presence *changes* - which
   // re-themes the token ground (`resolveStyle` reads the `--prov-map-*` tokens at
   // call time) and swaps in the streets once the probe confirms them.
@@ -124,21 +136,30 @@ export function useMapEngine(
   // here is a no-op: calling setStyle again mid-load restarts the render cycle and
   // the map never reaches `idle`. A ref, not the engine generation, gates it, so a
   // remount re-arms the skip.
-  const styleApplied = useRef<{ theme: string; showBasemap: boolean } | null>(null);
+  const styleApplied = useRef<{ theme: string; showBasemap: boolean; showGlyphs: boolean } | null>(
+    null,
+  );
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
     void engineGeneration; // re-run after a fresh engine mounts
     // Not-yet-probed and confirmed-absent both mean "stay on the token ground", so
-    // they bucket together here; only the UI notice needs the raw tri-state.
+    // they bucket together here; only the UI notice needs the raw tri-state. Labels
+    // only ever matter once the basemap itself is showing - the token ground has no
+    // symbol layers to label - so glyph presence is irrelevant on its own.
     const showBasemap = basemapPresent === true;
+    const showGlyphs = showBasemap && glyphsPresent === true;
     const last = styleApplied.current;
-    styleApplied.current = { theme, showBasemap };
+    styleApplied.current = { theme, showBasemap, showGlyphs };
     // Skip the redundant apply on the first run against a given engine; only act on
-    // an actual change of theme or basemap presence.
-    if (last === null || (last.theme === theme && last.showBasemap === showBasemap)) return;
-    engine.applyStyle(showBasemap ? buildBasemapStyle(theme) : resolveStyle());
-  }, [engineGeneration, theme, basemapPresent]);
+    // an actual change of theme, basemap presence, or glyph presence.
+    if (
+      last === null ||
+      (last.theme === theme && last.showBasemap === showBasemap && last.showGlyphs === showGlyphs)
+    )
+      return;
+    engine.applyStyle(showBasemap ? buildBasemapStyle(theme, undefined, showGlyphs) : resolveStyle());
+  }, [engineGeneration, theme, basemapPresent, glyphsPresent]);
 
   // Keep the fallback projection honest about the container it is drawing into.
   useEffect(() => {

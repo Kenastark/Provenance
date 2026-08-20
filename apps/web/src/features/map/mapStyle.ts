@@ -31,6 +31,19 @@ export const MAP_STYLE_URL: string | undefined = import.meta.env.VITE_MAP_STYLE_
  */
 export const LOCAL_BASEMAP_URL = "/basemap/debrecen.pmtiles";
 
+/**
+ * Where the fetched street/place-label glyph fonts live when present (ADR 0011).
+ *
+ * `make fonts` downloads the PBF glyph ranges the basemap style's symbol layers
+ * request into `public/fonts/`, gitignored and absent by default for the same
+ * reason the basemap itself is: a fresh clone and every CI run have no fonts and
+ * the map stays label-free, exactly as it was before this existed.
+ */
+export const LOCAL_GLYPHS_URL_TEMPLATE = "/fonts/{fontstack}/{range}.pbf";
+
+/** One concrete glyph file used to probe whether the fonts were actually fetched. */
+const GLYPHS_PROBE_URL = "/fonts/Noto Sans Regular/0-255.pbf";
+
 /** The vector source name the Protomaps layer definitions expect. */
 const PROTOMAPS_SOURCE = "protomaps";
 
@@ -103,9 +116,7 @@ export function resolveStyle(root?: HTMLElement): string | StyleSpecification {
  * The real streets, when the fetched basemap is present.
  *
  * Uses the maintained `@protomaps/basemaps` layer definitions over a local PMTiles
- * source, with the **symbol layers removed** so the map needs no glyph fonts and
- * stays fully offline: streets, water, land use, buildings and boundaries, but no
- * labels. Two deliberate choices matter here:
+ * source. Two deliberate choices matter here:
  *
  * 1. The GRAYSCALE / DARK flavours are neutral — greys and blue-greys, no saturated
  *    green or blue. That is not aesthetics: Sentinel Green means *verified* and
@@ -117,18 +128,27 @@ export function resolveStyle(root?: HTMLElement): string | StyleSpecification {
  * The OSM attribution is carried on the source, so MapLibre's own attribution
  * control renders it — the open-stack, correctly-credited story the municipal pitch
  * rests on.
+ *
+ * `glyphsAvailable` (default `false`, ADR 0011) gates the **symbol layers** — street
+ * and place labels. When the local glyph fonts have not been fetched (a fresh
+ * clone, CI, or `make fonts` simply not having run) they are stripped, exactly as
+ * this style always behaved before glyph fonts existed: streets, water, land use,
+ * buildings and boundaries, no labels, no glyph endpoint declared, no broken map.
+ * Only once the fonts are confirmed present does the style keep the labels and add
+ * `glyphs`.
  */
 export function buildBasemapStyle(
   theme: "dark" | "light",
   pmtilesUrl: string = LOCAL_BASEMAP_URL,
+  glyphsAvailable = false,
 ): StyleSpecification {
   const flavour = theme === "dark" ? DARK : GRAYSCALE;
-  const geometryOnly = (protomapsLayers(PROTOMAPS_SOURCE, flavour, { lang: "en" }) as LayerSpecification[]).filter(
-    (layer) => layer.type !== "symbol",
-  );
+  const allLayers = protomapsLayers(PROTOMAPS_SOURCE, flavour, { lang: "en" }) as LayerSpecification[];
+  const layers = glyphsAvailable ? allLayers : allLayers.filter((layer) => layer.type !== "symbol");
 
   return {
     version: 8,
+    ...(glyphsAvailable ? { glyphs: absoluteUrl(LOCAL_GLYPHS_URL_TEMPLATE) } : {}),
     // A same-origin absolute URL: the pmtiles protocol needs the archive's full
     // location, not a bare path, to issue range requests against it.
     sources: {
@@ -139,7 +159,7 @@ export function buildBasemapStyle(
           '<a href="https://openstreetmap.org/copyright" target="_blank" rel="noreferrer">&copy; OpenStreetMap</a>',
       },
     },
-    layers: geometryOnly,
+    layers,
   };
 }
 
@@ -178,6 +198,42 @@ export async function probeBasemap(
     if (!response.ok) return false;
     const magic = new TextDecoder().decode(new Uint8Array(await response.arrayBuffer()).subarray(0, 7));
     return magic === PMTILES_MAGIC;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The protobuf tag byte every glyph PBF begins with: field 1 (`stacks`), wire
+ * type 2 (length-delimited) — `(1 << 3) | 2`. Verified against a real fetched
+ * file; stable because it follows directly from the `glyphs` proto schema, not
+ * from anything about the font itself.
+ */
+const GLYPHS_MAGIC_BYTE = 0x0a;
+
+/**
+ * Are the fetched glyph fonts (ADR 0011) actually being served here?
+ *
+ * Same reasoning as {@link probeBasemap}, and the same trap to avoid: the dev/
+ * preview server answers any missing path with `index.html` and a 200, so an
+ * `ok`-only check would call absent fonts "present" and the map would ask
+ * MapLibre to fetch glyphs that are actually HTML. A real glyph PBF's first byte
+ * is reliably the protobuf tag above; an SPA fallback's is `<` (0x3c).
+ *
+ * Every failure — a 404, an SPA HTML fallback, no `fetch`, a network error —
+ * resolves to `false`, and the basemap style keeps its labels stripped exactly as
+ * it did before glyph fonts existed.
+ */
+export async function probeGlyphs(
+  url: string = GLYPHS_PROBE_URL,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (typeof fetch !== "function") return false;
+  try {
+    const response = await fetch(url, { headers: { Range: `bytes=0-0` }, signal });
+    if (!response.ok) return false;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return bytes.length > 0 && bytes[0] === GLYPHS_MAGIC_BYTE;
   } catch {
     return false;
   }
