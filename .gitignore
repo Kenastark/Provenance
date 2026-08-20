@@ -52,6 +52,9 @@ build/
 apps/web/public/basemap/
 .cache/pmtiles/
 
+# ---- basemap glyph fonts (fetched by scripts/fetch-fonts.sh, ADR 0011) ----
+apps/web/public/fonts/
+
 # ---- node ----
 node_modules/
 apps/web/dist/

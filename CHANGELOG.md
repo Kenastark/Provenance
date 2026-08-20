@@ -5,6 +5,22 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Street and place labels on the fetched basemap** (ADR 0011). ADR 0006
+  stripped every symbol layer from the map style so it needed no glyph fonts
+  and could stay fully offline; `scripts/fetch-fonts.sh` (new `make fonts`
+  target, called from `make demo`/`make demo-real` alongside `make basemap`,
+  same non-fatal contract) fetches the PBF glyph ranges the style actually
+  needs — Noto Sans Regular/Medium/Italic, Unicode ranges `0-255` and
+  `256-511` (covers Hungarian's ő/ű, one range past Latin-1) — from the same
+  publisher as the `@protomaps/basemaps` package. `buildBasemapStyle` gains a
+  `glyphsAvailable` flag (default `false`, unchanged behaviour); `useMapEngine`
+  probes for the fonts the same content-sniffed way it already probes for the
+  tile archive (a glyph PBF's first byte is reliably the protobuf tag `0x0a`;
+  an SPA-fallback 200 starts with `<`), so absence degrades silently to the
+  pre-existing label-free style. `apps/web/public/fonts/` is gitignored and
+  absent by default; the pinned-Linux visual-check container now drops it
+  before building, alongside `public/basemap`, so the CI/fresh-clone
+  token-ground visual gate is unaffected either way.
 - **`make demo-real`: run the whole stack against the real Green Sentinel drop
   instead of the synthetic fixtures.** Mirrors `make demo` (stack up, DB loaded,
   audited, adjudicated, models trained, API up, dashboard open) but points every
