@@ -98,6 +98,34 @@
         "title": "AuditRunOut",
         "type": "object"
       },
+      "BusStopOut": {
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "n_routes": {
+            "title": "N Routes",
+            "type": "number"
+          },
+          "stop_id": {
+            "title": "Stop Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stop_id",
+          "lat",
+          "lon",
+          "n_routes"
+        ],
+        "title": "BusStopOut",
+        "type": "object"
+      },
       "ComponentOut": {
         "properties": {
           "contribution": {
@@ -972,6 +1000,50 @@
         "title": "RebuildIn",
         "type": "object"
       },
+      "ReferenceCountersOut": {
+        "description": "``available=False`` means no Enclod archive CSVs were found under the data\nroot — distinct from the counters existing but carrying no coordinate.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "counters": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficCounterOut"
+            },
+            "title": "Counters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "counters"
+        ],
+        "title": "ReferenceCountersOut",
+        "type": "object"
+      },
+      "ReferenceStopsOut": {
+        "description": "``available=False`` means no GTFS bundle was found — a coverage fact, not an\nempty layer (standing rule 3): the map must tell the two apart.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/BusStopOut"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "stops"
+        ],
+        "title": "ReferenceStopsOut",
+        "type": "object"
+      },
       "RetrainIn": {
         "properties": {
           "reason": {
@@ -1148,6 +1220,34 @@
           "station_id"
         ],
         "title": "StationOut",
+        "type": "object"
+      },
+      "TrafficCounterOut": {
+        "properties": {
+          "counter_id": {
+            "title": "Counter Id",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "counter_id",
+          "name",
+          "lat",
+          "lon"
+        ],
+        "title": "TrafficCounterOut",
         "type": "object"
       },
       "TransitionIn": {
@@ -2508,6 +2608,48 @@
         "summary": "List Readings",
         "tags": [
           "readings"
+        ]
+      }
+    },
+    "/v1/reference/bus-stops": {
+      "get": {
+        "operationId": "bus_stops_v1_reference_bus_stops_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceStopsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Bus Stops",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
+    "/v1/reference/traffic-counters": {
+      "get": {
+        "operationId": "traffic_counters_v1_reference_traffic_counters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceCountersOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Traffic Counters",
+        "tags": [
+          "reference"
         ]
       }
     },

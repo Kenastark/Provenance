@@ -1,5 +1,6 @@
 import type {
   AuditRun,
+  BusStop,
   Defect,
   DeweatherSeries,
   Explain,
@@ -7,7 +8,10 @@ import type {
   QualityStation,
   QualitySummary,
   Reading,
+  ReferenceCounters,
+  ReferenceStops,
   Station,
+  TrafficCounter,
   TrustScore,
   Version,
 } from "../api/client";
@@ -40,6 +44,36 @@ export const stations: Station[] = [
   // No coordinates: must be reported as unmapped, never dropped silently.
   station({ station_id: "STA-04", lat: null, lon: null, zone_type: null }),
 ];
+
+export const busStop = (overrides: Partial<BusStop> = {}): BusStop => ({
+  stop_id: "S-STA-01-0",
+  lat: 47.5775,
+  lon: 21.5025,
+  n_routes: 3,
+  ...overrides,
+});
+
+/** No GTFS bundle loaded - the honest default a fresh clone actually reports. */
+export const referenceStopsUnavailable: ReferenceStops = { available: false, stops: [] };
+export const referenceStopsAvailable: ReferenceStops = {
+  available: true,
+  stops: [busStop(), busStop({ stop_id: "S-STA-02-0", lat: 47.5772, lon: 21.5203 })],
+};
+
+export const trafficCounter = (overrides: Partial<TrafficCounter> = {}): TrafficCounter => ({
+  counter_id: "gh9d5GPy764KFLjmCrjnbG",
+  name: "47.towards.Debrecen.far.IN",
+  lat: 47.4607,
+  lon: 21.6366,
+  ...overrides,
+});
+
+/** No Enclod archive found - the honest default a fresh clone actually reports. */
+export const referenceCountersUnavailable: ReferenceCounters = { available: false, counters: [] };
+export const referenceCountersAvailable: ReferenceCounters = {
+  available: true,
+  counters: [trafficCounter(), trafficCounter({ counter_id: "RbuHQFeNkxcPagEZdwc4PH", name: "BMW körút" })],
+};
 
 export const trustComponents = [
   {

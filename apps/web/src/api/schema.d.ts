@@ -367,6 +367,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reference/bus-stops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bus Stops */
+        get: operations["bus_stops_v1_reference_bus_stops_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reference/traffic-counters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Traffic Counters */
+        get: operations["traffic_counters_v1_reference_traffic_counters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stations": {
         parameters: {
             query?: never;
@@ -474,6 +508,17 @@ export interface components {
             n_defective_cells: number;
             /** N Rows */
             n_rows: number;
+        };
+        /** BusStopOut */
+        BusStopOut: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** N Routes */
+            n_routes: number;
+            /** Stop Id */
+            stop_id: string;
         };
         /** ComponentOut */
         ComponentOut: {
@@ -784,6 +829,28 @@ export interface components {
              */
             run_id?: string | null;
         };
+        /**
+         * ReferenceCountersOut
+         * @description ``available=False`` means no Enclod archive CSVs were found under the data
+         *     root — distinct from the counters existing but carrying no coordinate.
+         */
+        ReferenceCountersOut: {
+            /** Available */
+            available: boolean;
+            /** Counters */
+            counters: components["schemas"]["TrafficCounterOut"][];
+        };
+        /**
+         * ReferenceStopsOut
+         * @description ``available=False`` means no GTFS bundle was found — a coverage fact, not an
+         *     empty layer (standing rule 3): the map must tell the two apart.
+         */
+        ReferenceStopsOut: {
+            /** Available */
+            available: boolean;
+            /** Stops */
+            stops: components["schemas"]["BusStopOut"][];
+        };
         /** RetrainIn */
         RetrainIn: {
             /** Reason */
@@ -853,6 +920,17 @@ export interface components {
             station_id: string;
             /** Zone Type */
             zone_type?: string | null;
+        };
+        /** TrafficCounterOut */
+        TrafficCounterOut: {
+            /** Counter Id */
+            counter_id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name: string;
         };
         /** TransitionIn */
         TransitionIn: {
@@ -1600,6 +1678,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bus_stops_v1_reference_bus_stops_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceStopsOut"];
+                };
+            };
+        };
+    };
+    traffic_counters_v1_reference_traffic_counters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceCountersOut"];
                 };
             };
         };

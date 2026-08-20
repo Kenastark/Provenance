@@ -115,3 +115,33 @@ async def test_openapi_is_served(api_client: httpx.AsyncClient) -> None:
     schema = (await api_client.get("/openapi.json")).json()
     assert schema["info"]["title"] == "Provenance API"
     assert "/v1/trust/{station_id}" in schema["paths"]
+
+
+async def test_reference_layers_report_unavailable_without_a_drop(
+    api_client: httpx.AsyncClient,
+) -> None:
+    """``api_client`` points ``data_raw`` at a permanently empty directory: both
+    reference layers must say so structurally, never return a silently empty list
+    indistinguishable from "loaded, but nothing here" (standing rule 3)."""
+    stops = (await api_client.get("/v1/reference/bus-stops", headers=PUBLIC)).json()
+    assert stops == {"available": False, "stops": []}
+
+    counters = (await api_client.get("/v1/reference/traffic-counters", headers=PUBLIC)).json()
+    assert counters == {"available": False, "counters": []}
+
+
+async def test_bus_stops_are_served_from_a_real_gtfs_bundle(ops_client: httpx.AsyncClient) -> None:
+    body = (await ops_client.get("/v1/reference/bus-stops", headers=PUBLIC)).json()
+    assert body["available"] is True
+    assert body["stops"]
+    for stop in body["stops"]:
+        assert isinstance(stop["lat"], float) and isinstance(stop["lon"], float)
+
+
+async def test_traffic_counters_report_unavailable_when_the_ops_drop_has_no_enclod_files(
+    ops_client: httpx.AsyncClient,
+) -> None:
+    # ops_db's drop carries a synthetic GTFS bundle but no Enclod archive - the two
+    # sources are independent, and one being present must not paper over the other.
+    body = (await ops_client.get("/v1/reference/traffic-counters", headers=PUBLIC)).json()
+    assert body == {"available": False, "counters": []}

@@ -1,6 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useEvents, useQualitySummary, useReadings, useStations } from "../../api/queries";
+import {
+  useBusStops,
+  useEvents,
+  useQualitySummary,
+  useReadings,
+  useStations,
+  useTrafficCounters,
+} from "../../api/queries";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { useTheme } from "../../lib/theme";
 import { useWindowState } from "../../lib/windowContext";
@@ -8,19 +15,27 @@ import { StationDetailPanel } from "../station/StationDetailPanel";
 import {
   LayerToggles,
   MapLegend,
+  ReferenceMarkerLayer,
   StationMarkerLayer,
   WindEdgeLayer,
   WindOverlay,
 } from "./MapOverlays";
 import { useMapEngine } from "./useMapEngine";
 import {
+  buildBusStopMarkers,
   buildStationMarkers,
+  buildTrafficCounterMarkers,
   currentWind,
   MAP_LAYERS,
+  resolveMapLayers,
   summariseMarkers,
   WIND_DIRECTION_PARAMETER,
+  type BusStopMarker,
+  type LayerDefinition,
   type LayerId,
+  type MarkerProvenance,
   type StationMarker,
+  type TrafficCounterMarker,
 } from "./stationMarkers";
 import { computeWindEdges } from "./windEdges";
 
@@ -43,6 +58,8 @@ export function NetworkMap() {
   const stations = useStations();
   const quality = useQualitySummary();
   const events = useEvents();
+  const busStops = useBusStops();
+  const trafficCounters = useTrafficCounters();
 
   const { markers, withoutCoordinates } = useMemo(
     () =>
@@ -52,6 +69,16 @@ export function NetworkMap() {
         events: events.data ?? [],
       }),
     [stations.data, quality.data, events.data],
+  );
+
+  const busStopMarkers = useMemo(() => buildBusStopMarkers(busStops.data?.stops ?? []), [busStops.data]);
+  const trafficCounterMarkers = useMemo(
+    () => buildTrafficCounterMarkers(trafficCounters.data?.counters ?? []),
+    [trafficCounters.data],
+  );
+  const layerDefs = useMemo(
+    () => resolveMapLayers(MAP_LAYERS, { busStops: busStops.data, trafficCounters: trafficCounters.data }),
+    [busStops.data, trafficCounters.data],
   );
 
   const selectStation = useCallback(
@@ -81,6 +108,9 @@ export function NetworkMap() {
         markers={markers}
         withoutCoordinates={withoutCoordinates}
         hasStations={(stations.data?.length ?? 0) > 0}
+        busStopMarkers={busStopMarkers}
+        trafficCounterMarkers={trafficCounterMarkers}
+        layerDefs={layerDefs}
         selectedStationId={selectedStationId}
         onSelect={selectStation}
       />
@@ -107,12 +137,18 @@ function MapSurface({
   markers,
   withoutCoordinates,
   hasStations,
+  busStopMarkers,
+  trafficCounterMarkers,
+  layerDefs,
   selectedStationId,
   onSelect,
 }: {
   markers: readonly StationMarker[];
   withoutCoordinates: readonly string[];
   hasStations: boolean;
+  busStopMarkers: readonly BusStopMarker[];
+  trafficCounterMarkers: readonly TrafficCounterMarker[];
+  layerDefs: readonly LayerDefinition[];
   selectedStationId: string | null;
   onSelect: (stationId: string) => void;
 }) {
@@ -141,6 +177,22 @@ function MapSurface({
     () => (layers.windEdges ? computeWindEdges(markers, wind) : []),
     [layers.windEdges, markers, wind],
   );
+
+  const busStopDef = layerDefs.find((l) => l.id === "busStop");
+  const trafficCounterDef = layerDefs.find((l) => l.id === "trafficCounter");
+  const showBusStops = Boolean(busStopDef?.available) && layers.busStop;
+  const showTrafficCounters = Boolean(trafficCounterDef?.available) && layers.trafficCounter;
+
+  // What's actually on screen right now, derived rather than hardcoded (rule 1):
+  // stations are always drawn once there are any, and the reference layers only
+  // add to the set when their toggle is both available and switched on.
+  const provenances = useMemo(() => {
+    const set = new Set<MarkerProvenance>();
+    if (markers.length > 0) set.add("measured");
+    if (showBusStops) for (const m of busStopMarkers) set.add(m.provenance);
+    if (showTrafficCounters) for (const m of trafficCounterMarkers) set.add(m.provenance);
+    return set;
+  }, [markers.length, showBusStops, busStopMarkers, showTrafficCounters, trafficCounterMarkers]);
 
   return (
     // overflow-hidden matters: the marker overlay is absolutely positioned and a
@@ -172,6 +224,34 @@ function MapSurface({
       ) : (
         <>
           {layers.windEdges && <WindEdgeLayer edges={windEdges} project={project} />}
+          {showBusStops && (
+            <ReferenceMarkerLayer
+              markers={busStopMarkers.map((m) => ({
+                id: m.stopId,
+                lat: m.lat,
+                lon: m.lon,
+                label: `Bus stop ${m.stopId}`,
+                provenance: m.provenance,
+              }))}
+              project={project}
+              kind="bus-stop"
+              ariaLabel="Bus stops"
+            />
+          )}
+          {showTrafficCounters && (
+            <ReferenceMarkerLayer
+              markers={trafficCounterMarkers.map((m) => ({
+                id: m.counterId,
+                lat: m.lat,
+                lon: m.lon,
+                label: m.name,
+                provenance: m.provenance,
+              }))}
+              project={project}
+              kind="traffic-counter"
+              ariaLabel="Traffic counters"
+            />
+          )}
           <StationMarkerLayer
             markers={markers}
             project={project}
@@ -179,11 +259,12 @@ function MapSurface({
             onSelect={onSelect}
           />
           <LayerToggles
+            layers={layerDefs}
             enabled={layers}
             onToggle={(id, next) => setLayers((previous) => ({ ...previous, [id]: next }))}
           />
           <WindOverlay wind={wind} />
-          <MapLegend counts={counts} />
+          <MapLegend counts={counts} provenances={provenances} />
         </>
       )}
 

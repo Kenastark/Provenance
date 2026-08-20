@@ -26,6 +26,9 @@ pytestmark = pytest.mark.integration
 
 _DB_FILE = Path(tempfile.mkdtemp(prefix="prov-st-")) / "schemathesis.db"
 _URL = f"sqlite+aiosqlite:///{_DB_FILE}"
+# Isolated from the real data/raw (rule 7): the reference endpoints read the
+# filesystem directly, and this repo's data/raw can carry the developer's own drop.
+_DATA_RAW = Path(tempfile.mkdtemp(prefix="prov-st-data-raw-"))
 
 
 async def _build() -> None:
@@ -39,7 +42,7 @@ async def _build() -> None:
 
 
 asyncio.run(_build())
-_app = create_app(engine=make_engine(_URL))
+_app = create_app(engine=make_engine(_URL), data_raw=_DATA_RAW)
 # FastAPI emits OpenAPI 3.1, which schemathesis 3.x does not fully parse. Advertise
 # 3.0.x for the fuzz only (this test-local app instance); production stays 3.1.
 _app.openapi_version = "3.0.2"

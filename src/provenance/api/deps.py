@@ -9,6 +9,7 @@ problem, and returns the caller's resolved role to the handler.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Coroutine
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, Request
@@ -22,6 +23,15 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     sessionmaker: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
     async with sessionmaker() as session:
         yield session
+
+
+def get_data_raw(request: Request) -> Path:
+    """The raw-data root the reference endpoints read file-drops from.
+
+    ``app.state.data_raw`` (set by ``create_app``) lets a test point this at an
+    isolated fixture directory the same way ``engine`` isolates the database,
+    rather than every test racing the developer's real ``data/raw``."""
+    return Path(request.app.state.data_raw)
 
 
 def require(required: Role) -> Callable[..., Coroutine[Any, Any, Role]]:

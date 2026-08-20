@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +35,7 @@ from provenance.api.routers import (
     meta,
     quality,
     readings,
+    reference,
     stations,
     trust,
 )
@@ -43,6 +45,7 @@ from provenance.io.db.engine import make_engine, make_sessionmaker
 _ROUTERS = (
     meta.router,
     stations.router,
+    reference.router,
     readings.router,
     defects.router,
     trust.router,
@@ -65,7 +68,7 @@ _DESCRIPTION = (
 )
 
 
-def create_app(engine: AsyncEngine | None = None) -> FastAPI:
+def create_app(engine: AsyncEngine | None = None, data_raw: Path | None = None) -> FastAPI:
     owns_engine = engine is None
     engine = engine or make_engine()
     sessionmaker = make_sessionmaker(engine)
@@ -84,6 +87,7 @@ def create_app(engine: AsyncEngine | None = None) -> FastAPI:
     )
     app.state.engine = engine
     app.state.sessionmaker = sessionmaker
+    app.state.data_raw = data_raw or get_settings().data_raw
 
     # The dashboard runs on its own origin, so without CORS every browser request
     # fails preflight and the screens render empty against a perfectly healthy API.

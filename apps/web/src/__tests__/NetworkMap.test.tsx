@@ -3,9 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NetworkMap } from "../features/map/NetworkMap";
 import {
+  buildBusStopMarkers,
   buildStationMarkers,
+  buildTrafficCounterMarkers,
   compassPoint,
   currentWind,
+  MAP_LAYERS,
+  resolveMapLayers,
   summariseMarkers,
   visibleStationLabels,
 } from "../features/map/stationMarkers";
@@ -82,6 +86,40 @@ describe("marker model", () => {
       fault: 1,
       unknown: 0,
     });
+  });
+});
+
+describe("reference layers", () => {
+  it("builds bus-stop markers from real GTFS coordinates, all measured", () => {
+    const markers = buildBusStopMarkers(fixtures.referenceStopsAvailable.stops);
+    expect(markers.map((m) => m.stopId)).toEqual(["S-STA-01-0", "S-STA-02-0"]);
+    expect(markers.every((m) => m.provenance === "measured")).toBe(true);
+  });
+
+  it("builds traffic-counter markers from real Enclod coordinates, all measured", () => {
+    const markers = buildTrafficCounterMarkers(fixtures.referenceCountersAvailable.counters);
+    expect(markers).toHaveLength(2);
+    expect(markers.every((m) => m.provenance === "measured")).toBe(true);
+  });
+
+  it("keeps a layer disabled while its query is still loading", () => {
+    const layers = resolveMapLayers(MAP_LAYERS, { busStops: undefined, trafficCounters: undefined });
+    const busStop = layers.find((l) => l.id === "busStop")!;
+    expect(busStop.available).toBe(false);
+    expect(busStop.unavailableReason).toBeTruthy();
+  });
+
+  it("enables a layer once its reference endpoint reports real data", () => {
+    const layers = resolveMapLayers(MAP_LAYERS, {
+      busStops: fixtures.referenceStopsAvailable,
+      trafficCounters: fixtures.referenceCountersUnavailable,
+    });
+    const busStop = layers.find((l) => l.id === "busStop")!;
+    const trafficCounter = layers.find((l) => l.id === "trafficCounter")!;
+    expect(busStop.available).toBe(true);
+    expect(busStop.unavailableReason).toBeUndefined();
+    expect(trafficCounter.available).toBe(false);
+    expect(trafficCounter.unavailableReason).toMatch(/provisional placeholders/);
   });
 });
 
@@ -179,6 +217,70 @@ describe("NetworkMap", () => {
     const legend = await screen.findByTestId("map-legend");
     expect(within(legend).getByText("Verified")).toBeInTheDocument();
     expect(within(legend).getByText("Fault")).toBeInTheDocument();
+  });
+
+  it("keeps BusStop and TrafficCounter disabled with an honest reason when no drop is loaded", async () => {
+    renderWithProviders(<NetworkMap />);
+
+    const busStopToggle = await screen.findByTestId("layer-toggle-busStop");
+    expect(busStopToggle).toBeDisabled();
+    expect(busStopToggle.closest("label")).toHaveAttribute("title", expect.stringMatching(/GTFS bundle not loaded/));
+
+    const trafficToggle = await screen.findByTestId("layer-toggle-trafficCounter");
+    expect(trafficToggle).toBeDisabled();
+    expect(trafficToggle.closest("label")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/provisional placeholders/),
+    );
+  });
+
+  it("enables BusStop once the GTFS bundle is loaded and draws subordinate, measured markers", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NetworkMap />, {
+      routes: { "/v1/reference/bus-stops": fixtures.referenceStopsAvailable },
+    });
+
+    const toggle = await screen.findByTestId("layer-toggle-busStop");
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+
+    const layer = await screen.findByTestId("reference-marker-layer-bus-stop");
+    const markers = within(layer).getAllByTestId("reference-marker");
+    expect(markers).toHaveLength(fixtures.referenceStopsAvailable.stops.length);
+    for (const marker of markers) {
+      expect(marker).toHaveAttribute("data-kind", "bus-stop");
+      expect(marker).toHaveAttribute("data-provenance", "measured");
+    }
+  });
+
+  it("enables TrafficCounter once real Enclod coordinates are loaded", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NetworkMap />, {
+      routes: { "/v1/reference/traffic-counters": fixtures.referenceCountersAvailable },
+    });
+
+    const toggle = await screen.findByTestId("layer-toggle-trafficCounter");
+    expect(toggle).toBeEnabled();
+    await user.click(toggle);
+
+    const layer = await screen.findByTestId("reference-marker-layer-traffic-counter");
+    const markers = within(layer).getAllByTestId("reference-marker");
+    expect(markers).toHaveLength(fixtures.referenceCountersAvailable.counters.length);
+    for (const marker of markers) {
+      expect(marker).toHaveAttribute("data-kind", "traffic-counter");
+      expect(marker).toHaveAttribute("data-provenance", "measured");
+    }
+  });
+
+  it("distinguishes marker provenance in the legend", async () => {
+    renderWithProviders(<NetworkMap />);
+    const legend = await screen.findByTestId("map-legend");
+    // Stations are always measured, so the legend always carries this row -
+    // and never a "provisional" one, since the map refuses to draw those.
+    expect(within(legend).getByTestId("map-legend-provenance")).toHaveTextContent(/Measured position/);
+    expect(within(legend).queryByText(/Provisional/)).not.toBeInTheDocument();
   });
 
   it("offers the wind-conditioned edge layer, off by default and switchable on", async () => {

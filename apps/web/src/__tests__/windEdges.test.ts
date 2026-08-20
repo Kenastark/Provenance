@@ -28,6 +28,7 @@ function marker(id: string, lat: number, lon: number): StationMarker {
     flagCount: 0,
     hasActiveEvent: false,
     eventHeadline: null,
+    provenance: "measured",
   };
 }
 
