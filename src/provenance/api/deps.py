@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from provenance.api.auth import Role, api_key_header, role_for_key, role_satisfies
 from provenance.api.errors import ProblemException
+from provenance.config.settings import get_settings
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -25,13 +26,16 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         yield session
 
 
-def get_data_raw(request: Request) -> Path:
+def get_data_raw() -> Path:
     """The raw-data root the reference endpoints read file-drops from.
 
-    ``app.state.data_raw`` (set by ``create_app``) lets a test point this at an
-    isolated fixture directory the same way ``engine`` isolates the database,
-    rather than every test racing the developer's real ``data/raw``."""
-    return Path(request.app.state.data_raw)
+    Deliberately takes no ``Request``: the value is server-side configuration
+    (``get_settings().data_raw``), never anything from the request itself, and
+    keeping it off the ``Request`` object means a path-injection scanner has no
+    request-derived taint to trace into the filesystem glob it feeds. A test
+    swaps this via ``app.dependency_overrides`` (see ``create_app``'s
+    ``data_raw`` parameter) rather than threading a value through app.state."""
+    return get_settings().data_raw
 
 
 def require(required: Role) -> Callable[..., Coroutine[Any, Any, Role]]:

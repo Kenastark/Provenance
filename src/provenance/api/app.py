@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from provenance import __version__
+from provenance.api.deps import get_data_raw
 from provenance.api.errors import install_error_handlers
 from provenance.api.logging import RequestContextMiddleware
 from provenance.api.metrics import MetricsMiddleware, metrics_endpoint
@@ -87,7 +88,11 @@ def create_app(engine: AsyncEngine | None = None, data_raw: Path | None = None) 
     )
     app.state.engine = engine
     app.state.sessionmaker = sessionmaker
-    app.state.data_raw = data_raw or get_settings().data_raw
+    # A test-only override: passing data_raw swaps get_data_raw's return value
+    # via FastAPI's own dependency-override mechanism, so the reference routers
+    # never depend on anything reachable from the request itself (see deps.py).
+    if data_raw is not None:
+        app.dependency_overrides[get_data_raw] = lambda: data_raw
 
     # The dashboard runs on its own origin, so without CORS every browser request
     # fails preflight and the screens render empty against a perfectly healthy API.
