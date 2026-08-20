@@ -205,13 +205,13 @@ def fixtures_make(
         False,
         "--with-weather/--no-with-weather",
         help="OPT-IN. Add Wind_Speed/Wind_Direction (one station lacks them, mirroring the "
-        "real network's KER15 gap) and couple PM10 to wind + boundary-layer height so the "
-        "deweather model has a real signal. The default corpus is unaffected either way.",
+        "real network's KER15 gap) and couple PM10 to wind speed so the deweather model has "
+        "a real signal. The default corpus is unaffected either way.",
     ),
     with_plume: bool = typer.Option(
         False,
         "--with-plume/--no-with-plume",
-        help="OPT-IN, requires --with-weather. Plant one wind-corroborated PM10 plume and one "
+        help="OPT-IN, requires --with-weather. Plant one wind-corroborated NO plume and one "
         "isolated, uncorroborated spike of the same magnitude, so the graph adjudicator has a "
         "GENUINE_EVENT and a LIKELY_FAULT to find on evidence.",
     ),
