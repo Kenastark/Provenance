@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`docs/adjudications/ker11-4100-evidence-v1.0.md`: evidence assembly for the
+  B3 demo's centrepiece event**, the ~4,100 µg/m³ PM10 reading at DEB-KER11
+  (2026-06-02T20:00:00). Every reason code the audit engine attaches to the
+  reading, DEB-KER11's other parameters and every neighbouring station in the
+  surrounding hours (ranked by distance), the wind field at that hour, the full
+  analytic propagation-adjudicator bundle, a `--learned` (HST-GAT) contrast
+  against a freshly trained artefact, a maintenance/calibration/outage overlap
+  check, and a second, independently assembled candidate event
+  (DEB-KER06/CO, 2026-06-17T13:00:00) as a backup - each section either a
+  `$ prov ...` command's verbatim output or a labelled read against the same
+  public library functions the CLI calls. Reaches no verdict by design; see
+  `docs/updates/u8-ker11.md`.
 - **`prov fixtures make --with-weather --with-plume`: an opt-in wind and
   plume/fault layer for the demo corpus**, so `prov graph adjudicate-db` no
   longer reads AMBIGUOUS for every event on the dashboard timeline and the
