@@ -1,7 +1,15 @@
+import { useMemo } from "react";
 import { StateGlyph } from "../../components/StateGlyph";
 import { formatMeasurement, formatTimestamp } from "../../lib/format";
 import { trustStateLabel, type TrustState } from "../../lib/trust";
-import { compassPoint, MAP_LAYERS, type LayerId, type StationMarker, type WindVector } from "./stationMarkers";
+import {
+  compassPoint,
+  MAP_LAYERS,
+  visibleStationLabels,
+  type LayerId,
+  type StationMarker,
+  type WindVector,
+} from "./stationMarkers";
 import type { WindEdge } from "./windEdges";
 
 /**
@@ -28,14 +36,30 @@ export function StationMarkerLayer({
   selectedStationId,
   onSelect,
 }: StationMarkerLayerProps) {
+  const projected = useMemo(
+    () => markers.map((marker) => ({ marker, point: project(marker.lon, marker.lat) })),
+    // project's identity changes every time the viewport moves, which is exactly
+    // when marker screen positions - and so label collisions - need recomputing.
+    [markers, project],
+  );
+
+  const labelsVisible = useMemo(
+    () =>
+      visibleStationLabels(
+        projected
+          .filter((entry) => entry.point)
+          .map((entry) => ({ stationId: entry.marker.stationId, x: entry.point!.x, y: entry.point!.y })),
+      ),
+    [projected],
+  );
+
   return (
     <ul
       className="pointer-events-none absolute inset-0 m-0 list-none overflow-hidden p-0"
       data-testid="station-marker-layer"
       aria-label="Monitoring stations"
     >
-      {markers.map((marker) => {
-        const point = project(marker.lon, marker.lat);
+      {projected.map(({ marker, point }) => {
         const selected = marker.stationId === selectedStationId;
         const name = [
           marker.stationId,
@@ -85,6 +109,18 @@ export function StationMarkerLayer({
                 </span>
               )}
             </button>
+            {labelsVisible.has(marker.stationId) && (
+              <span
+                aria-hidden="true"
+                data-testid="station-label"
+                // Beside the marker, never on top of it, and with its own panel
+                // background so the id stays legible over busy street geometry
+                // rather than the basemap's line-work showing through the text.
+                className="prov-panel pointer-events-none absolute left-full top-1/2 ml-1 -translate-y-1/2 whitespace-nowrap px-1 py-0.5 font-mono text-micro leading-none text-text-secondary shadow-overlay"
+              >
+                {marker.stationId}
+              </span>
+            )}
           </li>
         );
       })}

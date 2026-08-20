@@ -7,6 +7,7 @@ import {
   compassPoint,
   currentWind,
   summariseMarkers,
+  visibleStationLabels,
 } from "../features/map/stationMarkers";
 import {
   boundsForStations,
@@ -287,6 +288,47 @@ describe("fetched street basemap", () => {
   });
 });
 
+describe("visibleStationLabels", () => {
+  it("keeps every label when markers are spaced well apart", () => {
+    const visible = visibleStationLabels([
+      { stationId: "STA-01", x: 0, y: 0 },
+      { stationId: "STA-02", x: 200, y: 0 },
+      { stationId: "STA-03", x: 400, y: 0 },
+    ]);
+    expect(visible).toEqual(new Set(["STA-01", "STA-02", "STA-03"]));
+  });
+
+  it("hides a label whose offset box would overlap an already-placed one", () => {
+    const visible = visibleStationLabels([
+      { stationId: "STA-01", x: 0, y: 0 },
+      { stationId: "STA-02", x: 5, y: 0 },
+    ]);
+    // Processed in station-id order: STA-01 is placed first and STA-02's box
+    // collides with it, so only STA-01 keeps its label.
+    expect(visible).toEqual(new Set(["STA-01"]));
+  });
+
+  it("shows both labels once they are far enough apart not to collide", () => {
+    const visible = visibleStationLabels([
+      { stationId: "STA-01", x: 0, y: 0 },
+      { stationId: "STA-02", x: 200, y: 0 },
+    ]);
+    expect(visible).toEqual(new Set(["STA-01", "STA-02"]));
+  });
+
+  it("is independent of input order, so panning does not flip which label wins", () => {
+    const a = visibleStationLabels([
+      { stationId: "STA-01", x: 0, y: 0 },
+      { stationId: "STA-02", x: 5, y: 0 },
+    ]);
+    const b = visibleStationLabels([
+      { stationId: "STA-02", x: 5, y: 0 },
+      { stationId: "STA-01", x: 0, y: 0 },
+    ]);
+    expect(a).toEqual(b);
+  });
+});
+
 describe("probeBasemap", () => {
   const bytes = (text: string): Response =>
     ({ ok: true, arrayBuffer: async () => new TextEncoder().encode(text).buffer }) as Response;
@@ -316,5 +358,58 @@ describe("probeBasemap", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     await expect(probeBasemap("/basemap/debrecen.pmtiles")).resolves.toBe(false);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("basemap unavailability notice", () => {
+  // MapLibre itself is stubbed under jsdom (src/test/maplibre-stub.ts) and never
+  // throws, so the "MapLibre could not start" notice - a real no-WebGL browser
+  // failure - is only reachable in the Playwright e2e, which drives a real GL
+  // context. What jsdom *can* exercise is the other case: MapLibre running fine
+  // while the tiles probe finds nothing, which is a plain fetch this suite controls.
+  it("says the tiles were never fetched, not that the browser can't render", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false } as Response));
+    renderWithProviders(<NetworkMap />);
+
+    await screen.findAllByTestId("station-marker");
+    expect(await screen.findByTestId("basemap-unavailable-tiles")).toHaveTextContent(
+      /make basemap/,
+    );
+    expect(screen.queryByTestId("basemap-unavailable-engine")).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows neither notice once the tiles probe confirms the archive", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("PMTiles\x03...").buffer,
+      } as Response),
+    );
+    renderWithProviders(<NetworkMap />);
+
+    await screen.findAllByTestId("station-marker");
+    await waitFor(() =>
+      expect(screen.queryByTestId("basemap-unavailable-tiles")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("basemap-unavailable-engine")).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("station labels", () => {
+  it("names a marker with its station id, beside it rather than inside it", async () => {
+    renderWithProviders(<NetworkMap />);
+    const labels = await screen.findAllByTestId("station-label");
+    // STA-01 and STA-02 share a latitude in the fixtures and the stub projection
+    // places them 18px apart - closer than a label's own width - so this also
+    // exercises the collision suppression: STA-02's label yields to STA-01's.
+    expect(labels.map((label) => label.textContent)).toEqual(["STA-01", "STA-03"]);
+    // The marker itself is never affected by a suppressed label.
+    expect(screen.getByRole("button", { name: /STA-02/i })).toBeInTheDocument();
+    // Decorative: the marker button already carries the station id in its
+    // accessible name, so the label must not be announced a second time.
+    for (const label of labels) expect(label).toHaveAttribute("aria-hidden", "true");
   });
 });
