@@ -44,6 +44,15 @@ Format: Keep a Changelog. Versioning: SemVer.
   should have caught the dark-mode lockup shipping as an unparseable file.
 
 ### Fixed
+- **`DEB-KER12` rendered on blank grey tiles on the network map.** `scripts/fetch-basemap.sh`'s
+  extracted bounding box (`21.45,47.45,21.75,47.65`) predated the real Green
+  Sentinel export's confirmed `Location` coordinates and didn't cover all of
+  them: `DEB-KER12` sits at `lon 21.838`, about 0.09° east of the box's edge,
+  so the fetched archive simply had no tiles there. Widened to
+  `21.40,47.38,21.90,47.68` (covers all 16 real stations and the synthetic demo
+  corpus, with a panning margin); verified by re-extracting and checking the
+  archive's own bounds cover `DEB-KER12`, then a real-browser screenshot with
+  the station in frame.
 - **Loading a second, differently-checksummed data drop into an already-loaded
   database crashed on a duplicate-key error.** `stations.station_id` and
   `parameters.name` are global primary keys, not scoped to the `ingest_batch`

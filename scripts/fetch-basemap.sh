@@ -23,8 +23,15 @@ set -euo pipefail
 # --------------------------------------------------------------------- config
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLI_VERSION="1.31.2"
-# Debrecen and its monitoring stations. Verified to extract to ~6 MB.
-BBOX="21.45,47.45,21.75,47.65"
+# Debrecen and its monitoring stations. The real Green Sentinel export's 16
+# confirmed station coordinates (`Location` column) span lon 21.502..21.838,
+# lat 47.447..47.598 - DEB-KER12 (21.838, industrial zone, east of the city)
+# sits well outside a tighter box centred on the city core, and previously fell
+# on blank/grey tiles because the archive simply didn't extract that far. This
+# box covers all 16 real stations plus the 18-station synthetic demo corpus
+# (lon 21.50..21.57, lat 47.52..47.58) with a margin for panning. Verified to
+# extract to ~10 MB.
+BBOX="21.40,47.38,21.90,47.68"
 OUT_DIR="${REPO_ROOT}/apps/web/public/basemap"
 OUT_FILE="${OUT_DIR}/debrecen.pmtiles"
 CACHE_DIR="${REPO_ROOT}/.cache/pmtiles"
