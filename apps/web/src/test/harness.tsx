@@ -39,6 +39,8 @@ export const defaultRoutes: RouteMap = {
   "/v1/trust/STA-03": fixtures.trustScore({ station_id: "STA-03", trust: 0.22, reason_codes: ["T04"] }),
   "/v1/explain/1": fixtures.explain,
   "/v1/deweather/STA-03": fixtures.deweatherSeries,
+  "/v1/reference/bus-stops": fixtures.referenceStopsUnavailable,
+  "/v1/reference/traffic-counters": fixtures.referenceCountersUnavailable,
 };
 
 export interface StubOptions {

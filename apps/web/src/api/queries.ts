@@ -11,6 +11,8 @@ import {
   type ProvEvent,
   type QualitySummary,
   type Reading,
+  type ReferenceCounters,
+  type ReferenceStops,
   type Station,
   type TrustScore,
   type Version,
@@ -55,6 +57,8 @@ export const queryKeys = {
   explain: (defectId: number | string) => ["explain", String(defectId)] as const,
   deweather: (stationId: string, parameter: string) =>
     ["deweather", stationId, parameter] as const,
+  busStops: ["reference", "bus-stops"] as const,
+  trafficCounters: ["reference", "traffic-counters"] as const,
 };
 
 // Pulling more than a page at a time is the exception, not the rule: the API caps
@@ -85,6 +89,28 @@ export function useStations(): UseQueryResult<Station[]> {
       });
       return page.items;
     },
+  });
+}
+
+/** Reference layers (bus stops, traffic counters): real coordinates only, or
+ * ``available: false`` when the source drop was never loaded (never a silent
+ * empty layer - see stationMarkers.ts's LayerDefinition). */
+export function useBusStops(): UseQueryResult<ReferenceStops> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.busStops,
+    queryFn: ({ signal }) => client.get<ReferenceStops>("/v1/reference/bus-stops", { signal }),
+    staleTime: Infinity,
+  });
+}
+
+export function useTrafficCounters(): UseQueryResult<ReferenceCounters> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.trafficCounters,
+    queryFn: ({ signal }) =>
+      client.get<ReferenceCounters>("/v1/reference/traffic-counters", { signal }),
+    staleTime: Infinity,
   });
 }
 

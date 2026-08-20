@@ -183,6 +183,10 @@ export type Explain = Schemas["ExplainOut"];
 export type Attribution = Schemas["AttributionOut"];
 export type DeweatherSeries = Schemas["DeweatherSeriesOut"];
 export type DeweatherPoint = Schemas["DeweatherPointOut"];
+export type BusStop = Schemas["BusStopOut"];
+export type ReferenceStops = Schemas["ReferenceStopsOut"];
+export type TrafficCounter = Schemas["TrafficCounterOut"];
+export type ReferenceCounters = Schemas["ReferenceCountersOut"];
 
 /** Every list endpoint answers with this envelope. */
 export interface Page<T> {
@@ -207,4 +211,14 @@ export type _QualityRouteMatches = AssertAssignable<
     paths["/v1/quality/summary"]["get"]["responses"][200]["content"]
   >["application/json"],
   QualitySummary
+>;
+export type _ReferenceStopsRouteMatches = AssertAssignable<
+  NonNullable<paths["/v1/reference/bus-stops"]["get"]["responses"][200]["content"]>["application/json"],
+  ReferenceStops
+>;
+export type _ReferenceCountersRouteMatches = AssertAssignable<
+  NonNullable<
+    paths["/v1/reference/traffic-counters"]["get"]["responses"][200]["content"]
+  >["application/json"],
+  ReferenceCounters
 >;

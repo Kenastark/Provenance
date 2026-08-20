@@ -201,6 +201,36 @@ class DeweatherSeriesOut(BaseModel):
     series: list[DeweatherPointOut] = Field(default_factory=list)
 
 
+class BusStopOut(BaseModel):
+    stop_id: str
+    lat: float
+    lon: float
+    n_routes: float
+
+
+class ReferenceStopsOut(BaseModel):
+    """``available=False`` means no GTFS bundle was found — a coverage fact, not an
+    empty layer (standing rule 3): the map must tell the two apart."""
+
+    available: bool
+    stops: list[BusStopOut]
+
+
+class TrafficCounterOut(BaseModel):
+    counter_id: str
+    name: str
+    lat: float
+    lon: float
+
+
+class ReferenceCountersOut(BaseModel):
+    """``available=False`` means no Enclod archive CSVs were found under the data
+    root — distinct from the counters existing but carrying no coordinate."""
+
+    available: bool
+    counters: list[TrafficCounterOut]
+
+
 class VersionOut(BaseModel):
     version: str
     git_sha: str

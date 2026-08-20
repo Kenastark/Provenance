@@ -9,6 +9,7 @@ problem, and returns the caller's resolved role to the handler.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Coroutine
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, Request
@@ -16,12 +17,25 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from provenance.api.auth import Role, api_key_header, role_for_key, role_satisfies
 from provenance.api.errors import ProblemException
+from provenance.config.settings import get_settings
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     sessionmaker: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
     async with sessionmaker() as session:
         yield session
+
+
+def get_data_raw() -> Path:
+    """The raw-data root the reference endpoints read file-drops from.
+
+    Deliberately takes no ``Request``: the value is server-side configuration
+    (``get_settings().data_raw``), never anything from the request itself, and
+    keeping it off the ``Request`` object means a path-injection scanner has no
+    request-derived taint to trace into the filesystem glob it feeds. A test
+    swaps this via ``app.dependency_overrides`` (see ``create_app``'s
+    ``data_raw`` parameter) rather than threading a value through app.state."""
+    return get_settings().data_raw
 
 
 def require(required: Role) -> Callable[..., Coroutine[Any, Any, Role]]:

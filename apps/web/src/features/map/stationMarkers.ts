@@ -1,4 +1,4 @@
-import type { ProvEvent, QualityStation, Station } from "../../api/client";
+import type { BusStop, ProvEvent, QualityStation, ReferenceCounters, ReferenceStops, Station, TrafficCounter } from "../../api/client";
 import { sortCodesBySeverity } from "../../api/reason-codes";
 import { trustState, type TrustState } from "../../lib/trust";
 
@@ -13,24 +13,34 @@ import { trustState, type TrustState } from "../../lib/trust";
 
 export type LayerId = "envStation" | "trafficCounter" | "busStop" | "windEdges";
 
+/** "measured" = real, observed coordinates. "provisional" would mean a placeholder
+ * - the map never draws that kind (see graph/topology.py's synthetic-provisional
+ * graph nodes, which are a message-passing concern and never reach the basemap).
+ * The type exists so a future layer cannot add a point to the canvas without
+ * declaring which one it is. */
+export type MarkerProvenance = "measured" | "provisional";
+
 export interface LayerDefinition {
   id: LayerId;
   label: string;
-  /** False for layers whose data arrives in a later phase. */
+  /** False until the layer's code path AND its source data both exist. */
   available: boolean;
-  /** Shown as the tooltip when a layer is not yet available. */
+  /** Shown as the tooltip when a layer is not available. */
   unavailableReason?: string;
   defaultOn: boolean;
 }
 
 /**
- * The layer list.
+ * The static layer list.
  *
  * Wind-conditioned edges are built disabled with an explicit reason rather than
  * hidden, because an operator who can see the toggle understands the product's
- * shape - and because hiding it would let us quietly forget to build it. Traffic
- * counters and bus stops are the same: the Enclod and GTFS sources are ingested by
- * the phase-1 abstraction but are not part of the station trust surface yet.
+ * shape - and because hiding it would let us quietly forget to build it.
+ *
+ * TrafficCounter and BusStop start disabled with a "checking" reason: their real
+ * availability depends on whether the Enclod/GTFS drop is present, which is a
+ * runtime fact from `/v1/reference/*`, not something this static list can know.
+ * `resolveMapLayers` below overlays that answer once it arrives.
  */
 export const MAP_LAYERS: readonly LayerDefinition[] = [
   { id: "envStation", label: "EnvStation", available: true, defaultOn: true },
@@ -38,14 +48,14 @@ export const MAP_LAYERS: readonly LayerDefinition[] = [
     id: "trafficCounter",
     label: "TrafficCounter",
     available: false,
-    unavailableReason: "Enclod counters are ingested but not yet placed on the map.",
+    unavailableReason: "Checking whether Enclod counter coordinates are loaded…",
     defaultOn: false,
   },
   {
     id: "busStop",
     label: "BusStop",
     available: false,
-    unavailableReason: "GTFS stops are ingested but not yet placed on the map.",
+    unavailableReason: "Checking whether the GTFS bundle is loaded…",
     defaultOn: false,
   },
   {
@@ -55,6 +65,40 @@ export const MAP_LAYERS: readonly LayerDefinition[] = [
     defaultOn: false,
   },
 ];
+
+const BUS_STOPS_UNAVAILABLE_REASON =
+  "GTFS bundle not loaded (data/raw/gtfs). Bus stops are ingested but there is nothing to place on the map yet.";
+const TRAFFIC_COUNTERS_UNAVAILABLE_REASON =
+  "Enclod counters carry no coordinates in this drop; the graph's counter nodes are provisional placeholders and are not drawn on the map.";
+
+/**
+ * Overlay the live reference-endpoint answers onto the static layer list.
+ *
+ * `undefined` for a query means "still loading" and is treated as unavailable
+ * with a neutral reason - never optimistically enabled, because a toggle that
+ * flips available then snaps back to disabled reads as a bug rather than a
+ * coverage fact.
+ */
+export function resolveMapLayers(
+  base: readonly LayerDefinition[],
+  runtime: { busStops: ReferenceStops | undefined; trafficCounters: ReferenceCounters | undefined },
+): LayerDefinition[] {
+  return base.map((layer) => {
+    if (layer.id === "busStop") {
+      const available = runtime.busStops?.available ?? false;
+      return { ...layer, available, unavailableReason: available ? undefined : BUS_STOPS_UNAVAILABLE_REASON };
+    }
+    if (layer.id === "trafficCounter") {
+      const available = runtime.trafficCounters?.available ?? false;
+      return {
+        ...layer,
+        available,
+        unavailableReason: available ? undefined : TRAFFIC_COUNTERS_UNAVAILABLE_REASON,
+      };
+    }
+    return layer;
+  });
+}
 
 export interface StationMarker {
   stationId: string;
@@ -70,6 +114,9 @@ export interface StationMarker {
   /** True when the station has an unadjudicated event in the current run. */
   hasActiveEvent: boolean;
   eventHeadline: string | null;
+  /** Always "measured": a station without real coordinates is excluded, not
+   * placed provisionally (see `withoutCoordinates` below). */
+  provenance: MarkerProvenance;
 }
 
 export interface BuildMarkersInput {
@@ -119,6 +166,7 @@ export function buildStationMarkers({ stations, quality, events }: BuildMarkersI
       flagCount: row?.flag_count ?? 0,
       hasActiveEvent: Boolean(event),
       eventHeadline: event?.headline ?? null,
+      provenance: "measured",
     });
   }
 
@@ -132,6 +180,51 @@ export function summariseMarkers(markers: readonly StationMarker[]): Record<Trus
   const counts: Record<TrustState, number> = { verified: 0, degraded: 0, fault: 0, unknown: 0 };
   for (const marker of markers) counts[marker.state] += 1;
   return counts;
+}
+
+// ---------------------------------------------------------- reference layers
+// Bus stops and traffic counters carry no trust score and no reason code - they
+// are context, not the trust surface - so they get a subordinate marker class
+// deliberately outside the trust palette (Sentinel Green means "verified
+// reading" and must never label a bus stop or a counter).
+
+export interface BusStopMarker {
+  stopId: string;
+  lat: number;
+  lon: number;
+  nRoutes: number;
+  provenance: MarkerProvenance;
+}
+
+/** Real GTFS stops only - the endpoint already refuses to answer when the
+ * bundle is absent, so every stop that reaches here is a measured coordinate. */
+export function buildBusStopMarkers(stops: readonly BusStop[]): BusStopMarker[] {
+  return stops
+    .map((s) => ({ stopId: s.stop_id, lat: s.lat, lon: s.lon, nRoutes: s.n_routes, provenance: "measured" as const }))
+    .sort((a, b) => a.stopId.localeCompare(b.stopId));
+}
+
+export interface TrafficCounterMarker {
+  counterId: string;
+  name: string;
+  lat: number;
+  lon: number;
+  provenance: MarkerProvenance;
+}
+
+/** Real Enclod counter coordinates only - see counter_locations() in
+ * io/ingest/enclod.py: these are the observed uuid/nick/lat/lng columns, never
+ * the graph's synthetic-provisional placeholder nodes. */
+export function buildTrafficCounterMarkers(counters: readonly TrafficCounter[]): TrafficCounterMarker[] {
+  return counters
+    .map((c) => ({
+      counterId: c.counter_id,
+      name: c.name,
+      lat: c.lat,
+      lon: c.lon,
+      provenance: "measured" as const,
+    }))
+    .sort((a, b) => a.counterId.localeCompare(b.counterId));
 }
 
 // -------------------------------------------------------------------- wind

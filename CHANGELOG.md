@@ -5,6 +5,22 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **BusStop and TrafficCounter map layers, gated on real coordinates.** New
+  `GET /v1/reference/bus-stops` and `GET /v1/reference/traffic-counters` endpoints
+  serve real GTFS stop and Enclod counter coordinates read directly from the data
+  drop (`gtfs.stops_with_route_counts`, and the new
+  `enclod.counter_locations` — the observed `uuid`/`nick`/`lat`/`lng` columns from
+  ADR 0005, independent of the still-gated cumulative-counter parse). Each endpoint
+  reports `available: false` rather than an empty list when its source drop is
+  absent, so the map layer toggle can tell "nothing here" from "not loaded"
+  (standing rule 3) instead of silently rendering an empty layer. Both layers
+  render as a small, low-contrast, subordinate marker class outside the trust
+  palette, and every marker (station, bus stop, traffic counter) now carries a
+  `data-provenance` attribute ("measured"; "provisional" is reserved but never
+  drawn) with a matching legend section, so nothing on the map canvas can be
+  mistaken for a measurement it isn't. TrafficCounter ships enabled (default off)
+  because the 42 Enclod counters' coordinates are real, observed columns in the
+  archive CSV itself, not an assumption.
 - `AGENTS.md`: a short pointer at the repo root so agents that look for that
   filename by convention land somewhere useful, without becoming a second copy of
   CLAUDE.md's rules. `tests/architecture/test_agents_md.py` guards its length and

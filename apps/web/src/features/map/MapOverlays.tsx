@@ -4,9 +4,10 @@ import { formatMeasurement, formatTimestamp } from "../../lib/format";
 import { trustStateLabel, type TrustState } from "../../lib/trust";
 import {
   compassPoint,
-  MAP_LAYERS,
   visibleStationLabels,
+  type LayerDefinition,
   type LayerId,
+  type MarkerProvenance,
   type StationMarker,
   type WindVector,
 } from "./stationMarkers";
@@ -128,6 +129,59 @@ export function StationMarkerLayer({
   );
 }
 
+/**
+ * Reference points (bus stops, traffic counters): real coordinates, but not the
+ * trust surface. Deliberately subordinate to a station marker - small, low-
+ * contrast, drawn in the neutral text-tertiary token rather than any
+ * `prov-state-*` colour, so nothing here can be mistaken for a trust verdict.
+ * Every marker carries `data-provenance` so the DOM itself proves it is a real
+ * measurement (see MapLegend's Positions section).
+ */
+export interface ReferenceMarkerLayerProps {
+  markers: readonly { id: string; lat: number; lon: number; label: string; provenance: MarkerProvenance }[];
+  project: (lon: number, lat: number) => { x: number; y: number } | null;
+  kind: "bus-stop" | "traffic-counter";
+  ariaLabel: string;
+}
+
+export function ReferenceMarkerLayer({ markers, project, kind, ariaLabel }: ReferenceMarkerLayerProps) {
+  const projected = useMemo(
+    () => markers.map((marker) => ({ marker, point: project(marker.lon, marker.lat) })),
+    [markers, project],
+  );
+
+  return (
+    <ul
+      className="pointer-events-none absolute inset-0 m-0 list-none overflow-hidden p-0"
+      data-testid={`reference-marker-layer-${kind}`}
+      aria-label={ariaLabel}
+    >
+      {projected.map(({ marker, point }) => (
+        <li
+          key={marker.id}
+          className="pointer-events-none absolute"
+          style={{
+            transform: `translate(${(point?.x ?? 0) - 3}px, ${(point?.y ?? 0) - 3}px)`,
+            visibility: point ? "visible" : "hidden",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            data-testid="reference-marker"
+            data-kind={kind}
+            data-provenance={marker.provenance}
+            title={marker.label}
+            className={[
+              "block h-1.5 w-1.5 border border-border-strong bg-bg-raised opacity-70",
+              kind === "traffic-counter" ? "" : "rounded-full",
+            ].join(" ")}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export interface WindEdgeLayerProps {
   edges: readonly WindEdge[];
   project: (lon: number, lat: number) => { x: number; y: number } | null;
@@ -237,11 +291,30 @@ export function WindOverlay({ wind }: { wind: WindVector | null }) {
   );
 }
 
-export function MapLegend({ counts }: { counts: Record<TrustState, number> }) {
+const PROVENANCE_LABEL: Record<MarkerProvenance, string> = {
+  measured: "Measured position — real coordinates",
+  provisional: "Provisional placeholder — not a measurement",
+};
+
+export function MapLegend({
+  counts,
+  provenances,
+}: {
+  counts: Record<TrustState, number>;
+  /** The provenance values actually present among the markers currently drawn -
+   * derived from what's on screen, never a fixed list (standing rule 1). In
+   * practice this is always just {"measured"}: the map refuses to draw a
+   * provisional point (see ReferenceMarkerLayer), so there is nothing else it
+   * could ever contain. */
+  provenances: ReadonlySet<MarkerProvenance>;
+}) {
   const states: TrustState[] = ["verified", "degraded", "fault", "unknown"];
   return (
     <div
-      className="prov-panel absolute bottom-3 right-3 p-3 text-caption shadow-overlay"
+      // bottom-7, not bottom-3: the Positions section makes this panel tall enough
+      // to reach the MapLibre attribution control (bottom-right, ~34px tall), and
+      // bottom-3 let the two overlap.
+      className="prov-panel absolute bottom-7 right-3 p-3 text-caption shadow-overlay"
       data-map-overlay=""
       data-testid="map-legend"
     >
@@ -257,16 +330,33 @@ export function MapLegend({ counts }: { counts: Record<TrustState, number> }) {
           </li>
         ))}
       </ul>
+      {provenances.size > 0 && (
+        <>
+          <p className="mb-2 mt-3 border-t border-border pt-3 text-text-secondary">Positions</p>
+          <ul className="m-0 list-none space-y-1 p-0" data-testid="map-legend-provenance">
+            {[...provenances].sort().map((provenance) => (
+              <li key={provenance} className="flex items-center gap-2 text-text-tertiary">
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full border border-border-strong bg-bg-raised"
+                />
+                <span>{PROVENANCE_LABEL[provenance]}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
 
 export interface LayerTogglesProps {
+  layers: readonly LayerDefinition[];
   enabled: Record<LayerId, boolean>;
   onToggle: (id: LayerId, next: boolean) => void;
 }
 
-export function LayerToggles({ enabled, onToggle }: LayerTogglesProps) {
+export function LayerToggles({ layers, enabled, onToggle }: LayerTogglesProps) {
   return (
     <fieldset
       className="prov-panel absolute left-3 top-3 p-3 text-caption shadow-overlay"
@@ -275,7 +365,7 @@ export function LayerToggles({ enabled, onToggle }: LayerTogglesProps) {
     >
       <legend className="px-1 text-text-secondary">Layers</legend>
       <ul className="m-0 list-none space-y-2 p-0">
-        {MAP_LAYERS.map((layer) => (
+        {layers.map((layer) => (
           <li key={layer.id}>
             <label
               className={[
@@ -293,7 +383,7 @@ export function LayerToggles({ enabled, onToggle }: LayerTogglesProps) {
               />
               <span>{layer.label}</span>
               {!layer.available && (
-                <span className="text-micro text-text-tertiary">(phase 4)</span>
+                <span className="text-micro text-text-tertiary">(unavailable)</span>
               )}
             </label>
             {!layer.available && <p className="sr-only">{layer.unavailableReason}</p>}

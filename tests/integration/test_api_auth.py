@@ -22,6 +22,8 @@ ENDPOINTS = [
     ("/v1/trust/STA-01", "public"),
     ("/v1/quality/summary", "public"),
     ("/v1/events", "public"),
+    ("/v1/reference/bus-stops", "public"),
+    ("/v1/reference/traffic-counters", "public"),
     ("/v1/readings", "researcher"),
     ("/v1/defects", "researcher"),
     ("/v1/audit/runs", "researcher"),

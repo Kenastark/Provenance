@@ -118,15 +118,25 @@ def loaded_db(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
 
 
 @pytest_asyncio.fixture
-async def api_client(loaded_db: dict[str, str]) -> AsyncIterator[object]:
-    """An httpx AsyncClient bound to the app over the loaded SQLite database."""
+async def api_client(
+    loaded_db: dict[str, str], tmp_path_factory: pytest.TempPathFactory
+) -> AsyncIterator[object]:
+    """An httpx AsyncClient bound to the app over the loaded SQLite database.
+
+    ``data_raw`` points at a freshly minted, permanently empty directory rather
+    than the default ``data/raw`` — the reference endpoints (bus stops, traffic
+    counters) read the filesystem directly, and this repo's real ``data/raw`` can
+    carry the developer's actual drop. Without this override a passing test on one
+    machine could fail on another's clean checkout (rule 7).
+    """
     import httpx
 
     from provenance.api.app import create_app
     from provenance.io.db.engine import make_engine
 
     engine = make_engine(loaded_db["url"])
-    app = create_app(engine=engine)
+    empty_data_raw = tmp_path_factory.mktemp("data-raw-empty")
+    app = create_app(engine=engine, data_raw=empty_data_raw)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
@@ -180,19 +190,29 @@ def ops_db(tmp_path: Path) -> dict[str, str]:
     """
     db_path = tmp_path / "ops.db"
     run_id = _build_ops_db(db_path)
-    return {"url": f"sqlite+aiosqlite:///{db_path}", "run_id": run_id}
+    return {
+        "url": f"sqlite+aiosqlite:///{db_path}",
+        "run_id": run_id,
+        "drop": str(db_path.parent / "drop"),
+    }
 
 
 @pytest_asyncio.fixture
 async def ops_client(ops_db: dict[str, str]) -> AsyncIterator[object]:
-    """An httpx client over the ``ops_db`` database."""
+    """An httpx client over the ``ops_db`` database.
+
+    ``data_raw`` points at ``_build_ops_db``'s own drop directory, which already
+    carries a real synthetic GTFS bundle (written by ``write_gtfs_bundle`` for the
+    exposure factor) — reusing it means the reference bus-stops endpoint has real
+    fixture data to serve rather than needing a third synthetic corpus.
+    """
     import httpx
 
     from provenance.api.app import create_app
     from provenance.io.db.engine import make_engine
 
     engine = make_engine(ops_db["url"])
-    app = create_app(engine=engine)
+    app = create_app(engine=engine, data_raw=Path(ops_db["drop"]))
     app.state.run_id = ops_db["run_id"]
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -210,7 +230,11 @@ def ops_db_shared(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
     """
     db_path = tmp_path_factory.mktemp("ops-shared") / "ops.db"
     run_id = _build_ops_db(db_path)
-    return {"url": f"sqlite+aiosqlite:///{db_path}", "run_id": run_id}
+    return {
+        "url": f"sqlite+aiosqlite:///{db_path}",
+        "run_id": run_id,
+        "drop": str(db_path.parent / "drop"),
+    }
 
 
 @pytest_asyncio.fixture
@@ -222,7 +246,7 @@ async def rbac_client(ops_db_shared: dict[str, str]) -> AsyncIterator[object]:
     from provenance.io.db.engine import make_engine
 
     engine = make_engine(ops_db_shared["url"])
-    app = create_app(engine=engine)
+    app = create_app(engine=engine, data_raw=Path(ops_db_shared["drop"]))
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
