@@ -158,6 +158,8 @@ def generate(
     n_days: int = 14,
     inject: bool = True,
     n_stations: int = len(_STATIONS),
+    with_weather: bool = False,
+    with_plume: bool = False,
 ) -> tuple[pd.DataFrame, Ledger]:
     """Build the synthetic corpus and its ledger.
 
@@ -168,12 +170,22 @@ def generate(
     layout targets. The ledger's expected counts are therefore unchanged by it - the
     golden recovery test keeps the default four - while `make demo` can ask for a
     network the size of the real one so the dashboard's map has something to show.
+
+    ``with_weather`` and ``with_plume`` are OPT-IN (default ``False``) and layer
+    meteorology and a wind-corroborated plume / isolated fault on top, via
+    :mod:`provenance.fixtures.demo_scenario` - see that module for what they add.
+    Both default off so the default corpus this function returns is byte-identical
+    to what it has always been (CLAUDE.md rule 8; the golden recovery ledger pins
+    this). ``with_plume`` requires ``with_weather`` - a plume without wind is not a
+    plume.
     """
     if inject and n_days < 14:
         raise ValueError(
             "The injection layout places defects at fixed hour offsets up to ~300, "
             "so an injected corpus needs n_days >= 14. Use inject=False for smaller sizes."
         )
+    if with_plume and not with_weather:
+        raise ValueError("with_plume requires with_weather (a plume needs a wind field to ride).")
     stations = station_ids(n_stations)
     hours = n_days * 24
     t = np.arange(hours)
@@ -196,8 +208,18 @@ def generate(
             units[(station, spec.name)] = spec.unit
             present[(station, spec.name)] = np.ones(hours, dtype=bool)
 
+    if with_weather:
+        from provenance.fixtures.demo_scenario import add_wind
+
+        add_wind(by_key, units, present, ledger, hours=hours, t=t, stations=stations)
+
     if inject:
         _inject(by_key, units, present, ledger, hours)
+
+    if with_plume:
+        from provenance.fixtures.demo_scenario import add_plume
+
+        add_plume(by_key, ledger, hours=hours, stations=stations)
 
     frame = _materialise(by_key, units, present, times)
     return frame, ledger
@@ -340,6 +362,8 @@ def write_corpus(
     seed: int = 20260907,
     n_days: int = 14,
     n_stations: int = len(_STATIONS),
+    with_weather: bool = False,
+    with_plume: bool = False,
 ) -> dict[str, Path]:
     """Materialise the corpus, ledger and station sidecar to ``out_dir``.
 
@@ -347,10 +371,19 @@ def write_corpus(
     column: the canonical parquet has no place for a site name or a coordinate, and
     the loader will not invent one. Writing it here means the dashboard's map works
     against fixtures without any code path guessing where a station is.
+
+    ``with_weather``/``with_plume`` are opt-in and passed straight to
+    :func:`generate` - see there and :mod:`provenance.fixtures.demo_scenario`.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    frame, ledger = generate(seed=seed, n_days=n_days, n_stations=n_stations)
+    frame, ledger = generate(
+        seed=seed,
+        n_days=n_days,
+        n_stations=n_stations,
+        with_weather=with_weather,
+        with_plume=with_plume,
+    )
     paths = {
         "corpus": out_dir / "corpus.parquet",
         "ledger": out_dir / "ledger.json",

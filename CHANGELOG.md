@@ -5,6 +5,28 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`prov fixtures make --with-weather --with-plume`: an opt-in wind and
+  plume/fault layer for the demo corpus**, so `prov graph adjudicate-db` no
+  longer reads AMBIGUOUS for every event on the dashboard timeline and the
+  phase-5 deweathering chart is no longer flat. New
+  `src/provenance/fixtures/demo_scenario.py`: `add_wind` gives every station but
+  one `Wind_Speed`/`Wind_Direction` (the exception mirrors the real network's
+  confirmed DEB-KER15 gap) and couples PM10 to wind speed, reusing
+  `fixtures/weather.py`'s dilution coefficient; `add_plume` plants one PM10-
+  ceiling-exceeding NO excursion corroborated at every station the real
+  wind-edge weight (`graph.edges.wind_edge_weight`) calls downwind, raised to
+  the exact attenuated excess `graph.propagation.expected_arrival` predicts, plus
+  one isolated, uncorroborated excursion of the same magnitude elsewhere - so
+  the adjudicator reaches GENUINE_EVENT and LIKELY_FAULT respectively on
+  evidence, not by construction. Both `add_wind`/`add_plume` are additive and
+  strictly opt-in: `prov fixtures make`'s default output is unchanged (verified
+  byte-identical against the pre-existing corpus and pinned by the golden
+  recovery ledger). `make demo-corpus` now passes `--with-weather --with-plume
+  --days 60` (up from 14 - the deweather regressor's forward-chaining CV needs
+  the extra rows to converge past the golden-4's fixed-hour R07 outlier without
+  overfitting around it). Visual baselines regenerated on both platforms: the
+  event timeline, station detail and data quality monitor screens all change.
+  See `docs/updates/u7-demo-corpus-wind.md`.
 - **Street and place labels on the fetched basemap** (ADR 0011). ADR 0006
   stripped every symbol layer from the map style so it needed no glyph fonts
   and could stay fully offline; `scripts/fetch-fonts.sh` (new `make fonts`

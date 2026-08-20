@@ -201,14 +201,53 @@ def fixtures_make(
         min=4,
         help="Station count. The four injected stations are always present; extra ones are clean.",
     ),
+    with_weather: bool = typer.Option(
+        False,
+        "--with-weather/--no-with-weather",
+        help="OPT-IN. Add Wind_Speed/Wind_Direction (one station lacks them, mirroring the "
+        "real network's KER15 gap) and couple PM10 to wind + boundary-layer height so the "
+        "deweather model has a real signal. The default corpus is unaffected either way.",
+    ),
+    with_plume: bool = typer.Option(
+        False,
+        "--with-plume/--no-with-plume",
+        help="OPT-IN, requires --with-weather. Plant one wind-corroborated PM10 plume and one "
+        "isolated, uncorroborated spike of the same magnitude, so the graph adjudicator has a "
+        "GENUINE_EVENT and a LIKELY_FAULT to find on evidence.",
+    ),
 ) -> None:
-    """Generate the seeded synthetic corpus used by the test suite."""
+    """Generate the seeded synthetic corpus used by the test suite.
+
+    The default output (no flags) is byte-identical to always: it is pinned by the
+    golden recovery ledger (tests/integration/test_golden_recovery.py). --with-weather
+    and --with-plume are additive, opt-in demo scenarios; see
+    provenance.fixtures.demo_scenario for what each adds.
+    """
     from provenance.fixtures.generator import write_corpus
 
-    paths = write_corpus(out, seed=seed, n_days=days, n_stations=stations)
+    if with_plume and not with_weather:
+        console.print(
+            "[red]--with-plume requires --with-weather (a plume needs a wind field).[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    paths = write_corpus(
+        out,
+        seed=seed,
+        n_days=days,
+        n_stations=stations,
+        with_weather=with_weather,
+        with_plume=with_plume,
+    )
+    extra = []
+    if with_weather:
+        extra.append("weather")
+    if with_plume:
+        extra.append("plume")
+    suffix = f" (+{', '.join(extra)})" if extra else ""
     console.print(
         f"[green]Wrote[/green] {paths['corpus']}, {paths['ledger']} and {paths['stations']} "
-        f"({stations} stations)"
+        f"({stations} stations){suffix}"
     )
 
 
