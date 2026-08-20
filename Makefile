@@ -167,10 +167,17 @@ audit: ## run the audit over the real data drop
 # so the map has a network on it. Both are synthetic; neither needs data/raw.
 DEMO_DIR := .demo-corpus
 DEMO_STATIONS := 18
+# 60 days, not the real network's confirmed 30 (schema_assumptions.yaml
+# window_days): the deweather regressor's forward-chaining CV needs enough rows
+# in its early folds to converge past the golden-4's fixed-hour R07 outlier
+# (STA-03's 3000 µg/m3 PM10 spike) without overfitting around it - below ~45
+# days the reported PM10 R² stays negative or flips sign fold to fold; at 60 it
+# is positive and stable across all folds. See docs/updates/u7-demo-corpus-wind.md.
+DEMO_DAYS := 60
 
 .PHONY: demo-corpus
-demo-corpus: ## generate the 18-station demo corpus (synthetic, with coordinates)
-	$(VENV)/bin/prov fixtures make --out $(DEMO_DIR) --stations $(DEMO_STATIONS)
+demo-corpus: ## generate the 18-station demo corpus (synthetic, with coordinates, wind + a plume/fault pair)
+	$(VENV)/bin/prov fixtures make --out $(DEMO_DIR) --stations $(DEMO_STATIONS) --days $(DEMO_DAYS) --with-weather --with-plume
 
 .PHONY: demo-data
 demo-data: demo-corpus ## schema, demo corpus, audit, adjudication - everything but the servers
