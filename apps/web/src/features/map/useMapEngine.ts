@@ -23,6 +23,14 @@ import {
  *    than to nothing. Marker positions then come from a linear scale over the
  *    stations' own bounding box: no basemap, no claim of one, but the network's
  *    shape and every station's trust state still readable.
+ *
+ * Teardown lives only in the callback ref (destroy-then-null when it is called with
+ * a new node or with `null`), never in a separate `useEffect(() => () => ..., [])`.
+ * React 18 StrictMode double-invokes an effect's cleanup in development — such an
+ * effect would destroy the engine the ref just created, with nothing left to
+ * recreate it, and the map would sit on the token ground forever, stuck "moving".
+ * The ref callback is not subject to that double-invoke, so it is the only safe
+ * place for this cleanup.
  */
 
 export interface Positionable {
@@ -35,8 +43,15 @@ export type ProjectFn = (lon: number, lat: number) => { x: number; y: number } |
 export interface UseMapEngineResult {
   containerRef: (node: HTMLDivElement | null) => void;
   project: ProjectFn;
-  /** False when MapLibre could not start; the caller should say so on screen. */
+  /** False when MapLibre could not start at all - no WebGL, a locked-down VM. The
+   *  caller should say so on screen; this is a browser/environment problem. */
   basemapAvailable: boolean;
+  /** Whether the fetched street basemap is actually being served. `null` until the
+   *  probe resolves (the caller should stay quiet during that window, since the
+   *  common case - streets present - resolves almost immediately); `false` once the
+   *  probe has run and found no archive. Independent of `basemapAvailable`: MapLibre
+   *  can be running perfectly on the token ground. */
+  tilesPresent: boolean | null;
   /** True once the map has settled, or immediately when there is no map to settle. */
   isIdle: boolean;
 }
@@ -49,10 +64,11 @@ export function useMapEngine(
   const engineRef = useRef<MapEngine | null>(null);
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const [basemapAvailable, setBasemapAvailable] = useState(true);
-  // Whether the fetched street basemap is actually present. Starts false and only
-  // flips true after a successful probe, so the default everywhere - fresh clone,
-  // CI, every test - is the token ground.
-  const [basemapPresent, setBasemapPresent] = useState(false);
+  // Whether the fetched street basemap is actually present. Starts null (not yet
+  // probed) and only resolves to true or false once the probe answers, so the
+  // default everywhere - fresh clone, CI, every test - is the token ground with no
+  // premature claim either way.
+  const [basemapPresent, setBasemapPresent] = useState<boolean | null>(null);
   const [engineGeneration, setEngineGeneration] = useState(0);
   const [viewVersion, setViewVersion] = useState(0);
   const [isIdle, setIsIdle] = useState(false);
@@ -108,17 +124,20 @@ export function useMapEngine(
   // here is a no-op: calling setStyle again mid-load restarts the render cycle and
   // the map never reaches `idle`. A ref, not the engine generation, gates it, so a
   // remount re-arms the skip.
-  const styleApplied = useRef<{ theme: string; present: boolean } | null>(null);
+  const styleApplied = useRef<{ theme: string; showBasemap: boolean } | null>(null);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
     void engineGeneration; // re-run after a fresh engine mounts
+    // Not-yet-probed and confirmed-absent both mean "stay on the token ground", so
+    // they bucket together here; only the UI notice needs the raw tri-state.
+    const showBasemap = basemapPresent === true;
     const last = styleApplied.current;
-    styleApplied.current = { theme, present: basemapPresent };
+    styleApplied.current = { theme, showBasemap };
     // Skip the redundant apply on the first run against a given engine; only act on
     // an actual change of theme or basemap presence.
-    if (last === null || (last.theme === theme && last.present === basemapPresent)) return;
-    engine.applyStyle(basemapPresent ? buildBasemapStyle(theme) : resolveStyle());
+    if (last === null || (last.theme === theme && last.showBasemap === showBasemap)) return;
+    engine.applyStyle(showBasemap ? buildBasemapStyle(theme) : resolveStyle());
   }, [engineGeneration, theme, basemapPresent]);
 
   // Keep the fallback projection honest about the container it is drawing into.
@@ -131,8 +150,6 @@ export function useMapEngine(
     observer.observe(node);
     return () => observer.disconnect();
   }, [basemapAvailable]);
-
-  useEffect(() => () => engineRef.current?.destroy(), []);
 
   useEffect(() => {
     if (stations.length > 0) engineRef.current?.fitStations(stations);
@@ -156,7 +173,7 @@ export function useMapEngine(
     [viewVersion, stations, size],
   );
 
-  return { containerRef, project, basemapAvailable, isIdle };
+  return { containerRef, project, basemapAvailable, tilesPresent: basemapPresent, isIdle };
 }
 
 /** A linear scale over the station bounding box. Not cartography — a scatter plot. */

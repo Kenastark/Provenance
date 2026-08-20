@@ -210,3 +210,51 @@ const COMPASS = [
 export function compassPoint(degrees: number): string {
   return COMPASS[Math.round((((degrees % 360) + 360) % 360) / 22.5) % 16] ?? "N";
 }
+
+// -------------------------------------------------------------------- labels
+
+export interface ProjectedMarker {
+  stationId: string;
+  x: number;
+  y: number;
+}
+
+/** The label's offset from the marker centre and its approximate glyph metrics,
+ *  matched to the CSS in MapOverlays.tsx (`left-full ml-1`, `text-micro`). */
+const LABEL_OFFSET_X = 12;
+const LABEL_HEIGHT = 14;
+const LABEL_CHAR_WIDTH = 6;
+const LABEL_PADDING_X = 8;
+
+/**
+ * Which station labels can be shown without overlapping another one.
+ *
+ * Rather than a single hardcoded zoom cutoff, this measures the actual projected
+ * screen boxes and greedily keeps the ones that do not collide - so labels declutter
+ * correctly regardless of how the stations happen to be spaced at the fitted zoom,
+ * and re-densify automatically once the operator zooms in past a real conflict.
+ * Processed in station-id order so the result is deterministic and independent of
+ * marker array order.
+ */
+export function visibleStationLabels(markers: readonly ProjectedMarker[]): ReadonlySet<string> {
+  const ordered = [...markers].sort((a, b) => a.stationId.localeCompare(b.stationId));
+  const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const visible = new Set<string>();
+
+  for (const marker of ordered) {
+    const width = marker.stationId.length * LABEL_CHAR_WIDTH + LABEL_PADDING_X;
+    const x0 = marker.x + LABEL_OFFSET_X;
+    const y0 = marker.y - LABEL_HEIGHT / 2;
+    const x1 = x0 + width;
+    const y1 = y0 + LABEL_HEIGHT;
+
+    const collides = placed.some(
+      (box) => x0 < box.x1 && x1 > box.x0 && y0 < box.y1 && y1 > box.y0,
+    );
+    if (collides) continue;
+    placed.push({ x0, y0, x1, y1 });
+    visible.add(marker.stationId);
+  }
+
+  return visible;
+}

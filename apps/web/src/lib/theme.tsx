@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -57,7 +65,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolved: ResolvedTheme = preference === "system" ? systemResolved : preference;
 
-  useEffect(() => {
+  // A layout effect, not a plain effect: React fires child-before-parent within a
+  // phase, but ALL layout effects (descendant and ancestor) complete before ANY
+  // passive effect runs. The map re-themes the token ground from a passive effect
+  // that reads this attribute's computed CSS value (`useMapEngine`, a descendant of
+  // this provider) - a plain effect here would still be pending when that runs,
+  // so the map would always paint one theme behind the toggle actually shown.
+  useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", resolved);
   }, [resolved]);
 

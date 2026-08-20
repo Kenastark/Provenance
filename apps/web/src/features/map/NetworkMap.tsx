@@ -119,7 +119,10 @@ function MapSurface({
   const { resolved } = useWindowState();
   const { resolved: theme } = useTheme();
   const [layers, setLayers] = useState<Record<LayerId, boolean>>(DEFAULT_LAYERS);
-  const { containerRef, project, basemapAvailable, isIdle } = useMapEngine(markers, theme);
+  const { containerRef, project, basemapAvailable, tilesPresent, isIdle } = useMapEngine(
+    markers,
+    theme,
+  );
 
   // Wind is a network-level readout, taken across the stations that carry a wind
   // sensor rather than from a nominated one. Stations without one contribute
@@ -184,12 +187,27 @@ function MapSurface({
         </>
       )}
 
+      {/* Two different degraded states, worded for two different fixes: MapLibre
+          itself could not start (a browser/environment problem - no WebGL, a
+          locked-down VM), versus MapLibre running fine on the token ground because
+          `make basemap` was never run or was skipped (a `make basemap` problem). */}
       {!basemapAvailable && markers.length > 0 && (
         <p
-          className="prov-panel absolute left-1/2 top-3 -translate-x-1/2 p-2 text-caption text-text-tertiary"
-          data-testid="basemap-unavailable"
+          // Capped width: centred between the layer toggles and the wind readout,
+          // it must stay narrow enough not to run under either at the demo viewport.
+          className="prov-panel absolute left-1/2 top-3 max-w-xs -translate-x-1/2 p-2 text-caption text-text-tertiary"
+          data-testid="basemap-unavailable-engine"
         >
           Basemap unavailable in this browser — stations are placed by relative position only.
+        </p>
+      )}
+      {basemapAvailable && tilesPresent === false && markers.length > 0 && (
+        <p
+          className="prov-panel absolute left-1/2 top-3 max-w-xs -translate-x-1/2 p-2 text-caption text-text-tertiary"
+          data-testid="basemap-unavailable-tiles"
+        >
+          Street basemap not fetched — stations are shown on the token ground. Run{" "}
+          <code>make basemap</code> for street detail.
         </p>
       )}
 

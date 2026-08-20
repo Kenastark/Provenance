@@ -98,6 +98,30 @@ Format: Keep a Changelog. Versioning: SemVer.
   the resize handle occupies space even in the empty (no station selected)
   state and its neighbouring flex-1 region narrows to match; the event timeline,
   which never renders the drawer, is unchanged.
+- **The network map never rendered under `pnpm dev`.** `useMapEngine.ts` carried
+  a redundant `useEffect(() => () => engineRef.current?.destroy(), [])` beside
+  the callback ref that already owns teardown. React 18 StrictMode
+  double-invokes an effect's cleanup once in development, which destroyed the
+  engine the ref had just created, with nothing to recreate it - the map was
+  stuck on `data-map-state="moving"` forever, bare marker dots over the
+  container's own background colour. Removed; the ref callback was always the
+  correct sole owner of destroy. A second, independently-found bug: the
+  token-ground fallback never re-themed on a dark/light switch, because
+  `ThemeProvider` set `data-theme` from a plain `useEffect` and React fires
+  passive effects child-before-parent, so the map's style-reapply effect (a
+  descendant) always ran before the attribute was written. Fixed by moving that
+  one effect to `useLayoutEffect`. Each marker now carries an offset,
+  token-styled station-id label beside it, hidden on a genuine screen-space
+  collision with a neighbour rather than a guessed zoom cutoff
+  (`visibleStationLabels`). The "basemap unavailable" notice now distinguishes
+  MapLibre-could-not-start (a browser problem) from tiles-not-fetched (a
+  `make basemap` problem) with different wording and a `data-testid` each.
+  Visual baselines regenerated on both platforms: only the network map moves:
+  the pre-existing `map-*` baselines were themselves showing the fetched
+  streets rather than the token ground ADR 0006 says the gate should test,
+  because the darwin capture path has no equivalent of the Linux container's
+  automatic `public/basemap` removal - recaptured correctly with the archive
+  moved aside.
 
 ## [1.0.0-demo] - 2026-08-09
 Phase 7: the operational layer and the submission build — the freeze tag. Adds the
