@@ -128,3 +128,29 @@ async def test_station_metadata_defaults_to_null_without_metadata(
     stations = (await session.scalars(select(m.Station))).all()
     assert stations
     assert all(s.lat is None and s.lon is None for s in stations)
+
+
+async def test_a_second_batch_sharing_stations_or_parameters_does_not_collide(
+    session: AsyncSession, synthetic_corpus: tuple
+) -> None:
+    """``station_id`` and parameter ``name`` are global primary keys, shared across
+    every batch ever loaded. A real Green Sentinel export and the synthetic demo
+    corpus both use station ids like ``STA-01``/``DEB-KER01`` and both draw from the
+    same pollutant vocabulary (``PM10``, ``CO2``, ...) — loading a second,
+    differently-checksummed batch must skip rows already on record rather than
+    re-inserting them and raising a unique-constraint violation.
+    """
+    frame, _ = synthetic_corpus
+    session.add(m.Station(station_id="STA-01", ingest_batch_id=None))
+    session.add(m.Parameter(name="CO2", unit=None, domain="air"))
+    await session.commit()
+
+    report = await load_frame(session, frame, source="fixtures", path="tests/fixtures")
+    assert not report.already_loaded
+
+    station_names = (await session.scalars(select(m.Station.station_id))).all()
+    parameter_names = (await session.scalars(select(m.Parameter.name))).all()
+    assert len(station_names) == len(set(station_names))
+    assert len(parameter_names) == len(set(parameter_names))
+    assert "STA-01" in station_names
+    assert "CO2" in parameter_names

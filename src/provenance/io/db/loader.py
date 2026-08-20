@@ -93,8 +93,8 @@ async def load_frame(
     run_id = _run_id(frame)
 
     readings_inserted = await _insert_readings(session, frame, batch_id)
-    _insert_stations(session, coverage, batch_id, station_meta or {})
-    _insert_parameters(session, coverage)
+    await _insert_stations(session, coverage, batch_id, station_meta or {})
+    await _insert_parameters(session, coverage)
     _insert_audit_run(session, result, run_id, batch_id)
     defects_inserted = _insert_defects(session, result, run_id)
     _insert_coverage_facts(session, result, run_id)
@@ -188,7 +188,7 @@ async def _insert_readings(session: AsyncSession, frame: pd.DataFrame, batch_id:
     return len(to_insert)
 
 
-def _insert_stations(
+async def _insert_stations(
     session: AsyncSession,
     coverage: CoverageModel,
     batch_id: str,
@@ -198,7 +198,14 @@ def _insert_stations(
 
     zones = load_station_zones()
     matrix = coverage.coverage_matrix
+    # station_id is the global primary key, shared across every batch that has ever
+    # been loaded into this database. Two different drops (e.g. the synthetic demo
+    # corpus and a real Green Sentinel export, or two dated real exports) can name
+    # the same station, so a plain insert must not repeat one already on record.
+    existing = set((await session.scalars(select(m.Station.station_id))).all())
     for station in coverage.stations:
+        if station in existing:
+            continue
         cov = (
             {str(k): int(v) for k, v in matrix.loc[station].to_dict().items() if int(v) > 0}
             if station in matrix.index
@@ -221,8 +228,15 @@ def _insert_stations(
         )
 
 
-def _insert_parameters(session: AsyncSession, coverage: CoverageModel) -> None:
+async def _insert_parameters(session: AsyncSession, coverage: CoverageModel) -> None:
+    # name is the global primary key. The synthetic fixture generator and the real
+    # Green Sentinel export share a lot of parameter vocabulary (CO2, PM10, ...), so
+    # loading a second, differently-checksummed batch must skip names already on
+    # record rather than re-inserting them.
+    existing = set((await session.scalars(select(m.Parameter.name))).all())
     for parameter in coverage.parameters:
+        if parameter in existing:
+            continue
         session.add(
             m.Parameter(
                 name=parameter,

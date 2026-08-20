@@ -5,6 +5,19 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`make demo-real`: run the whole stack against the real Green Sentinel drop
+  instead of the synthetic fixtures.** Mirrors `make demo` (stack up, DB loaded,
+  audited, adjudicated, models trained, API up, dashboard open) but points every
+  step at `data/raw` and resets the local dev database first, rather than
+  upgrading it in place — `station_id` and parameter `name` are global primary
+  keys shared by every batch ever loaded, and the synthetic demo corpus and the
+  real export use overlapping ids and pollutant vocabulary, so a bare upgrade
+  leaves leftover synthetic markers mixed onto the real map. A new
+  `check-real-drop` target fails loudly, before touching the database, if
+  `data/raw` holds nothing but its `.gitkeep` placeholders — this target never
+  silently falls back to the synthetic corpus; `make demo` remains the offline
+  fallback and is unchanged. See `docs/updates/u6-real-drop.md` for the full
+  real-vs-synthetic comparison this produced.
 - **BusStop and TrafficCounter map layers, gated on real coordinates.** New
   `GET /v1/reference/bus-stops` and `GET /v1/reference/traffic-counters` endpoints
   serve real GTFS stop and Enclod counter coordinates read directly from the data
@@ -31,6 +44,17 @@ Format: Keep a Changelog. Versioning: SemVer.
   should have caught the dark-mode lockup shipping as an unparseable file.
 
 ### Fixed
+- **Loading a second, differently-checksummed data drop into an already-loaded
+  database crashed on a duplicate-key error.** `stations.station_id` and
+  `parameters.name` are global primary keys, not scoped to the `ingest_batch`
+  that loaded them, so `_insert_stations`/`_insert_parameters` re-inserting a
+  station or parameter name already on record from an earlier batch raised
+  `IntegrityError`. Hit in practice loading the real Green Sentinel export
+  (`DEB-KER*`, shares pollutant names like `CO2`/`PM10` with the synthetic demo
+  corpus) into a database that already held the synthetic corpus's rows. Both
+  functions now query the names already on record and skip re-inserting them;
+  `tests/unit/test_db_loader.py::test_a_second_batch_sharing_stations_or_parameters_does_not_collide`
+  pins it.
 - **The dark-mode top-bar lockup did not render at all.** The generator at
   `scripts/gen_reversed_lockup.py` wrote a comment containing `--prov-white`, and a
   double hyphen is illegal inside an XML comment. Browsers parsing SVG-in-`<img>`

@@ -235,6 +235,49 @@ demo: ## one command: stack up, demo corpus loaded and audited, API up, dashboar
 	@echo ""
 	$(MAKE) web
 
+.PHONY: check-real-drop
+check-real-drop: ## fail loudly if data/raw has no real drop to load (no silent fixture fallback)
+	@if [ -z "$$(find data/raw -type f ! -name '.gitkeep' 2>/dev/null)" ]; then \
+	  echo ""; \
+	  echo "  data/raw is EMPTY (only .gitkeep placeholders) - there is no real Green"; \
+	  echo "  Sentinel drop to load."; \
+	  echo ""; \
+	  echo "  'make demo-real' refuses to fall back to the synthetic fixtures; that"; \
+	  echo "  fallback is what 'make demo' is for. Put the real export under data/raw"; \
+	  echo "  (e.g. data/raw/green_sentinel/<drop>/DEB-KER*/*.xlsx) and try again."; \
+	  echo ""; \
+	  exit 1; \
+	fi
+
+.PHONY: demo-real
+demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained, API up, dashboard open
+	$(MAKE) up
+	@# station_id and parameter name are global primary keys shared by every batch
+	@# ever loaded (synthetic demo stations use the same STA-xx ids and the same
+	@# pollutant vocabulary as the real DEB-KERnn export in places). A reset, not
+	@# just an upgrade, keeps this target's map and audit showing the real drop
+	@# only, never a mix of leftover synthetic markers and real ones. Local dev
+	@# data only; regenerate the synthetic side any time with `make demo-data`.
+	$(VENV)/bin/prov db reset --yes
+	$(VENV)/bin/prov db load --source data/raw
+	$(VENV)/bin/prov audit run --data data/raw --out reports
+	$(VENV)/bin/prov graph adjudicate-db --source data/raw
+	$(VENV)/bin/prov graph adjudicate --data data/raw --out reports/adjudications
+	$(VENV)/bin/prov models train --source data/raw
+	$(VENV)/bin/prov models residuals --source data/raw
+	$(MAKE) api-bg
+	cd apps/web && pnpm install --no-frozen-lockfile
+	@# The streets are a nice-to-have. If the fetch cannot reach the network, the
+	@# demo still runs against the token-coloured ground, so this must never abort it.
+	$(MAKE) basemap || echo "  basemap: skipped — the map will use the token ground"
+	@echo ""
+	@echo "  REAL Green Sentinel drop loaded from data/raw"
+	@echo "  Dashboard : http://localhost:5173"
+	@echo "  API docs  : http://localhost:8000/docs"
+	@echo "  Stop with : make demo-stop"
+	@echo ""
+	$(MAKE) web
+
 .PHONY: demo-scenarios
 demo-scenarios: ## write the deterministic replay sequences for every scenario (offline)
 	$(VENV)/bin/prov demo rehearse --data $(DEMO_DIR) --out reports/demo
