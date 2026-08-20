@@ -162,6 +162,30 @@ station detail, and data quality monitor screens on both themes and both
 platforms, plus one map-light-darwin frame (a rendering pixel-noise diff, not a
 content change — dark and both Linux map baselines were untouched).
 
+**A first push of these baselines failed CI's `e2e` check** (station detail
+only, both themes) despite passing `make web-visual-check` locally beforehand.
+The cause was local environment contamination, not the corpus: this session's
+several `prov models train` calls (made to get the before/after R² numbers
+above) had left `.joblib`/`.card.json` files sitting in the gitignored
+`src/provenance/models/artefacts/` directory and its matching gitignored
+`docs/model-cards/deweather-*.md` / `fault-*.md` cards. The station-detail
+panel's registry lookup found them and rendered without the "Model artefacts
+are unavailable ... Train models with `prov models train`" line that a truly
+clean checkout (and CI's fresh container) shows, shifting everything below it
+by one line. Deleting those local files, resetting the DB, and recapturing
+both platforms fixed it locally. (First attempt at the cleanup ran `find
+docs/model-cards -type f -delete`, which is wrong — that directory also holds
+committed, curated cards, `README.md`/`hst-gat-v1.md`/
+`propagation-adjudicator-v1.md`/`.gitkeep`, and the blanket delete took those
+too; caught via `git status` before it was staged, restored with `git restore`.
+The safe form only matches the gitignored generated-card patterns.) Worth
+remembering: capturing visual baselines after any local model training needs
+`rm -rf src/provenance/models/artefacts/*` plus `rm docs/model-cards/deweather-
+*.md docs/model-cards/fault-*.md` (check `.gitignore` before deleting anything
+in a directory that also holds committed files) and a DB reset first, or the
+baseline will only match your own machine's leftover state, not a fresh
+clone's.
+
 ## Deviations from the prompt
 
 Several design changes were made in the course of getting the two planted
