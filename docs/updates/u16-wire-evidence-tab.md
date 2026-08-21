@@ -63,25 +63,37 @@ be stored — no matter how many times the card's own suggested commands
   real actual/predicted/residual series; `residuals` table confirmed to carry CO2
   rows for all 16 stations (spot-checked five).
 
-### 3. A stale e2e pinning assertion, caught by actually running the suite
+### 3. An e2e assertion, wrongly "fixed" locally, then correctly caught by CI
 
-`demo-path.spec.ts`'s "the defect table renders with its evidence" test asserted
-`getByTestId("not-yet-computed")).toHaveCount(2)` against the real drop's Evidence
-tab. Running it after the fix above failed — not because anything was broken, but
-because the assertion itself was pinned to the old, wrong behaviour: the real
-drop's default top defect turns out to be `DEB-KER01 · CO2` (an R10 unit-mismatch
-flag), which is exactly the card the user's screenshot showed. Before this update
-that page always carried exactly 2 "not yet computed" slots (1 hardcoded
-attention, always; 1 degraded CO2 deweather card, for this specific defect) — now
-it carries 0, because both are wired to real data and both resolve for this
-station. Updated the assertion to `toHaveCount(0, { timeout: 30_000 })`: 0 because
-that is now correct (confirmed independently — `DEB-KER01` has 48 attention edges
-in the live overlay and real CO2 residuals), and 30s instead of the file's default
-15s because the very first run of this test timed out mid-flight with the
-attention card still showing "Loading the attention overlay…" — a real
-network+CPU-bound call (`network_frame` read plus the HST-GAT forward pass) racing
-a tight assertion window, not a logic error; the immediate re-run resolved in
-2.0s. Re-ran green.
+`demo-path.spec.ts`'s "the defect table renders with its evidence" test asserts
+`getByTestId("not-yet-computed")).toHaveCount(2)` on `/evidence`. Run locally
+against the real drop (already loaded in this session's DB, with the deweather
+and HST-GAT models just retrained above), it failed with `Received: 0` — the
+default top defect there is `DEB-KER01 · CO2` (an R10 unit-mismatch flag, exactly
+the card the user's screenshot showed), which has both real attention edges (48,
+confirmed independently against the live endpoint) and real CO2 residuals, so
+both cards resolve. Reading that as "the pinned count changed", the assertion was
+changed to `toHaveCount(0, { timeout: 30_000 })` and the local suite went green.
+
+**That was the wrong fix, caught by CI.** This suite's actual fixture —
+`make demo-data`, the job every `frontend.yml` e2e run uses — deliberately never
+trains any model (`Makefile`'s own comment: "the visual-regression baselines are
+captured with demo-data (no models)... the pinned state"). Under that fixture,
+*regardless of which defect is on screen*, deweather is always `degraded: true`
+(no residuals table rows exist for any parameter) and the attention overlay is
+always `available: false` (`store.latest_stem()` finds no artefact) — so the
+count is deterministically 2 in CI, same as before this update. What actually
+changed for that environment is invisible to a count-based assertion: the
+attention card's text is now the backend's real reason
+("the HST-GAT has not been trained. Run `prov models train-hstgat`...") instead
+of a hardcoded "lands in phase 6" string. CI's `e2e` check failed on exactly this
+(`Received: 2`, not 0), confirming the local "fix" had overfit to a
+non-representative, already-fully-trained local environment. Reverted the count
+to `2` (dropped the now-unneeded longer timeout too — the untrained path
+short-circuits fast, no forward pass to wait on) and rewrote the comment to
+explain *why* 2 is still correct rather than changing the number. This is the
+one real process mistake in this update, left in the report rather than quietly
+squashed, per the project's own standard for these write-ups.
 
 ## The real-drop R² band: a pre-existing finding, surfaced but not fixed here
 
@@ -120,14 +132,20 @@ new endpoint and changed no response shape, only a YAML config value plus two
 frontend components consuming an endpoint that already existed, so no contract
 regeneration was expected or needed.
 
-**e2e** (`pnpm exec playwright test demo-path.spec.ts accessibility.spec.ts
---project=chromium`, real API + real 16-station drop already loaded, chromium
-only — not the full cross-browser/visual gate, matched to this change's scope):
-first run 38/39 passed, 1 failed on a stale pinned assertion (see "A stale e2e
-pinning assertion" above); fixed, re-ran the single test green (2.0s). Full
-targeted set re-run clean after the fix, including both `evidence` a11y checks
-(dark/light) and the "no unrendered template reaches an operator" `/evidence`
-check.
+**e2e, local** (`pnpm exec playwright test demo-path.spec.ts accessibility.spec.ts
+--project=chromium`, against this session's real API + already-loaded real
+16-station drop — not the CI fixture, see below): first run 38/39 passed, one
+failure that led to the wrong local "fix" described above (assertion changed to
+`toHaveCount(0)`); that made the local suite pass, but was itself incorrect.
+
+**e2e, CI** (`.github/workflows/frontend.yml`'s `e2e` job — chromium, the pinned
+Linux container, `make demo-data` fixture — this is the check that actually
+gates the PR): first push failed on the `toHaveCount(0)` change (`Received: 2`),
+correctly, for the reason in §3 above; every other check
+(`architecture`, `backend` — 683 passed, 90.59% coverage, `contract`, `web`,
+`no-data-required`, both CodeQL `analyze` jobs, GitGuardian) passed on that same
+push. Reverted the count to `2` and re-pushed; final CI status recorded once
+that run completes (see PR #30).
 
 No visual baselines regenerated: the Evidence tab (`/evidence`) is not currently
 covered by `e2e/visual.spec.ts` (checked — no `evidence` baseline exists in

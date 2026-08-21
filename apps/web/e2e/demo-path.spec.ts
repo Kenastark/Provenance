@@ -62,13 +62,14 @@ test.describe("the demo path", () => {
     await expect(evidence.getByTestId("reason-code-badge").first()).toBeVisible();
 
     // SHAP, deweather, and attention are slots when a model artefact is absent,
-    // never fabrications - but on this real drop all three are trained, and the
-    // default top defect (DEB-KER01 CO2, R10) has both deweather residuals and
-    // attention edges, so nothing here should degrade. The attention overlay's
-    // forward pass over the full real corpus can take longer than the default
-    // 15s expect timeout, so this assertion gets a longer one rather than a
-    // shorter one racing a real network+compute call.
-    await expect(page.getByTestId("not-yet-computed")).toHaveCount(0, { timeout: 30_000 });
+    // never fabrications. `make demo-data` (this suite's fixture) deliberately never
+    // trains any model - the pinned "everything degraded" state a fresh clone
+    // actually shows (see Makefile's demo-data/demo-models split) - so both the
+    // deweather and the (now real, backend-driven rather than hardcoded) attention
+    // cards fall back to "not yet computed" here regardless of which defect is on
+    // screen. SHAP's own degraded state uses a different data-testid and is not
+    // counted by this locator.
+    await expect(page.getByTestId("not-yet-computed")).toHaveCount(2);
     // The plume-vs-fault verdict is adjudicated per event on the timeline, not per
     // defect here; this panel points there rather than restating a verdict.
     await expect(page.getByTestId("evidence-verdict")).toContainText(
