@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { STORAGE_STATE_PATH } from "./e2e/global-setup";
 
 /**
  * End-to-end configuration.
@@ -18,6 +19,7 @@ const PORT = 4173;
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -46,6 +48,10 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
+    // A role pre-seeded by globalSetup, so every existing spec still lands
+    // directly on its target screen instead of the new sign-in gate. The two
+    // sign-in-screen specs clear it back out with `test.use`.
+    storageState: STORAGE_STATE_PATH,
   },
   projects: [
     {

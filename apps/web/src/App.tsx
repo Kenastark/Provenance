@@ -8,6 +8,7 @@ import { RoleProvider, useRole } from "./lib/role";
 import { ThemeProvider } from "./lib/theme";
 import { WindowProvider, useWindowState } from "./lib/windowContext";
 import { TopBar } from "./features/shell/TopBar";
+import { SignInGate } from "./features/shell/SignInGate";
 import { NetworkMap } from "./features/map/NetworkMap";
 import { QualityMonitor } from "./features/quality/QualityMonitor";
 import { EventTimeline } from "./features/timeline/EventTimeline";
@@ -138,7 +139,9 @@ export function App({ queryClient, apiClient }: AppProps = {}) {
         <RoleProvider>
           <RoleAwareApiClientProvider overrideClient={apiClient}>
             <WindowProvider>
-              <AppRoutes />
+              <SignInGate>
+                <AppRoutes />
+              </SignInGate>
             </WindowProvider>
           </RoleAwareApiClientProvider>
         </RoleProvider>

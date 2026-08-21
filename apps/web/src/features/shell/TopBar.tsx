@@ -46,7 +46,7 @@ export interface TopBarProps {
 
 export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
   const { preference, resolved, setPreference } = useTheme();
-  const { role, setRole, canSwitch } = useRole();
+  const { role, setRole, canSwitch, signOut } = useRole();
   const version = useVersion();
   const visibleNav = NAV.filter((item) => !item.role || roleAtLeast(role, item.role));
 
@@ -159,6 +159,9 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
               This deployment pins a fixed API key (VITE_API_KEY); role switching is disabled.
             </p>
           )}
+          <button type="button" className="prov-button mt-3 w-full" onClick={signOut} data-testid="sign-out">
+            Sign out
+          </button>
           {version.data && (
             <dl className="mt-3 space-y-1 font-mono text-micro text-text-tertiary">
               <div className="flex justify-between gap-3">

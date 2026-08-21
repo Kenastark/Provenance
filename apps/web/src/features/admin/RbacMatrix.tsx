@@ -1,5 +1,5 @@
 import { RBAC_ENTRIES } from "../../lib/rbac";
-import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
+import { ROLE_HIERARCHY, ROLE_LABELS, roleAtLeast, roleGrants, useRole } from "../../lib/role";
 
 /**
  * The RBAC matrix: the role hierarchy, and which role each operational endpoint
@@ -8,8 +8,6 @@ import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
  * collapsing them loses the hierarchy's shape (admin ⊃ operator ⊃ researcher ⊃
  * public_read), which is the more important of the two facts.
  */
-
-const HIERARCHY: readonly Role[] = ["public_read", "researcher", "operator", "admin"];
 
 export function RbacMatrix() {
   const { role: current } = useRole();
@@ -35,17 +33,13 @@ export function RbacMatrix() {
             </tr>
           </thead>
           <tbody>
-            {HIERARCHY.map((role, index) => (
+            {ROLE_HIERARCHY.map((role) => (
               <tr key={role} data-testid="rbac-role-row" aria-current={role === current ? "true" : undefined}>
                 <th scope="row" className="py-1 text-left font-normal text-text">
                   {ROLE_LABELS[role]}
                   {role === current && <span className="ml-2 text-caption text-interactive">(you)</span>}
                 </th>
-                <td className="py-1 text-text-secondary">
-                  {HIERARCHY.slice(0, index + 1)
-                    .map((granted) => ROLE_LABELS[granted])
-                    .join(" + ")}
-                </td>
+                <td className="py-1 text-text-secondary">{roleGrants(role)}</td>
               </tr>
             ))}
           </tbody>
