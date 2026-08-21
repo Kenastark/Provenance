@@ -116,7 +116,9 @@ function Mark({ mark, size = 12 }: { mark: string; size?: number }) {
   );
 }
 
-function VerdictChip({ verdict }: { verdict: string | null | undefined }) {
+/** Exported so the Alert Centre renders the same verdict chip rather than a
+ * parallel one - an alert's verdict is the same enum, read off the same event. */
+export function VerdictChip({ verdict }: { verdict: string | null | undefined }) {
   const meta = verdictMeta(verdict);
   return (
     <span

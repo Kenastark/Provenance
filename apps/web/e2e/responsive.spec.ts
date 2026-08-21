@@ -10,7 +10,7 @@ import { gotoRoute } from "./support";
  * instead of pushing the whole document sideways.
  */
 
-const ROUTES = ["/", "/quality", "/timeline", "/evidence", "/audit"];
+const ROUTES = ["/", "/quality", "/timeline", "/evidence", "/audit", "/alerts", "/admin"];
 
 for (const path of ROUTES) {
   test(`${path} does not scroll the page horizontally at 390px`, async ({ page }) => {
@@ -66,4 +66,5 @@ test("the primary navigation stays reachable on a narrow screen", async ({ page 
   const nav = page.getByRole("navigation", { name: /primary/i });
   await expect(nav).toBeVisible();
   await expect(nav.getByRole("link", { name: "Audit report" })).toBeAttached();
+  await expect(nav.getByRole("link", { name: "Alert Centre" })).toBeAttached();
 });

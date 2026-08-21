@@ -5,6 +5,37 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The Alert Centre (`/alerts`) and Admin (`/admin`) screens** — the phase-7
+  operational layer (maintenance queue, risk-ranked alerts, sign-off gate, RBAC,
+  admin) existed at the API/CLI only until now. The Alert Centre ranks candidate
+  events by consequence-weighted risk with Severity, Verdict, Exposure, and
+  Confidence as their own columns (so the ranking's inversion argument is visible
+  in the list, not just true in the sort), reuses `TrustChip`/`TrustBreakdown`/
+  `AdjudicationDetail` for a selected alert's station trust and adjudication case
+  rather than rebuilding them, and gates dispatch on a valid sign-off with the
+  block stated in a sentence an operator could read aloud
+  (`aria-describedby`-linked to the disabled button) — a UI courtesy over the
+  already-enforced server boundary (`gate.dispatch`/`test_signoff_gate.py`,
+  unchanged). The maintenance queue's lifecycle transitions are read off
+  `ops/maintenance.py`'s own forward-only state machine. Admin adds the RBAC
+  matrix (role hierarchy plus a live reachable/blocked column for the signed-in
+  role), status (versions, config hashes, audit/dispatch history, a
+  request-only retrain action), and the two-plane monitor — infra health parsed
+  from `/metrics` kept visually separate from `/v1/admin/model-drift`, which says
+  "No history yet" rather than drawing a one-point chart before models are
+  trained. `lib/role.tsx` replaces the hardcoded "Operator" stub with the real
+  four-role model, mapped to the four dev keys `auth.py` already falls back to;
+  a deployment pinning a real key outside those four loses the switcher rather
+  than pretending to offer roles it cannot grant. Real-data testing (not just the
+  266-test unit suite, all of which passed throughout) caught four bugs invisible
+  to unit fixtures: a drift-value double-percent-conversion, a maintenance
+  ticket's headline reaching the screen with an unfilled `{placeholder}`, two
+  Tailwind classes (`w-80`, `w-24`) silently generating no CSS because this
+  project's spacing scale doesn't extend that far (collapsing the maintenance
+  detail pane's width and overlapping its list), and a naive local-time parse of
+  a sign-off's `expires_at` that misread a valid sign-off as already expired in
+  any timezone ahead of UTC. Visual baselines regenerated on both platforms,
+  including new baselines for both screens. See `docs/updates/u10-alert-centre.md`.
 - **`docs/adjudications/ker11-4100-evidence-v1.1.md`: verdict and demo
   narration for the KER11 ~4,100 µg/m³ PM10 event**, adopted by Ikenna Udeani
   on 2026-08-21 from Claude Code's recommendation over the v1.0 evidence.

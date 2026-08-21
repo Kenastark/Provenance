@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Outlet, Route, Routes } from "react-router-dom";
 import { ApiClientProvider } from "./api/queries";
-import type { ApiClient } from "./api/client";
+import { createClient, readApiConfig, type ApiClient } from "./api/client";
+import { RoleProvider, useRole } from "./lib/role";
 import { ThemeProvider } from "./lib/theme";
 import { WindowProvider, useWindowState } from "./lib/windowContext";
 import { TopBar } from "./features/shell/TopBar";
@@ -11,6 +13,9 @@ import { QualityMonitor } from "./features/quality/QualityMonitor";
 import { EventTimeline } from "./features/timeline/EventTimeline";
 import { EvidencePanel } from "./features/evidence/EvidencePanel";
 import { AuditReportView } from "./features/audit/AuditReportView";
+import { AlertCentre } from "./features/alerts/AlertCentre";
+import { AdminDashboard } from "./features/admin/AdminDashboard";
+import { RequireRole } from "./components/RequireRole";
 import { EmptyState } from "./components/States";
 
 /**
@@ -57,7 +62,7 @@ function NotFound() {
       <div className="prov-panel">
         <EmptyState
           title="No such screen"
-          description="That address does not match a screen in this dashboard. Use the navigation above to reach the map, the data quality monitor, events, evidence, or the audit report."
+          description="That address does not match a screen in this dashboard. Use the navigation above to reach the map, the data quality monitor, events, evidence, the audit report, the Alert Centre, or Admin."
         />
       </div>
     </div>
@@ -73,15 +78,53 @@ export function AppRoutes() {
         <Route path="timeline" element={<EventTimeline />} />
         <Route path="evidence" element={<EvidencePanel />} />
         <Route path="audit" element={<AuditReportView />} />
+        <Route
+          path="alerts"
+          element={
+            <RequireRole role="operator">
+              <AlertCentre />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="admin"
+          element={
+            <RequireRole role="admin">
+              <AdminDashboard />
+            </RequireRole>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );
 }
 
+/**
+ * Builds the API client from the current role, unless a test has injected one.
+ *
+ * The client has to live below `RoleProvider` and be rebuilt when the role
+ * changes, because the role switcher (TopBar) is how this dashboard reaches every
+ * role short of a real deployment pinning `VITE_API_KEY` - see lib/role.tsx.
+ */
+function RoleAwareApiClientProvider({
+  overrideClient,
+  children,
+}: {
+  overrideClient?: ApiClient;
+  children: ReactNode;
+}) {
+  const { apiKey } = useRole();
+  const client = useMemo(
+    () => overrideClient ?? createClient({ ...readApiConfig(), apiKey }),
+    [overrideClient, apiKey],
+  );
+  return <ApiClientProvider value={client}>{children}</ApiClientProvider>;
+}
+
 export interface AppProps {
   queryClient?: QueryClient;
-  /** Injected by tests; production resolves the client from the environment. */
+  /** Injected by tests; production resolves the client from the role. */
   apiClient?: ApiClient;
 }
 
@@ -91,13 +134,15 @@ export function App({ queryClient, apiClient }: AppProps = {}) {
   const [client] = useState(() => queryClient ?? makeQueryClient());
   return (
     <QueryClientProvider client={client}>
-      <ApiClientProvider value={apiClient ?? null}>
-        <ThemeProvider>
-          <WindowProvider>
-            <AppRoutes />
-          </WindowProvider>
-        </ThemeProvider>
-      </ApiClientProvider>
+      <ThemeProvider>
+        <RoleProvider>
+          <RoleAwareApiClientProvider overrideClient={apiClient}>
+            <WindowProvider>
+              <AppRoutes />
+            </WindowProvider>
+          </RoleAwareApiClientProvider>
+        </RoleProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -119,6 +119,33 @@ test.describe("the demo path", () => {
     await gotoRoute(page, "/quality");
     await expect(page.getByTestId("data-table-row")).toHaveCount(expectedStations);
   });
+
+  test("the Alert Centre ranks by risk, with severity and exposure legible beside it", async ({ page }) => {
+    await gotoRoute(page, "/alerts");
+    await expect(page.getByRole("heading", { name: "Alert Centre" })).toBeVisible();
+
+    const list = page.getByRole("region", { name: /^alert centre$/i });
+    for (const header of ["Severity", "Exposure", "Confidence", "Risk"]) {
+      await expect(list.getByRole("columnheader", { name: new RegExp(header, "i") })).toBeVisible();
+    }
+
+    const rows = list.getByTestId("data-table-row");
+    await expect(rows.first().or(page.getByText(/no candidate alerts/i))).toBeVisible();
+    const count = await rows.count();
+    test.skip(count === 0, "No candidate alerts in this run. Run `make demo-data`.");
+
+    // Risk sorts descending by default - every consecutive pair must hold that order.
+    const risks = await rows.evaluateAll((nodes) =>
+      nodes.map((node) => Number(node.querySelector("strong")?.textContent ?? "NaN")),
+    );
+    for (let i = 1; i < risks.length; i += 1) {
+      expect(risks[i - 1]).toBeGreaterThanOrEqual(risks[i]);
+    }
+
+    await rows.first().click();
+    await expect(page.getByTestId("alert-detail")).toBeVisible();
+    await expect(page.getByTestId("factor-breakdown")).toBeVisible();
+  });
 });
 
 test.describe("no unrendered template reaches an operator", () => {
@@ -126,7 +153,7 @@ test.describe("no unrendered template reaches an operator", () => {
   // placeholder the UI could not fill must degrade to an em dash, never to a
   // literal "{parameter}" - which is precisely what the timeline shipped with,
   // because R07 keeps the parameter as a *column* rather than in its evidence dict.
-  for (const path of ["/", "/quality", "/timeline", "/evidence", "/audit"]) {
+  for (const path of ["/", "/quality", "/timeline", "/evidence", "/audit", "/alerts"]) {
     test(`${path} renders no raw placeholder`, async ({ page }) => {
       await gotoRoute(page, path);
       await page.waitForLoadState("networkidle");

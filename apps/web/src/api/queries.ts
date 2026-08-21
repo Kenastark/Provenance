@@ -1,4 +1,11 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import {
   createClient,
@@ -17,6 +24,18 @@ import {
   type TrustScore,
   type Version,
 } from "./client";
+import type {
+  AdminStatus,
+  AlertsResponse,
+  DispatchResult,
+  MaintenanceItem,
+  MaintenanceRebuildResult,
+  MaintenanceStatus,
+  ModelDriftReport,
+  RetrainRequestResult,
+  SignoffChannel,
+  SignoffRecord,
+} from "./operations";
 
 /**
  * Data access for the dashboard.
@@ -59,6 +78,11 @@ export const queryKeys = {
     ["deweather", stationId, parameter] as const,
   busStops: ["reference", "bus-stops"] as const,
   trafficCounters: ["reference", "traffic-counters"] as const,
+  alerts: (runId?: string) => ["alerts", runId ?? "latest"] as const,
+  maintenance: (status?: string) => ["maintenance", status ?? "all"] as const,
+  maintenanceItem: (id: number) => ["maintenance", "item", id] as const,
+  adminStatus: ["admin", "status"] as const,
+  modelDrift: ["admin", "model-drift"] as const,
 };
 
 // Pulling more than a page at a time is the exception, not the rule: the API caps
@@ -298,6 +322,148 @@ export function useDeweather(
         query: { parameter },
         signal,
       }),
+  });
+}
+
+// ------------------------------------------------------ operational layer
+// The rest of this module is phase 7: the Alert Centre, the maintenance queue,
+// the sign-off/dispatch gate, and admin. Unlike every hook above, several of these
+// are writes - this is the first part of the dashboard where a click has a real,
+// remote consequence, so every mutation below awaits its real result rather than
+// applying an optimistic update.
+
+// The alerts endpoint has no cursor - it is a ranked top-N, not a full listing -
+// and 200 is its own hard maximum (`Query(..., le=200)` in routers/alerts.py).
+const ALERTS_LIMIT = 200;
+
+export function useAlerts(runId?: string): UseQueryResult<AlertsResponse> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.alerts(runId),
+    queryFn: ({ signal }) =>
+      client.get<AlertsResponse>("/v1/alerts", {
+        query: { run_id: runId, limit: ALERTS_LIMIT },
+        signal,
+      }),
+  });
+}
+
+/** The maintenance queue, fully traversed (see `paginateAll`) so a queue length is
+ * a real count and not a first page. */
+export function useMaintenanceQueue(status?: MaintenanceStatus): UseQueryResult<Paginated<MaintenanceItem>> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.maintenance(status),
+    placeholderData: keepPreviousData,
+    queryFn: ({ signal }) =>
+      paginateAll<MaintenanceItem>(client, "/v1/maintenance", { status, limit: MAX_PAGE }, signal),
+  });
+}
+
+/** One item with its full transition history, for the queue's detail pane. */
+export function useMaintenanceItem(id: number | undefined): UseQueryResult<MaintenanceItem> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.maintenanceItem(id ?? -1),
+    enabled: id !== undefined,
+    queryFn: ({ signal }) => client.get<MaintenanceItem>(`/v1/maintenance/${id}`, { signal }),
+  });
+}
+
+export function useAdminStatus(): UseQueryResult<AdminStatus> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.adminStatus,
+    queryFn: ({ signal }) => client.get<AdminStatus>("/v1/admin/status", { signal }),
+  });
+}
+
+/** The model plane of the two-plane monitor - see AdminDashboard for the infra plane. */
+export function useModelDrift(): UseQueryResult<ModelDriftReport> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.modelDrift,
+    queryFn: ({ signal }) => client.get<ModelDriftReport>("/v1/admin/model-drift", { signal }),
+  });
+}
+
+export interface CreateSignoffInput {
+  event_id: number;
+  channel: SignoffChannel;
+  operator: string;
+  evidence?: Record<string, unknown>;
+  ttl_seconds?: number;
+}
+
+/** Records who saw what and signed off on it. Does not send anything - see
+ * useDispatchAlert, and the standing rule that separates the two (§2, rule 5). */
+export function useCreateSignoff(): UseMutationResult<SignoffRecord, unknown, CreateSignoffInput> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (input) => client.post<SignoffRecord>("/v1/decision/signoff", input),
+  });
+}
+
+export interface DispatchInput {
+  event_id: number;
+  channel: SignoffChannel;
+  signoff_id: string;
+}
+
+/** The one and only path to a public dispatch. The backend refuses this (422,
+ * `.../problems/signoff-required`) without a valid, unexpired sign-off for this
+ * exact event and channel - see `gate.dispatch` and `test_signoff_gate.py`. This
+ * hook does not, and must not, offer any other way to reach it. */
+export function useDispatchAlert(): UseMutationResult<DispatchResult, unknown, DispatchInput> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (input) => client.post<DispatchResult>("/v1/decision/dispatch", input),
+  });
+}
+
+export interface TransitionInput {
+  id: number;
+  to: MaintenanceStatus;
+  actor: string;
+  note?: string;
+}
+
+export function useMaintenanceTransition(): UseMutationResult<MaintenanceItem, unknown, TransitionInput> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }) => client.post<MaintenanceItem>(`/v1/maintenance/${id}/transition`, body),
+    onSuccess: (item) => {
+      queryClient.setQueryData(queryKeys.maintenanceItem(item.id), item);
+      void queryClient.invalidateQueries({ queryKey: ["maintenance"] });
+    },
+  });
+}
+
+/** Raises tickets for any (station, parameter, reason code) the latest run flagged
+ * that the queue does not already carry. Idempotent - see `rebuild_maintenance`. */
+export function useRebuildMaintenance(): UseMutationResult<MaintenanceRebuildResult, unknown, void> {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.post<MaintenanceRebuildResult>("/v1/maintenance/rebuild", {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["maintenance"] });
+    },
+  });
+}
+
+export interface RetrainInput {
+  target: string;
+  reason?: string;
+}
+
+/** Records a retraining *request*; see admin.py's own docstring - it never trains
+ * inline, and this dashboard must not imply otherwise. */
+export function useRequestRetrain(): UseMutationResult<RetrainRequestResult, unknown, RetrainInput> {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (input) => client.post<RetrainRequestResult>("/v1/admin/retrain", input),
   });
 }
 

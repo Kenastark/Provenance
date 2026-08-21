@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expectNoCriticalA11yViolations, gotoRoute, setTheme } from "./support";
+import { expectNoCriticalA11yViolations, gotoRoute, setRole, setTheme } from "./support";
 
 /**
  * The accessibility floor, checked on every route in both themes.
@@ -15,6 +15,8 @@ const ROUTES = [
   { path: "/timeline", name: "event timeline" },
   { path: "/evidence", name: "evidence" },
   { path: "/audit", name: "audit report" },
+  // Reachable at the default operator role, same as the demo build.
+  { path: "/alerts", name: "alert centre" },
 ];
 
 for (const route of ROUTES) {
@@ -32,6 +34,32 @@ for (const route of ROUTES) {
   });
 }
 
+test.describe("admin screen (admin role)", () => {
+  test("has no critical accessibility violations (dark)", async ({ page }) => {
+    await gotoRoute(page, "/");
+    await setRole(page, "admin");
+    await gotoRoute(page, "/admin");
+    await page.waitForLoadState("networkidle");
+    await expectNoCriticalA11yViolations(page, "admin (dark)");
+  });
+
+  test("has no critical accessibility violations (light)", async ({ page }) => {
+    await gotoRoute(page, "/");
+    await setRole(page, "admin");
+    await gotoRoute(page, "/admin");
+    await setTheme(page, "light");
+    await page.waitForLoadState("networkidle");
+    await expectNoCriticalA11yViolations(page, "admin (light)");
+  });
+
+  test("a role below admin sees the block stated in words, not a wall of request errors", async ({ page }) => {
+    await gotoRoute(page, "/admin");
+    await page.waitForLoadState("networkidle");
+    await expectNoCriticalA11yViolations(page, "admin, blocked for operator");
+    await expect(page.getByTestId("role-forbidden")).toContainText(/requires admin or above/i);
+  });
+});
+
 test.describe("keyboard traversal", () => {
   test("the skip link is the first tab stop and lands on the content", async ({ page }) => {
     await gotoRoute(page, "/");
@@ -47,7 +75,7 @@ test.describe("keyboard traversal", () => {
   test("every screen is reachable with the keyboard alone", async ({ page }) => {
     await gotoRoute(page, "/");
 
-    for (const label of ["Data quality", "Events", "Evidence", "Audit report"]) {
+    for (const label of ["Data quality", "Events", "Evidence", "Audit report", "Alert Centre"]) {
       // Exact: the station detail and the timeline both carry "View evidence" links.
       const link = page.getByRole("link", { name: label, exact: true });
       await link.focus();

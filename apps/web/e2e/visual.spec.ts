@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { gotoRoute, setTheme, settleForSnapshot, waitForMapIdle } from "./support";
+import { gotoRoute, setRole, setTheme, settleForSnapshot, waitForMapIdle } from "./support";
 
 /**
  * Visual regression, both themes.
@@ -55,5 +55,31 @@ for (const theme of THEMES) {
     await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
     await settleForSnapshot(page);
     await expect(page).toHaveScreenshot(`timeline-${theme}.png`, { fullPage: false });
+  });
+
+  test(`alert centre — ${theme}`, async ({ page }) => {
+    await gotoRoute(page, "/alerts");
+    await setTheme(page, theme);
+    await expect(page.getByRole("heading", { name: "Alert Centre" })).toBeVisible();
+    // Scoped to the alert list, not the page: the Alert Centre and the
+    // maintenance queue below it both render `data-table-row`, and each table
+    // populates from its own independent fetch - an unscoped `.first()` can
+    // race and grab a maintenance row on a run where that fetch settles first.
+    const alertList = page.getByRole("region", { name: /^alert centre$/i });
+    await alertList.getByTestId("data-table-row").first().click();
+    await expect(page.getByTestId("alert-detail")).toBeVisible();
+    await settleForSnapshot(page);
+    await expect(page).toHaveScreenshot(`alert-centre-${theme}.png`, { fullPage: false });
+  });
+
+  test(`admin — ${theme}`, async ({ page }) => {
+    await gotoRoute(page, "/");
+    await setRole(page, "admin");
+    await gotoRoute(page, "/admin");
+    await setTheme(page, theme);
+    await expect(page.getByTestId("rbac-matrix")).toBeVisible();
+    await expect(page.getByTestId("infra-health-panel")).toBeVisible();
+    await settleForSnapshot(page);
+    await expect(page).toHaveScreenshot(`admin-${theme}.png`, { fullPage: false });
   });
 }
