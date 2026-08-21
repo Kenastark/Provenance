@@ -34,11 +34,22 @@ describe("EvidencePanel", () => {
     expect(await screen.findByTestId("evidence-chart")).toBeInTheDocument();
   });
 
-  it("lists the neighbouring stations measuring the same parameter", async () => {
+  it("ranks neighbouring stations by real distance, nearest first", async () => {
     renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    // The default defect is STA-03 (47.559175, 21.502204). Of the other fixture
+    // stations carrying PM10, STA-01 (47.577175, 21.502204) is ~2.0km away and
+    // STA-02 (47.577175, 21.520204) is ~2.4km - STA-01 must sort first. STA-04 has
+    // no coordinates, so it is ranked last and shown without a distance.
+    const heading = await screen.findByText(/Nearest stations measuring/);
+    expect(heading).toBeInTheDocument();
     const neighbours = await screen.findAllByTestId("neighbour-series");
-    expect(neighbours.length).toBeGreaterThan(0);
-    expect(neighbours[0]).toHaveTextContent(/STA-/);
+    expect(neighbours).toHaveLength(3);
+    expect(neighbours[0]).toHaveTextContent("STA-01");
+    expect(neighbours[0]).toHaveTextContent("2.0 km");
+    expect(neighbours[1]).toHaveTextContent("STA-02");
+    expect(neighbours[1]).toHaveTextContent("2.4 km");
+    expect(neighbours[2]).toHaveTextContent("STA-04");
+    expect(neighbours[2]).not.toHaveTextContent("km");
   });
 
   it("marks a coverage defect as excluded from the defect rate", async () => {
@@ -58,6 +69,11 @@ describe("EvidencePanel", () => {
     expect(within(bars).getByText("boundary_layer_proxy")).toBeInTheDocument();
     const shap = screen.getByTestId("shap-attribution");
     expect(within(shap).getByText(/fault class: physically_impossible/)).toBeInTheDocument();
+    // Drawn from a centreline in both directions: the largest bar (boundary_layer_proxy,
+    // |-6.2| of a 6.2 max) must stop at 50% of the track, not 100%, or it overruns the
+    // card and pushes the label column out of view.
+    const widestBar = within(bars).getByTitle(/lowered by -6.200/);
+    expect(widestBar).toHaveStyle({ width: "50%" });
   });
 
   it("degrades the SHAP slot honestly when no model is loaded", async () => {
@@ -67,6 +83,20 @@ describe("EvidencePanel", () => {
     });
     const degraded = await screen.findByTestId("shap-degraded");
     expect(degraded).toHaveTextContent(/statistics layer alone/);
+  });
+
+  it("uses the backend's own note for a rule-decided defect, not a generic filler", async () => {
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/explain/1": fixtures.explainRuleFallback },
+    });
+    const degraded = await screen.findByTestId("shap-degraded");
+    // Wind_Speed isn't a deweathered pollutant, so the backend's note names that
+    // specifically - the fix under test is that this real reason renders instead of
+    // the old hardcoded "(physical)" filler, which would be wrong for a non-physical
+    // rule like this one.
+    expect(degraded).toHaveTextContent(/Wind_Speed is not covered by the deweather model/);
+    expect(degraded).not.toHaveTextContent(/physical\)/);
   });
 
   it("draws the before/after deweathering chart, toggleable", async () => {
@@ -80,6 +110,13 @@ describe("EvidencePanel", () => {
     );
     await user.click(residualButton);
     expect(residualButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("labels the raw and residual lines with a legend", async () => {
+    renderWithProviders(<EvidencePanel />, { route: "/evidence" });
+    const chart = await screen.findByTestId("deweather-chart");
+    expect(await within(chart).findByText("Raw")).toBeInTheDocument();
+    expect(within(chart).getByText("Residual")).toBeInTheDocument();
   });
 
   it("shows a degraded deweather note when no residuals are stored", async () => {
@@ -109,6 +146,21 @@ describe("EvidencePanel", () => {
     // The default selected defect is STA-03, which the fixture's wind_conditioned
     // relation names as an edge to STA-02.
     expect(within(edges).getByText(/STA-02/)).toBeInTheDocument();
+    // The weight is printed beside the bar, not only reachable by hovering.
+    expect(within(edges).getByText("0.310")).toBeInTheDocument();
+  });
+
+  it("caps the attention edge list and says how many more were left out", async () => {
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayManyEdges },
+    });
+    const attention = await screen.findByTestId("graph-attention");
+    const edges = within(attention).getByTestId("attention-edges");
+    expect(within(edges).getAllByRole("listitem")).toHaveLength(8);
+    expect(within(attention).getByTestId("attention-edges-truncated")).toHaveTextContent(
+      "Showing the strongest 8 of 12 edges touching STA-03.",
+    );
   });
 
   it("points to the event timeline for the adjudication verdict", async () => {
