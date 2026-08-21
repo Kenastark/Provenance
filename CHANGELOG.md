@@ -5,6 +5,20 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`docs/adjudications/ker11-4100-evidence-v1.1.md`: verdict and demo
+  narration for the KER11 ~4,100 µg/m³ PM10 event**, adopted by Ikenna Udeani
+  on 2026-08-21 from Claude Code's recommendation over the v1.0 evidence.
+  LIKELY_FAULT stands: the reading exceeds the sensor's own physical ceiling
+  regardless of anything else, and no neighbouring station shows any response,
+  though the hour-long build-up/decay and a delayed PM2.5 echo argue against a
+  context-free glitch - the recommended framing is a real local trigger
+  producing an invalid reading, not a random malfunction or a genuine citywide
+  event. Resolves all seven questions v1.0 left open (confidence framing,
+  the PM2.5 delay, nearby outages, the second case's re-framing as "declined
+  to guess," the learned-path contrast as a footnote not a pillar, the
+  calibration/maintenance gap stated as un-checkable rather than clean, and
+  the learned model not changing the call) and drafts suggested stage
+  narration. No source file changed; see `docs/updates/u9-ker11-verdict.md`.
 - **`docs/adjudications/ker11-4100-evidence-v1.0.md`: evidence assembly for the
   B3 demo's centrepiece event**, the ~4,100 µg/m³ PM10 reading at DEB-KER11
   (2026-06-02T20:00:00). Every reason code the audit engine attaches to the
