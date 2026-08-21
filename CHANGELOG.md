@@ -29,6 +29,22 @@ Format: Keep a Changelog. Versioning: SemVer.
   platforms.
 
 ### Added
+- **A sign-in screen in front of the dashboard**, using the same mechanism the
+  account menu's dev role switcher already used (`lib/role.tsx`'s
+  `setRole`/`canSwitch`) rather than any new authentication. `RoleProvider`
+  gains `signedIn`/`signIn`/`signOut`; `SignInGate` (wired into `App.tsx`
+  around `AppRoutes`) shows the new `SignInScreen` until a role is chosen —
+  four role cards plus a raw-API-key field when `canSwitch` is true, an
+  automatic "Signed in as {role}" pass-through when it is false (a pinned
+  production key). `TopBar.tsx` gains a "Sign out" action beside the existing
+  dev switcher. `RbacMatrix.tsx` now shares its "what does this role grant"
+  wording with the new screen via `role.tsx`'s `roleGrants`/`ROLE_HIERARCHY`
+  instead of duplicating it. `RequireRole`, `require(Role.X)`, and
+  `api/auth.py` are unchanged — this is a presentation layer in front of role
+  selection, not a new access boundary. Visual baselines regenerated on both
+  platforms (two new: the sign-in screen, dark and light; several existing
+  screens re-verified for the Playwright storage-state seeding this required —
+  see `docs/updates/u15-signin-screen.md` for exactly which).
 - **`make demo-real-hstgat`.** `prov models train-hstgat` worked but was wired into
   no `make` target, so the "Learned attention (HST-GAT)" map layer shipped disabled
   by default even against a real drop. Its own target (not folded into `demo-real` —

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -38,11 +38,19 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 /** Every role in ascending order of what it grants - mirrors `_GRANTS` in
  * `src/provenance/api/auth.py` (admin ⊃ operator ⊃ researcher ⊃ public_read). */
-const HIERARCHY: readonly Role[] = ["public_read", "researcher", "operator", "admin"];
+export const ROLE_HIERARCHY: readonly Role[] = ["public_read", "researcher", "operator", "admin"];
 
 /** True when `current` grants at least everything `required` does. */
 export function roleAtLeast(current: Role, required: Role): boolean {
-  return HIERARCHY.indexOf(current) >= HIERARCHY.indexOf(required);
+  return ROLE_HIERARCHY.indexOf(current) >= ROLE_HIERARCHY.indexOf(required);
+}
+
+/** The sentence RbacMatrix renders per row: everything `role` and the roles
+ * beneath it grant, joined - the one wording for "what does this role get". */
+export function roleGrants(role: Role): string {
+  return ROLE_HIERARCHY.slice(0, ROLE_HIERARCHY.indexOf(role) + 1)
+    .map((granted) => ROLE_LABELS[granted])
+    .join(" + ");
 }
 
 const STORAGE_KEY = "provenance.role";
@@ -52,10 +60,30 @@ function isRole(value: string | null): value is Role {
   return value === "public_read" || value === "researcher" || value === "operator" || value === "admin";
 }
 
-function keyToRole(key: string | undefined): Role | null {
+/** The role a dev key resolves to, or null for a real deployment's key - which
+ * cannot be mapped back to a role client-side, only forwarded as-is. Exported
+ * for the sign-in screen's "paste an API key" field: reusing this is what makes
+ * a role card and a pasted key the same mechanism instead of two. */
+export function keyToRole(key: string | undefined): Role | null {
   if (!key) return null;
   const found = (Object.entries(ROLE_KEYS) as [Role, string][]).find(([, v]) => v === key);
   return found ? found[0] : null;
+}
+
+function hasStoredRole(): boolean {
+  try {
+    return isRole(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function clearStoredRole(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // See readStored: persistence is best-effort.
+  }
 }
 
 function readStored(envKey: string | undefined): Role {
@@ -77,6 +105,15 @@ interface RoleContextValue {
   setRole: (next: Role) => void;
   /** False when VITE_API_KEY is pinned to a key outside the four dev keys. */
   canSwitch: boolean;
+  /** False until a role has been chosen in this browser - see SignInGate. When
+   * `canSwitch` is false there is nothing to choose, so this flips to true on
+   * its own right after mount rather than waiting on an interaction. */
+  signedIn: boolean;
+  /** Persists `next` as the chosen role and marks the browser signed in. */
+  signIn: (next: Role) => void;
+  /** Clears the persisted role and returns to signed-out. The dev switcher
+   * (TopBar) can still pick a role for the rest of this render regardless. */
+  signOut: () => void;
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -91,6 +128,7 @@ export function RoleProvider({
 }) {
   const canSwitch = !envApiKey || DEV_KEYS.has(envApiKey);
   const [role, setRoleState] = useState<Role>(() => readStored(envApiKey));
+  const [signedIn, setSignedIn] = useState<boolean>(hasStoredRole);
 
   const setRole = useCallback((next: Role) => {
     setRoleState(next);
@@ -101,14 +139,34 @@ export function RoleProvider({
     }
   }, []);
 
+  const signIn = useCallback(
+    (next: Role) => {
+      setRole(next);
+      setSignedIn(true);
+    },
+    [setRole],
+  );
+
+  const signOut = useCallback(() => {
+    clearStoredRole();
+    setSignedIn(false);
+  }, []);
+
+  useEffect(() => {
+    if (!signedIn && !canSwitch) signIn(role);
+  }, [signedIn, canSwitch, role, signIn]);
+
   const value = useMemo<RoleContextValue>(
     () => ({
       role,
       apiKey: canSwitch ? ROLE_KEYS[role] : (envApiKey as string),
       setRole,
       canSwitch,
+      signedIn,
+      signIn,
+      signOut,
     }),
-    [role, canSwitch, envApiKey, setRole],
+    [role, canSwitch, envApiKey, setRole, signedIn, signIn, signOut],
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;

@@ -60,6 +60,49 @@ test.describe("admin screen (admin role)", () => {
   });
 });
 
+test.describe("sign-in screen", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("has no critical accessibility violations (dark)", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByTestId("signin-screen")).toBeVisible();
+    await expectNoCriticalA11yViolations(page, "sign-in (dark)");
+  });
+
+  test("has no critical accessibility violations (light)", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("provenance.theme", "light"));
+    await page.goto("/");
+    await expect(page.getByTestId("signin-screen")).toBeVisible();
+    await expectNoCriticalA11yViolations(page, "sign-in (light)");
+  });
+
+  test("every role card is reachable with the keyboard and shows a visible focus ring", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByTestId("signin-screen")).toBeVisible();
+
+    await page.keyboard.press("Tab");
+    const firstCard = page.getByTestId("signin-role-public_read");
+    await expect(firstCard).toBeFocused();
+
+    const outline = await firstCard.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { width: style.outlineWidth, style: style.outlineStyle };
+    });
+    expect(outline.style).not.toEqual("none");
+    expect(parseFloat(outline.width)).toBeGreaterThan(0);
+
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("navigation", { name: /primary/i })).toBeVisible();
+  });
+
+  test("focus lands on the main landmark once sign-in completes", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("signin-role-operator").click();
+
+    await expect(page.locator("#main")).toBeFocused();
+  });
+});
+
 test.describe("keyboard traversal", () => {
   test("the skip link is the first tab stop and lands on the content", async ({ page }) => {
     await gotoRoute(page, "/");

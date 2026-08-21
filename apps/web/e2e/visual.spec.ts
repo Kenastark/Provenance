@@ -83,3 +83,28 @@ for (const theme of THEMES) {
     await expect(page).toHaveScreenshot(`admin-${theme}.png`, { fullPage: false });
   });
 }
+
+test.describe("sign-in screen", () => {
+  // Every other test in this file inherits the role `global-setup.ts` seeds into
+  // storage, on purpose - that is what keeps their baselines showing the
+  // dashboard unchanged. This screen only appears with nothing seeded, so it
+  // opts back out to the browser's default (empty) storage.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("sign-in screen — dark", async ({ page }) => {
+    // No account menu exists yet to reach the theme switch from, so dark - the
+    // app's own default absent any preference - is exercised by doing nothing.
+    await page.goto("/");
+    await expect(page.getByTestId("signin-screen")).toBeVisible();
+    await settleForSnapshot(page);
+    await expect(page).toHaveScreenshot("signin-dark.png", { fullPage: false });
+  });
+
+  test("sign-in screen — light", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("provenance.theme", "light"));
+    await page.goto("/");
+    await expect(page.getByTestId("signin-screen")).toBeVisible();
+    await settleForSnapshot(page);
+    await expect(page).toHaveScreenshot("signin-light.png", { fullPage: false });
+  });
+});
