@@ -15,6 +15,14 @@ import type {
   TrustScore,
   Version,
 } from "../api/client";
+import type {
+  AdminStatus,
+  AlertItem,
+  AlertsResponse,
+  DriftSeries,
+  MaintenanceItem,
+  ModelDriftReport,
+} from "../api/operations";
 
 /**
  * Test fixtures shaped exactly like the API's responses.
@@ -385,3 +393,158 @@ export const deweatherDegraded: DeweatherSeries = {
   degraded: true,
   series: [],
 };
+
+// -------------------------------------------------------- operational layer
+// Phase 7: alerts, maintenance, decision, admin. See api/operations.ts for why
+// these shapes are hand-written rather than resolved off the generated schema.
+
+export const alertItem = (overrides: Partial<AlertItem> = {}): AlertItem => ({
+  event_id: 1,
+  station_id: "STA-03",
+  parameter: "PM10",
+  severity: "critical",
+  verdict: null,
+  confidence: 0.5,
+  exposure: 1.0,
+  headline: "PM10 at 3000 µg/m3, above the physical maximum",
+  timestamp_utc: "2026-05-01T12:00:00",
+  risk: 0.375,
+  risk_factors: { genuineness: 0.5, exposure: 1.0, hazard: 1.0, confidence_weight: 0.75 },
+  ...overrides,
+});
+
+/** Deliberately demonstrates the product argument: a low-confidence event at a
+ * high-exposure station outranks a confident low-exposure fault (STA-02). */
+export const alerts: AlertItem[] = [
+  alertItem({
+    event_id: 1,
+    station_id: "STA-03",
+    verdict: "AMBIGUOUS",
+    confidence: 0.55,
+    exposure: 0.95,
+    severity: "high",
+    risk: 0.352,
+    risk_factors: { genuineness: 0.5, exposure: 0.95, hazard: 0.75, confidence_weight: 0.775 },
+  }),
+  alertItem({
+    event_id: 2,
+    station_id: "STA-02",
+    parameter: "CO2",
+    verdict: "LIKELY_FAULT",
+    confidence: 0.97,
+    exposure: 0.2,
+    severity: "critical",
+    headline: "CO2 frozen for 48h at STA-02",
+    risk: 0.146,
+    risk_factors: { genuineness: 0.15, exposure: 0.2, hazard: 1.0, confidence_weight: 0.985 },
+  }),
+];
+
+export const alertsResponse = (overrides: Partial<AlertsResponse> = {}): AlertsResponse => ({
+  audit_run_id: "run-2026-05-15",
+  ranked_by: "risk",
+  note:
+    "Ranked by consequence-weighted risk (genuineness × exposure × hazard × confidence), so a genuine high-exposure event outranks a confident low-exposure sensor fault.",
+  items: alerts,
+  count: alerts.length,
+  ...overrides,
+});
+
+export const maintenanceItem = (overrides: Partial<MaintenanceItem> = {}): MaintenanceItem => ({
+  id: 1,
+  audit_run_id: "run-2026-05-15",
+  station_id: "STA-03",
+  parameter: "PM10",
+  reason_code: "R07",
+  severity: "critical",
+  severity_weight: 1.0,
+  importance: 0.95,
+  priority: 0.95,
+  status: "open",
+  headline: "STA-03 · PM10 · PM10 (3000) exceeds the physical maximum",
+  n_flags: 3,
+  evidence: { n_flags: 3, severity_mix: { critical: 3 }, importance: 0.95 },
+  created_at: "2026-05-15T00:00:00",
+  updated_at: "2026-05-15T00:00:00",
+  ...overrides,
+});
+
+export const maintenanceItems: MaintenanceItem[] = [
+  maintenanceItem(),
+  maintenanceItem({
+    id: 2,
+    station_id: "STA-02",
+    parameter: "CO2",
+    reason_code: "R12",
+    severity: "high",
+    severity_weight: 0.7,
+    importance: 0.2,
+    priority: 0.14,
+    status: "acknowledged",
+    headline: "STA-02 · CO2 · CO2 frozen for the whole record",
+    n_flags: 1,
+    evidence: { n_flags: 1, severity_mix: { high: 1 }, importance: 0.2 },
+  }),
+];
+
+export const driftSeries = (overrides: Partial<DriftSeries> = {}): DriftSeries => ({
+  name: "Deweather R²",
+  unit: "r2",
+  points: [
+    { at: "2026-05-01T00:00:00", value: 0.61 },
+    { at: "2026-05-15T00:00:00", value: 0.64 },
+  ],
+  baseline: 0.61,
+  latest: 0.64,
+  delta: 0.03,
+  direction: "up",
+  note: "Residual R² against the deweathering model's own holdout.",
+  ...overrides,
+});
+
+/** The honest pre-training state: no model artefact, so no history to plot. */
+export const driftSeriesNoHistory = (overrides: Partial<DriftSeries> = {}): DriftSeries => ({
+  name: "Conformal coverage",
+  unit: "coverage",
+  points: [],
+  baseline: null,
+  latest: null,
+  delta: null,
+  direction: "unknown",
+  note: "No model artefact was available; train models to populate this series.",
+  ...overrides,
+});
+
+export const modelDriftReport = (overrides: Partial<ModelDriftReport> = {}): ModelDriftReport => ({
+  plane: "model",
+  note: "The model plane is separate from infra health (/metrics); it tracks drift in the data and the models, not service uptime.",
+  defect_rate_by_station: {
+    "STA-01": driftSeries({ name: "Defect rate — STA-01", unit: "rate", baseline: 0.05, latest: 0.05, delta: 0, direction: "flat" }),
+    "STA-03": driftSeries({ name: "Defect rate — STA-03", unit: "rate", baseline: 0.18, latest: 0.2, delta: 0.02, direction: "up" }),
+  },
+  deweather_r2: driftSeries(),
+  conformal_coverage: driftSeriesNoHistory(),
+  fault_confusion: { available: false, note: "train the fault classifier to populate this panel" },
+  ...overrides,
+});
+
+export const adminStatus = (overrides: Partial<AdminStatus> = {}): AdminStatus => ({
+  version: "0.3.0",
+  model_versions: { trust_score: "v1" },
+  config_hashes: { config_hash: "cfg0123456789abcdef", trust_config_hash: "trust0123456789" },
+  retraining_triggers: {
+    deweather: "prov models train",
+    fault: "prov models train",
+    hstgat: "prov models train-hstgat",
+  },
+  audit_runs: [
+    { id: "run-2026-05-15", generated_at: "2026-05-15T00:00:00", n_rows: 4032, defect_rate: 0.20199, config_hash: "cfg0123456789abcdef" },
+  ],
+  export_history: {
+    note: "Each audit run is an exportable reporting period; dispatches are the record of public alerts sent.",
+    n_audit_runs: 1,
+    dispatches: [],
+  },
+  maintenance_summary: { total: 2, open: 1 },
+  ...overrides,
+});

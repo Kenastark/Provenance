@@ -110,6 +110,48 @@ describe("createClient", () => {
   });
 });
 
+describe("createClient.post", () => {
+  it("sends the body as JSON with the API key header", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(response({ ok: true }));
+    const client = createClient(config, fetchImpl as unknown as typeof fetch);
+
+    await client.post("/v1/decision/signoff", { event_id: 1, channel: "webhook" });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://api.test/v1/decision/signoff",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ event_id: 1, channel: "webhook" }),
+        headers: expect.objectContaining({
+          "X-API-Key": "test-key",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+  });
+
+  it("turns a write's RFC 7807 rejection into the same ApiError a read would", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      response(
+        {
+          title: "Unprocessable Entity",
+          status: 422,
+          detail: "Sign-off so_1 expired at 2026-05-15T00:00:00.",
+          request_id: "req-7",
+        },
+        { status: 422 },
+      ),
+    );
+    const client = createClient(config, fetchImpl as unknown as typeof fetch);
+
+    await expect(client.post("/v1/decision/dispatch", {})).rejects.toMatchObject({
+      status: 422,
+      detail: "Sign-off so_1 expired at 2026-05-15T00:00:00.",
+      requestId: "req-7",
+    });
+  });
+});
+
 describe("ApiError.remedy", () => {
   const make = (status: number, requestId: string | null = null) =>
     new ApiError({ status, title: "t", detail: "d", requestId });

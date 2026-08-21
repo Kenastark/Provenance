@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { AppRoutes } from "../App";
 import { renderWithProviders } from "../test/harness";
@@ -40,6 +41,39 @@ describe("application shell", () => {
     ]) {
       expect(within(nav).getByRole("link", { name: label })).toBeInTheDocument();
     }
+  });
+
+  it("shows the Alert Centre tab for the default operator role, but not Admin", async () => {
+    renderWithProviders(<AppRoutes />);
+    const nav = screen.getByRole("navigation", { name: /primary/i });
+    expect(within(nav).getByRole("link", { name: "Alert Centre" })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
+  });
+
+  it("reveals the Admin tab once the role is switched", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AppRoutes />);
+
+    await user.click(screen.getByTestId("account-menu"));
+    expect(screen.getByTestId("account-menu")).toHaveTextContent("Operator");
+
+    // The Alert Centre is reachable directly, since operator grants it.
+    await user.click(screen.getByRole("link", { name: "Alert Centre" }));
+    expect(await screen.findByRole("heading", { name: "Alert Centre" })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByTestId("role-switch"), "admin");
+    expect(screen.getByTestId("account-menu")).toHaveTextContent("Admin");
+
+    const nav = screen.getByRole("navigation", { name: /primary/i });
+    await user.click(within(nav).getByRole("link", { name: "Admin" }));
+    expect(await screen.findByRole("heading", { name: "Admin", level: 2 })).toBeInTheDocument();
+  });
+
+  it("blocks the /admin route in words an operator could read aloud, for a role that does not reach it", async () => {
+    renderWithProviders(<AppRoutes />, { route: "/admin" });
+    const blocked = await screen.findByTestId("role-forbidden");
+    expect(blocked).toHaveTextContent(/signed in as operator/i);
+    expect(blocked).toHaveTextContent(/requires admin or above/i);
   });
 
   it("defaults the time window to a bounded one, not the full corpus", () => {

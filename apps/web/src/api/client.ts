@@ -9,6 +9,11 @@ import type { components, paths } from "./schema";
  *    is generated from the live FastAPI schema. There are no hand-written request
  *    or response interfaces anywhere in the app, so a backend change that the
  *    client has not caught up with is a type error rather than a runtime surprise.
+ *    The one exception is `./operations.ts`: the phase-7 alerts/maintenance/
+ *    decision/admin routers answer with `dict[str, Any]` rather than a Pydantic
+ *    `response_model`, so `schema.d.ts` cannot resolve their response shape and
+ *    those few types are hand-written there, against the router source, with the
+ *    gap called out explicitly rather than pretended away.
  * 2. The API answers errors as RFC 7807 problem documents. We parse them into
  *    `ApiError` and keep `detail` and `requestId`, because the quality floor for
  *    this dashboard says an error must state what happened - never "Something
@@ -159,7 +164,41 @@ export function createClient(config: ApiConfig = readApiConfig(), fetchImpl: typ
     return (await response.json()) as T;
   }
 
-  return { config, get };
+  /**
+   * The write surface. Every write in this dashboard is an operator action with
+   * real consequence - a sign-off, a dispatch, a maintenance transition, a retrain
+   * request - never a background sync, so there is deliberately no optimistic
+   * update or retry here: the caller awaits the real result before saying it
+   * happened.
+   */
+  async function post<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+    const url = buildUrl(config.baseUrl, path, options.query);
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-API-Key": config.apiKey,
+        },
+        body: JSON.stringify(body),
+        signal: options.signal,
+      });
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") throw cause;
+      throw new ApiError({
+        status: 0,
+        title: "No response from the API",
+        detail: `The request to ${url} could not be completed.`,
+        isNetworkError: true,
+      });
+    }
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  return { config, get, post };
 }
 
 export type ApiClient = ReturnType<typeof createClient>;

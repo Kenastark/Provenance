@@ -49,6 +49,22 @@ export async function setTheme(page: Page, theme: "dark" | "light"): Promise<voi
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
 }
 
+export type Role = "public_read" | "researcher" | "operator" | "admin";
+
+/**
+ * Switches role through the account menu's dev switcher (TopBar), the same way an
+ * operator would - there is no admin key baked into the e2e build, so this is how
+ * the suite reaches the Admin screen. The choice persists to localStorage, so it
+ * survives the `page.goto` that follows within the same test.
+ */
+export async function setRole(page: Page, role: Role): Promise<void> {
+  const menu = page.getByTestId("account-menu");
+  const isOpen = await menu.evaluate((node) => (node.closest("details") as HTMLDetailsElement)?.open);
+  if (!isOpen) await menu.click();
+  await page.getByTestId("role-switch").selectOption(role);
+  await menu.click();
+}
+
 /**
  * Scan the current page and fail on any critical violation.
  *

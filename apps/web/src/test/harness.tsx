@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from "react";
 import { ApiClientProvider } from "../api/queries";
 import type { ApiClient, Page } from "../api/client";
 import { ApiError } from "../api/client";
+import { RoleProvider } from "../lib/role";
 import { ThemeProvider } from "../lib/theme";
 import { WindowProvider } from "../lib/windowContext";
 import * as fixtures from "./fixtures";
@@ -41,17 +42,31 @@ export const defaultRoutes: RouteMap = {
   "/v1/deweather/STA-03": fixtures.deweatherSeries,
   "/v1/reference/bus-stops": fixtures.referenceStopsUnavailable,
   "/v1/reference/traffic-counters": fixtures.referenceCountersUnavailable,
+  "/v1/alerts": fixtures.alertsResponse(),
+  "/v1/maintenance": page(fixtures.maintenanceItems),
+  "/v1/maintenance/1": { ...fixtures.maintenanceItem(), history: [] },
+  "/v1/admin/status": fixtures.adminStatus(),
+  "/v1/admin/model-drift": fixtures.modelDriftReport(),
 };
+
+/** A POST fixture: either a fixed response, or a function of the request body -
+ * useful when the response should echo something the caller sent (a sign-off's
+ * operator name, a transition's target status). */
+export type PostHandler = unknown | ((body: unknown) => unknown);
+export type PostRouteMap = Record<string, PostHandler>;
 
 export interface StubOptions {
   routes?: RouteMap;
-  /** Paths that should reject, mapped to the error to throw. */
+  postRoutes?: PostRouteMap;
+  /** Paths that should reject, mapped to the error to throw. Matches GET and POST alike. */
   failures?: Record<string, ApiError>;
   onRequest?: (path: string, query: Record<string, unknown> | undefined) => void;
+  onPost?: (path: string, body: unknown) => void;
 }
 
 export function stubClient(options: StubOptions = {}): ApiClient {
   const routes = { ...defaultRoutes, ...(options.routes ?? {}) };
+  const postRoutes = { ...(options.postRoutes ?? {}) };
   return {
     config: { baseUrl: "http://api.test", apiKey: "test-key" },
     async get<T>(path: string, requestOptions: { query?: Record<string, unknown> } = {}) {
@@ -66,6 +81,20 @@ export function stubClient(options: StubOptions = {}): ApiClient {
         });
       }
       return routes[path] as T;
+    },
+    async post<T>(path: string, body: unknown) {
+      options.onPost?.(path, body);
+      const failure = options.failures?.[path];
+      if (failure) throw failure;
+      if (!(path in postRoutes)) {
+        throw new ApiError({
+          status: 404,
+          title: "Not Found",
+          detail: `The stub has no POST fixture for ${path}.`,
+        });
+      }
+      const handler = postRoutes[path];
+      return (typeof handler === "function" ? (handler as (b: unknown) => unknown)(body) : handler) as T;
     },
   } as ApiClient;
 }
@@ -83,12 +112,15 @@ export function makeTestQueryClient(): QueryClient {
 export interface HarnessOptions extends StubOptions {
   route?: string;
   client?: ApiClient;
+  /** Defaults to "operator", matching the client's own DEFAULT_API_KEY. */
+  envApiKey?: string;
 }
 
 export function Providers({
   children,
   route = "/",
   client,
+  envApiKey = "prov-operator-key",
   ...stub
 }: HarnessOptions & { children: ReactNode }) {
   // Same reason as App: one client per mount, not one per render.
@@ -98,9 +130,11 @@ export function Providers({
     <QueryClientProvider client={queryClient}>
       <ApiClientProvider value={apiClient}>
         <ThemeProvider>
-          <MemoryRouter initialEntries={[route]}>
-            <WindowProvider>{children}</WindowProvider>
-          </MemoryRouter>
+          <RoleProvider envApiKey={envApiKey}>
+            <MemoryRouter initialEntries={[route]}>
+              <WindowProvider>{children}</WindowProvider>
+            </MemoryRouter>
+          </RoleProvider>
         </ThemeProvider>
       </ApiClientProvider>
     </QueryClientProvider>

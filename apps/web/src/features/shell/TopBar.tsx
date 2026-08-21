@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useVersion } from "../../api/queries";
+import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
 import { useTheme, type ThemePreference } from "../../lib/theme";
 import { TIME_WINDOWS, type TimeWindowKey } from "../../lib/timeWindow";
 
@@ -16,12 +17,18 @@ import { TIME_WINDOWS, type TimeWindowKey } from "../../lib/timeWindow";
  * display face - that is what the asset is for.
  */
 
-const NAV = [
+/** `role` is the minimum role a screen needs; absent, every role reaches it. A tab
+ * a role cannot reach is left off the nav rather than shown and then blocked - the
+ * block message still exists (`RequireRole`) for anyone who navigates there directly
+ * or follows a stale link. */
+const NAV: { to: string; label: string; end: boolean; role?: Role }[] = [
   { to: "/", label: "Network map", end: true },
   { to: "/quality", label: "Data quality", end: false },
   { to: "/timeline", label: "Events", end: false },
   { to: "/evidence", label: "Evidence", end: false },
   { to: "/audit", label: "Audit report", end: false },
+  { to: "/alerts", label: "Alert Centre", end: false, role: "operator" },
+  { to: "/admin", label: "Admin", end: false, role: "admin" },
 ];
 
 const THEMES: { value: ThemePreference; label: string }[] = [
@@ -30,6 +37,8 @@ const THEMES: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
+const ROLES: Role[] = ["public_read", "researcher", "operator", "admin"];
+
 export interface TopBarProps {
   timeWindow: TimeWindowKey;
   onTimeWindowChange: (next: TimeWindowKey) => void;
@@ -37,7 +46,9 @@ export interface TopBarProps {
 
 export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
   const { preference, resolved, setPreference } = useTheme();
+  const { role, setRole, canSwitch } = useRole();
   const version = useVersion();
+  const visibleNav = NAV.filter((item) => !item.role || roleAtLeast(role, item.role));
 
   // The approved lockup inks its wordmark in the brand's near-black, which
   // disappears on the dark theme - and dark is the default here. The reversed
@@ -63,7 +74,7 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
       />
 
       <nav aria-label="Primary" className="ml-6 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-        {NAV.map((item) => (
+        {visibleNav.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -119,15 +130,35 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
           aria-label="Account and build information"
           data-testid="account-menu"
         >
-          Operator
+          {ROLE_LABELS[role]}
         </summary>
         <div className="prov-panel absolute right-0 z-drawer mt-2 w-full min-w-0 p-3 text-caption shadow-overlay">
           <p className="text-text-secondary">
-            Signed in as <span className="text-text">operator</span> (local API key).
+            Signed in as <span className="text-text">{ROLE_LABELS[role]}</span> (local API key). A
+            role is resolved from the <code>X-API-Key</code> header sent with every request - there
+            is no separate login.
           </p>
-          <p className="mt-2 text-text-tertiary">
-            Roles and sign-off arrive in phase 7; this build is read-only.
-          </p>
+          {canSwitch ? (
+            <label className="mt-3 flex items-center gap-2">
+              <span className="text-text-tertiary">Role (dev)</span>
+              <select
+                className="prov-input"
+                value={role}
+                onChange={(event) => setRole(event.target.value as Role)}
+                data-testid="role-switch"
+              >
+                {ROLES.map((option) => (
+                  <option key={option} value={option}>
+                    {ROLE_LABELS[option]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="mt-2 text-text-tertiary">
+              This deployment pins a fixed API key (VITE_API_KEY); role switching is disabled.
+            </p>
+          )}
           {version.data && (
             <dl className="mt-3 space-y-1 font-mono text-micro text-text-tertiary">
               <div className="flex justify-between gap-3">
