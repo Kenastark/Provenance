@@ -90,10 +90,25 @@ describe("EvidencePanel", () => {
     expect(await screen.findByText(/Deweathered residual for PM10/)).toBeInTheDocument();
   });
 
-  it("leaves the phase-6 attention slot explicitly not yet computed", async () => {
+  it("shows the HST-GAT's own reason when the attention overlay is not available", async () => {
     renderWithProviders(<EvidencePanel />, { route: "/evidence" });
     const slots = await screen.findAllByTestId("not-yet-computed");
-    expect(slots.some((slot) => slot.textContent?.includes("phase 6"))).toBe(true);
+    expect(
+      slots.some((slot) => slot.textContent?.includes("HST-GAT has not been trained")),
+    ).toBe(true);
+  });
+
+  it("draws the learned attention edges touching this station when the overlay is available", async () => {
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayAvailable },
+    });
+    const attention = await screen.findByTestId("graph-attention");
+    expect(within(attention).getByText(/target PM10/)).toBeInTheDocument();
+    const edges = within(attention).getByTestId("attention-edges");
+    // The default selected defect is STA-03, which the fixture's wind_conditioned
+    // relation names as an edge to STA-02.
+    expect(within(edges).getByText(/STA-02/)).toBeInTheDocument();
   });
 
   it("points to the event timeline for the adjudication verdict", async () => {

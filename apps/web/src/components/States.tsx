@@ -89,9 +89,10 @@ export function ErrorState({
 /**
  * The slot for something a later phase computes.
  *
- * SHAP (phase 5) and attention (phase 6) get one of these rather than being hidden.
- * Showing the empty slot is a small honesty: the operator learns the shape of the
- * finished product, and nobody is tempted to fake a verdict in the meantime.
+ * SHAP and graph attention fall back to one of these whenever their model artefact is
+ * absent (never trained, or trained on data the current drop does not carry), rather
+ * than being hidden. Showing the empty slot is a small honesty: the operator learns the
+ * shape of the finished product, and nobody is tempted to fake a verdict in the meantime.
  */
 export function NotYetComputed({ title, arrivesIn }: { title: string; arrivesIn: string }) {
   return (
