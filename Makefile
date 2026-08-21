@@ -264,7 +264,7 @@ check-real-drop: ## fail loudly if data/raw has no real drop to load (no silent 
 	fi
 
 .PHONY: demo-real
-demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained, API up, dashboard open
+demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained, API up, dashboard open (optional follow-up: make demo-real-hstgat)
 	$(MAKE) up
 	@# station_id and parameter name are global primary keys shared by every batch
 	@# ever loaded (synthetic demo stations use the same STA-xx ids and the same
@@ -291,8 +291,27 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	@echo "  Dashboard : http://localhost:5173"
 	@echo "  API docs  : http://localhost:8000/docs"
 	@echo "  Stop with : make demo-stop"
+	@echo "  Optional  : make demo-real-hstgat (trains the HST-GAT; enables the"
+	@echo "              Attention overlay map layer; slow, not run above)"
 	@echo ""
 	$(MAKE) web
+
+# Deliberately its own target, not folded into demo-real: HST-GAT + conformal
+# calibration is the slowest step in the whole real-drop path, and a judge
+# re-running `make demo-real` to reset state (db reset --yes, fresh audit/
+# adjudication) shouldn't eat that cost every time just to look at the map again.
+# The trained artefact is picked up live - see the API's `store.latest_stem()`
+# check in `api/routers/graph.py` - so no restart is needed after this finishes.
+.PHONY: demo-real-hstgat
+demo-real-hstgat: check-real-drop ## train the HST-GAT + conformal calibration on the REAL drop (slow; optional follow-up to demo-real; enables the Attention overlay map layer)
+	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10
+	@echo ""
+	@echo "  HST-GAT trained on the real Green Sentinel drop (data/raw)."
+	@echo "  Parameter count and conformal coverage are reported above."
+	@echo "  The dashboard's 'Attention overlay' map layer will enable itself next"
+	@echo "  time it is loaded - no restart needed, GET /v1/graph/attention checks"
+	@echo "  store.latest_stem() live."
+	@echo ""
 
 .PHONY: demo-scenarios
 demo-scenarios: ## write the deterministic replay sequences for every scenario (offline)
