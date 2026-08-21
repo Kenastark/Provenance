@@ -356,6 +356,43 @@ Format: Keep a Changelog. Versioning: SemVer.
   automatic `public/basemap` removal - recaptured correctly with the archive
   moved aside.
 
+### Fixed
+- **The Evidence tab's "Graph attention over neighbouring stations" card always read
+  "Not yet computed... lands in phase 6", even after update-14 trained the HST-GAT
+  and wired its attention overlay into the Network Map layer.** The card
+  (`EvidencePanel.tsx`) was a static placeholder left over from phase 3 that never
+  called `useAttentionOverlay()` - a wiring gap, not a missing backend (the
+  `/v1/graph/attention` endpoint and the trained artefact both already worked, and
+  still do; the map's "Learned attention (HST-GAT)" layer was reading them fine the
+  whole time). `GraphAttention` now calls the same hook, filters the returned
+  relations to the edges touching the flagged reading's station, and renders them as
+  signed bars (mirroring `ShapBars`) with the model's own target parameter and
+  snapshot time; when no trained artefact exists yet it shows the backend's own
+  `reason` string instead of a hardcoded one, and when the artefact exists but has no
+  edges touching this particular station it says so as a graph-topology fact rather
+  than a missing computation.
+- **The Evidence tab's "Deweathered residual for CO2" card could never resolve, no
+  matter how many times an operator ran the `prov models train` /
+  `prov models residuals` the card itself recommended.** Unlike the attention card,
+  this one was already correctly wired to `/v1/deweather/{station_id}` - the gap was
+  upstream: `CO2` (a confirmed parameter in `schema_assumptions.yaml` and, on the
+  real drop, the single most common defect parameter) was never in
+  `models.yaml`'s `deweather.pollutants` list, so no CO2 regressor had ever been
+  trained and no CO2 residual could ever be stored. Added CO2 to that list ([PM10,
+  NO2, O3, CO, CO2] - like the other three combustion-linked pollutants, its local
+  concentration is also driven by dispersion conditions); retrained
+  (`prov models train --source data/raw`) and restored residuals
+  (`prov models residuals --source data/raw`) against the real drop. CO2's held-out
+  R² (0.26) sits inside the configured sanity band (0.15-0.90); the synthetic demo
+  corpus used by the unit test gate does not carry a CO2 series, so
+  `test_only_present_pollutants_are_trained` is unaffected, and the demo corpus
+  itself is unchanged. **Flagged, not fixed here:** retraining surfaced that CO
+  (R²=-0.15), NO2 (R²=0.11), and PM10 (R²=-1.96) already fail the configured R²
+  floor (0.15) on the real drop - a pre-existing condition (their residuals were
+  already trained and stored under this model version before this update), never
+  caught by CI because `test_r2_band_per_pollutant` only exercises the synthetic
+  fixture corpus (standing rule 7). See `docs/updates/u16-wire-evidence-tab.md`.
+
 ## [1.0.0-demo] - 2026-08-09
 Phase 7: the operational layer and the submission build — the freeze tag. Adds the
 maintenance queue and Alert Centre, the human sign-off gate on public dispatch, the

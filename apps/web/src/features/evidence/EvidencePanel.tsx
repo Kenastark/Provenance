@@ -14,6 +14,7 @@ import {
 import type { Defect, Explain } from "../../api/client";
 import { evidenceFor, REASON_CODES } from "../../api/reason-codes";
 import {
+  useAttentionOverlay,
   useDefects,
   useDeweather,
   useExplain,
@@ -34,8 +35,9 @@ import { useWindowState } from "../../lib/windowContext";
  * stations that contradict it. This screen is the argument; everything else in the
  * dashboard is navigation to it.
  *
- * SHAP (phase 5) and attention (phase 6) get explicit empty slots rather than being
- * hidden, so the finished shape is visible and nobody is tempted to fill them early.
+ * SHAP and graph attention each degrade to an explicit "not yet computed" slot when
+ * their artefact is absent, rather than being hidden — so the finished shape is
+ * visible even before a model has been trained.
  */
 
 const CONTEXT_HOURS = 24;
@@ -410,10 +412,7 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
 
       <ShapAttribution defect={defect} />
       <DeweatherChart stationId={defect.station_id} parameter={defect.parameter} />
-      <NotYetComputed
-        title="Graph attention over neighbouring stations"
-        arrivesIn="the HST-GAT attention overlay lands in phase 6"
-      />
+      <GraphAttention defect={defect} />
       <p className="text-caption text-text-tertiary">
         Adjudication verdict:{" "}
         <span data-testid="evidence-verdict">decided per event on the timeline</span>. This defect
@@ -550,6 +549,110 @@ function ShapBars({ data }: { data: Explain }) {
       <p className="mt-2 text-micro text-text-tertiary">
         Bars right of centre raised the weather-predicted value; left lowered it. Attributions plus
         the base value reconstruct the prediction exactly (SHAP additivity).
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The HST-GAT's learned attention over this reading's station (phase 6, §8).
+ *
+ * `/v1/graph/attention` is the same endpoint the Network Map's "Learned attention"
+ * layer reads; this shows the subset of edges that touch the flagged station,
+ * relation by relation. Degrades to the backend's own reason (no trained artefact,
+ * or its target parameter absent from the loaded drop — standing rule 6) rather than
+ * a hardcoded placeholder, and never claims an accuracy figure for what is a
+ * read-out of attention weights (standing rule 4).
+ */
+export function GraphAttention({ defect }: { defect: Defect }) {
+  const overlay = useAttentionOverlay();
+
+  if (overlay.isLoading) {
+    return (
+      <div className="prov-panel p-4" data-testid="graph-attention">
+        <LoadingState label="Loading the attention overlay" />
+      </div>
+    );
+  }
+  if (overlay.error || !overlay.data) {
+    return (
+      <NotYetComputed
+        title="Graph attention over neighbouring stations"
+        arrivesIn="the attention overlay could not be loaded"
+      />
+    );
+  }
+
+  const data = overlay.data;
+  if (!data.available) {
+    return (
+      <NotYetComputed
+        title="Graph attention over neighbouring stations"
+        arrivesIn={data.reason ?? "the HST-GAT has not been trained"}
+      />
+    );
+  }
+
+  const edges = Object.entries(data.relations ?? {})
+    .flatMap(([relation, relationEdges]) =>
+      relationEdges
+        .filter((edge) => edge.src === defect.station_id || edge.dst === defect.station_id)
+        .map((edge) => ({ ...edge, relation })),
+    )
+    .sort((a, b) => b.attention - a.attention);
+
+  if (edges.length === 0) {
+    return (
+      <div className="prov-panel p-4" data-testid="graph-attention">
+        <h4 className="mb-1 text-subhead">Graph attention over neighbouring stations</h4>
+        <p className="text-caption text-text-tertiary" data-testid="graph-attention-empty">
+          The trained HST-GAT (target {data.target_parameter}) carries no attention edges
+          touching {defect.station_id}. That is a graph-topology fact, not a missing
+          computation.
+        </p>
+      </div>
+    );
+  }
+
+  const maxAttention = Math.max(1e-9, ...edges.map((edge) => edge.attention));
+
+  return (
+    <div className="prov-panel p-4" data-testid="graph-attention">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h4 className="text-subhead">Graph attention over neighbouring stations</h4>
+        <span className="prov-numeric text-caption text-text-tertiary">
+          target {data.target_parameter}
+          {data.at && <> · {formatTimestamp(data.at)}</>}
+        </span>
+      </div>
+      <ul className="m-0 list-none space-y-2 p-0" data-testid="attention-edges">
+        {edges.map((edge) => {
+          const outgoing = edge.src === defect.station_id;
+          const neighbour = outgoing ? edge.dst : edge.src;
+          const width = `${(edge.attention / maxAttention) * 100}%`;
+          return (
+            <li
+              key={`${edge.relation}-${edge.src}-${edge.dst}`}
+              className="grid grid-cols-[10rem_1fr] items-center gap-2"
+            >
+              <span className="truncate text-caption text-text-secondary" title={edge.relation}>
+                {outgoing ? "→" : "←"} <span className="font-mono">{neighbour}</span>
+                <span className="ml-1 text-micro text-text-tertiary">({edge.relation})</span>
+              </span>
+              <span className="relative flex h-4 items-center">
+                <span
+                  className="h-3 rounded-sm"
+                  style={{ width, background: "var(--prov-chart-series-1)" }}
+                  title={`attention ${edge.attention.toFixed(3)}`}
+                />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 text-micro text-text-tertiary">
+        Softmax attention weight over {defect.station_id}'s edges of each relation — a
+        read-out of what the model attended to, never an accuracy claim.
       </p>
     </div>
   );

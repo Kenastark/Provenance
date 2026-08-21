@@ -15,8 +15,11 @@ status: provisional
 deweather:
   # Weather-responsive pollutants to deweather. Intersected with what the corpus
   # actually carries at train time — a pollutant the network does not measure is
-  # skipped, never invented.
-  pollutants: [PM10, NO2, O3, CO]
+  # skipped, never invented. CO2 added per the real drop: it is the single most
+  # common defect parameter in the confirmed export (schema_assumptions.yaml
+  # `known_parameters`), and like CO/NO2/O3 its local concentration is driven by
+  # dispersion conditions (boundary layer, wind), so it belongs in the same set.
+  pollutants: [PM10, NO2, O3, CO, CO2]
   n_splits: 4                 # forward-chaining time-blocked folds
   # The R² sanity band (§ test gate). Below the floor, weather is not being captured
   # and the residual is just the raw value; above the ceiling, no unexplained signal
