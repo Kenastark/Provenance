@@ -113,3 +113,55 @@ export function computeWindEdges(
   edges.sort((a, b) => b.weight - a.weight);
   return edges;
 }
+
+/** One edge of the HST-GAT's learned attention, resolved to real coordinates. */
+export interface AttentionEdge {
+  srcId: string;
+  dstId: string;
+  /** The relation the model computed this weight over (e.g. "wind_conditioned"). */
+  relation: string;
+  /** Softmax weight over the destination's incoming edges of this relation, in [0, 1]. */
+  attention: number;
+  srcLat: number;
+  srcLon: number;
+  dstLat: number;
+  dstLon: number;
+}
+
+/**
+ * Turn the API's attention-overlay edges into drawable edges.
+ *
+ * The overlay carries station ids and a weight, not coordinates - this resolves each
+ * id against the current markers, the same lookup the analytic wind edges are drawn
+ * from, so the learned layer can never drift from the analytic one geometrically. An
+ * edge naming a station the map cannot place (no coordinates) is dropped rather than
+ * drawn at the origin.
+ */
+export function attentionEdgesFromOverlay(
+  relations: Readonly<
+    Record<string, readonly { src: string; dst: string; attention: number }[]>
+  >,
+  markers: readonly StationMarker[],
+): AttentionEdge[] {
+  const byId = new Map(markers.map((marker) => [marker.stationId, marker]));
+  const edges: AttentionEdge[] = [];
+  for (const [relation, relationEdges] of Object.entries(relations)) {
+    for (const edge of relationEdges) {
+      const src = byId.get(edge.src);
+      const dst = byId.get(edge.dst);
+      if (!src || !dst) continue;
+      edges.push({
+        srcId: edge.src,
+        dstId: edge.dst,
+        relation,
+        attention: edge.attention,
+        srcLat: src.lat,
+        srcLon: src.lon,
+        dstLat: dst.lat,
+        dstLon: dst.lon,
+      });
+    }
+  }
+  edges.sort((a, b) => b.attention - a.attention);
+  return edges;
+}

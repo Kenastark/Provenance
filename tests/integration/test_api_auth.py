@@ -24,6 +24,7 @@ ENDPOINTS = [
     ("/v1/events", "public"),
     ("/v1/reference/bus-stops", "public"),
     ("/v1/reference/traffic-counters", "public"),
+    ("/v1/graph/attention", "public"),
     ("/v1/readings", "researcher"),
     ("/v1/defects", "researcher"),
     ("/v1/audit/runs", "researcher"),

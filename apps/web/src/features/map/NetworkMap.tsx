@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  useAttentionOverlay,
   useBusStops,
   useEvents,
   useQualitySummary,
@@ -8,11 +9,13 @@ import {
   useStations,
   useTrafficCounters,
 } from "../../api/queries";
+import type { AttentionOverlay } from "../../api/client";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { useTheme } from "../../lib/theme";
 import { useWindowState } from "../../lib/windowContext";
 import { StationDetailPanel } from "../station/StationDetailPanel";
 import {
+  AttentionEdgeLayer,
   LayerToggles,
   MapLegend,
   ReferenceMarkerLayer,
@@ -37,7 +40,7 @@ import {
   type StationMarker,
   type TrafficCounterMarker,
 } from "./stationMarkers";
-import { computeWindEdges } from "./windEdges";
+import { attentionEdgesFromOverlay, computeWindEdges } from "./windEdges";
 
 /**
  * The primary screen: the network, coloured by trust.
@@ -60,6 +63,7 @@ export function NetworkMap() {
   const events = useEvents();
   const busStops = useBusStops();
   const trafficCounters = useTrafficCounters();
+  const attentionOverlay = useAttentionOverlay();
 
   const { markers, withoutCoordinates } = useMemo(
     () =>
@@ -77,8 +81,13 @@ export function NetworkMap() {
     [trafficCounters.data],
   );
   const layerDefs = useMemo(
-    () => resolveMapLayers(MAP_LAYERS, { busStops: busStops.data, trafficCounters: trafficCounters.data }),
-    [busStops.data, trafficCounters.data],
+    () =>
+      resolveMapLayers(MAP_LAYERS, {
+        busStops: busStops.data,
+        trafficCounters: trafficCounters.data,
+        attentionOverlay: attentionOverlay.data,
+      }),
+    [busStops.data, trafficCounters.data, attentionOverlay.data],
   );
 
   const selectStation = useCallback(
@@ -110,6 +119,7 @@ export function NetworkMap() {
         hasStations={(stations.data?.length ?? 0) > 0}
         busStopMarkers={busStopMarkers}
         trafficCounterMarkers={trafficCounterMarkers}
+        attentionOverlay={attentionOverlay.data}
         layerDefs={layerDefs}
         selectedStationId={selectedStationId}
         onSelect={selectStation}
@@ -139,6 +149,7 @@ function MapSurface({
   hasStations,
   busStopMarkers,
   trafficCounterMarkers,
+  attentionOverlay,
   layerDefs,
   selectedStationId,
   onSelect,
@@ -148,6 +159,7 @@ function MapSurface({
   hasStations: boolean;
   busStopMarkers: readonly BusStopMarker[];
   trafficCounterMarkers: readonly TrafficCounterMarker[];
+  attentionOverlay: AttentionOverlay | undefined;
   layerDefs: readonly LayerDefinition[];
   selectedStationId: string | null;
   onSelect: (stationId: string) => void;
@@ -176,6 +188,14 @@ function MapSurface({
   const windEdges = useMemo(
     () => (layers.windEdges ? computeWindEdges(markers, wind) : []),
     [layers.windEdges, markers, wind],
+  );
+  const attentionAvailable = Boolean(attentionOverlay?.available);
+  const attentionEdges = useMemo(
+    () =>
+      layers.attentionOverlay && attentionOverlay?.available
+        ? attentionEdgesFromOverlay(attentionOverlay.relations ?? {}, markers)
+        : [],
+    [layers.attentionOverlay, attentionOverlay, markers],
   );
 
   const busStopDef = layerDefs.find((l) => l.id === "busStop");
@@ -224,6 +244,9 @@ function MapSurface({
       ) : (
         <>
           {layers.windEdges && <WindEdgeLayer edges={windEdges} project={project} />}
+          {layers.attentionOverlay && attentionAvailable && (
+            <AttentionEdgeLayer edges={attentionEdges} project={project} />
+          )}
           {showBusStops && (
             <ReferenceMarkerLayer
               markers={busStopMarkers.map((m) => ({

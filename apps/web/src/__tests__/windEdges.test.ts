@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { StationMarker, WindVector } from "../features/map/stationMarkers";
 import {
   angularDifferenceDeg,
+  attentionEdgesFromOverlay,
   computeWindEdges,
   edgeWeight,
   initialBearingDeg,
@@ -68,5 +69,54 @@ describe("wind-edge geometry (map mirror)", () => {
   it("returns nothing without wind", () => {
     const markers = [marker("SRC", SRC.lat, SRC.lon), marker("E", EAST.lat, EAST.lon)];
     expect(computeWindEdges(markers, null)).toEqual([]);
+  });
+});
+
+describe("attentionEdgesFromOverlay (learned overlay geometry)", () => {
+  const markers = [marker("SRC", SRC.lat, SRC.lon), marker("E", EAST.lat, EAST.lon)];
+
+  it("resolves each edge's station ids against the mapped markers' real coordinates", () => {
+    const edges = attentionEdgesFromOverlay(
+      { wind_conditioned: [{ src: "SRC", dst: "E", attention: 0.7 }] },
+      markers,
+    );
+    expect(edges).toEqual([
+      {
+        srcId: "SRC",
+        dstId: "E",
+        relation: "wind_conditioned",
+        attention: 0.7,
+        srcLat: SRC.lat,
+        srcLon: SRC.lon,
+        dstLat: EAST.lat,
+        dstLon: EAST.lon,
+      },
+    ]);
+  });
+
+  it("drops an edge naming a station the map cannot place, rather than drawing it at the origin", () => {
+    const edges = attentionEdgesFromOverlay(
+      { wind_conditioned: [{ src: "SRC", dst: "GHOST", attention: 0.9 }] },
+      markers,
+    );
+    expect(edges).toEqual([]);
+  });
+
+  it("flattens every relation into one list, strongest attention first", () => {
+    const edges = attentionEdgesFromOverlay(
+      {
+        wind_conditioned: [{ src: "SRC", dst: "E", attention: 0.3 }],
+        spatial_proximity: [{ src: "E", dst: "SRC", attention: 0.8 }],
+      },
+      markers,
+    );
+    expect(edges.map((e) => e.relation)).toEqual(["spatial_proximity", "wind_conditioned"]);
+    for (let i = 1; i < edges.length; i += 1) {
+      expect(edges[i - 1]!.attention).toBeGreaterThanOrEqual(edges[i]!.attention);
+    }
+  });
+
+  it("returns nothing for an empty overlay", () => {
+    expect(attentionEdgesFromOverlay({}, markers)).toEqual([]);
   });
 });

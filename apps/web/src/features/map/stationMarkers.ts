@@ -1,4 +1,13 @@
-import type { BusStop, ProvEvent, QualityStation, ReferenceCounters, ReferenceStops, Station, TrafficCounter } from "../../api/client";
+import type {
+  AttentionOverlay,
+  BusStop,
+  ProvEvent,
+  QualityStation,
+  ReferenceCounters,
+  ReferenceStops,
+  Station,
+  TrafficCounter,
+} from "../../api/client";
 import { sortCodesBySeverity } from "../../api/reason-codes";
 import { trustState, type TrustState } from "../../lib/trust";
 
@@ -11,7 +20,7 @@ import { trustState, type TrustState } from "../../lib/trust";
  * is the reverse.
  */
 
-export type LayerId = "envStation" | "trafficCounter" | "busStop" | "windEdges";
+export type LayerId = "envStation" | "trafficCounter" | "busStop" | "windEdges" | "attentionOverlay";
 
 /** "measured" = real, observed coordinates. "provisional" would mean a placeholder
  * - the map never draws that kind (see graph/topology.py's synthetic-provisional
@@ -64,12 +73,23 @@ export const MAP_LAYERS: readonly LayerDefinition[] = [
     available: true,
     defaultOn: false,
   },
+  {
+    id: "attentionOverlay",
+    // Deliberately not "edges" or anything that echoes windEdges' label - this is a
+    // learned claim, not the analytic wind kernel, and the two must never be mistaken
+    // for each other at a glance (see AttentionEdgeLayer's dashed styling).
+    label: "Learned attention (HST-GAT)",
+    available: false,
+    unavailableReason: "Checking whether the HST-GAT has been trained…",
+    defaultOn: false,
+  },
 ];
 
 const BUS_STOPS_UNAVAILABLE_REASON =
   "GTFS bundle not loaded (data/raw/gtfs). Bus stops are ingested but there is nothing to place on the map yet.";
 const TRAFFIC_COUNTERS_UNAVAILABLE_REASON =
   "Enclod counters carry no coordinates in this drop; the graph's counter nodes are provisional placeholders and are not drawn on the map.";
+const ATTENTION_CHECKING_REASON = "Checking whether the HST-GAT has been trained…";
 
 /**
  * Overlay the live reference-endpoint answers onto the static layer list.
@@ -77,11 +97,18 @@ const TRAFFIC_COUNTERS_UNAVAILABLE_REASON =
  * `undefined` for a query means "still loading" and is treated as unavailable
  * with a neutral reason - never optimistically enabled, because a toggle that
  * flips available then snaps back to disabled reads as a bug rather than a
- * coverage fact.
+ * coverage fact. The attention overlay is the one exception once its query has
+ * settled: the API's own `reason` (e.g. "has not been trained") is more honest
+ * than a generic placeholder, and standing rule 6 asks for exactly that sentence
+ * on the toggle's tooltip.
  */
 export function resolveMapLayers(
   base: readonly LayerDefinition[],
-  runtime: { busStops: ReferenceStops | undefined; trafficCounters: ReferenceCounters | undefined },
+  runtime: {
+    busStops: ReferenceStops | undefined;
+    trafficCounters: ReferenceCounters | undefined;
+    attentionOverlay: AttentionOverlay | undefined;
+  },
 ): LayerDefinition[] {
   return base.map((layer) => {
     if (layer.id === "busStop") {
@@ -94,6 +121,15 @@ export function resolveMapLayers(
         ...layer,
         available,
         unavailableReason: available ? undefined : TRAFFIC_COUNTERS_UNAVAILABLE_REASON,
+      };
+    }
+    if (layer.id === "attentionOverlay") {
+      const overlay = runtime.attentionOverlay;
+      const available = overlay?.available ?? false;
+      return {
+        ...layer,
+        available,
+        unavailableReason: available ? undefined : (overlay?.reason ?? ATTENTION_CHECKING_REASON),
       };
     }
     return layer;

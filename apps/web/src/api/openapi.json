@@ -1,6 +1,91 @@
 {
   "components": {
     "schemas": {
+      "AttentionEdgeOut": {
+        "properties": {
+          "attention": {
+            "title": "Attention",
+            "type": "number"
+          },
+          "dst": {
+            "title": "Dst",
+            "type": "string"
+          },
+          "edge_weight": {
+            "title": "Edge Weight",
+            "type": "number"
+          },
+          "src": {
+            "title": "Src",
+            "type": "string"
+          }
+        },
+        "required": [
+          "src",
+          "dst",
+          "attention",
+          "edge_weight"
+        ],
+        "title": "AttentionEdgeOut",
+        "type": "object"
+      },
+      "AttentionOverlayOut": {
+        "description": "The HST-GAT's attention over the graph edges, for the map overlay (§8).\n\n``available=False`` means no trained HST-GAT artefact exists, or its target\nparameter is not present in the currently loaded data — a fact about the model,\nnot an empty overlay (standing rule 6): the map disables the toggle with\n``reason`` as its tooltip rather than rendering nothing silently or erroring.\nA read-out of what the model attended to, never an accuracy claim (standing\nrule 4) — there is no score here, only edges and their weights.",
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "relations": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/AttentionEdgeOut"
+              },
+              "type": "array"
+            },
+            "title": "Relations",
+            "type": "object"
+          },
+          "target_parameter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Parameter"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "AttentionOverlayOut",
+        "type": "object"
+      },
       "AttributionOut": {
         "properties": {
           "feature": {
@@ -2191,6 +2276,27 @@
         "summary": "Audit Trail",
         "tags": [
           "export"
+        ]
+      }
+    },
+    "/v1/graph/attention": {
+      "get": {
+        "operationId": "get_attention_overlay_v1_graph_attention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionOverlayOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Attention Overlay",
+        "tags": [
+          "graph"
         ]
       }
     },

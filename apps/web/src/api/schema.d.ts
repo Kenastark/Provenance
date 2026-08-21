@@ -265,6 +265,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/graph/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Attention Overlay */
+        get: operations["get_attention_overlay_v1_graph_attention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/maintenance": {
         parameters: {
             query?: never;
@@ -473,6 +490,42 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AttentionEdgeOut */
+        AttentionEdgeOut: {
+            /** Attention */
+            attention: number;
+            /** Dst */
+            dst: string;
+            /** Edge Weight */
+            edge_weight: number;
+            /** Src */
+            src: string;
+        };
+        /**
+         * AttentionOverlayOut
+         * @description The HST-GAT's attention over the graph edges, for the map overlay (§8).
+         *
+         *     ``available=False`` means no trained HST-GAT artefact exists, or its target
+         *     parameter is not present in the currently loaded data — a fact about the model,
+         *     not an empty overlay (standing rule 6): the map disables the toggle with
+         *     ``reason`` as its tooltip rather than rendering nothing silently or erroring.
+         *     A read-out of what the model attended to, never an accuracy claim (standing
+         *     rule 4) — there is no score here, only edges and their weights.
+         */
+        AttentionOverlayOut: {
+            /** At */
+            at?: string | null;
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason?: string | null;
+            /** Relations */
+            relations?: {
+                [key: string]: components["schemas"]["AttentionEdgeOut"][];
+            };
+            /** Target Parameter */
+            target_parameter?: string | null;
+        };
         /** AttributionOut */
         AttributionOut: {
             /** Feature */
@@ -1469,6 +1522,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_attention_overlay_v1_graph_attention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttentionOverlayOut"];
                 };
             };
         };

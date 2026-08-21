@@ -107,24 +107,11 @@ async def residuals_for_station(
     return (await session.scalars(stmt)).all()
 
 
-async def station_frame(session: AsyncSession, station_id: str) -> pd.DataFrame:
-    """Reconstruct a station's readings as a canonical long frame.
-
-    Used by the explain layer to rebuild the feature matrix for one station without
-    re-reading the source files. Returns an empty (correctly-typed) frame when the
-    station has no readings.
-    """
+def _frame_from_reading_rows(rows: Sequence[m.Reading]) -> pd.DataFrame:
     import pandas as pd
 
     from provenance.schema import canonical as C
 
-    rows = (
-        await session.scalars(
-            select(m.Reading)
-            .where(m.Reading.station_id == station_id)
-            .order_by(m.Reading.parameter, m.Reading.timestamp_utc)
-        )
-    ).all()
     if not rows:
         return pd.DataFrame(columns=list(C.LONG_COLUMNS))
     frame = pd.DataFrame(
@@ -140,6 +127,40 @@ async def station_frame(session: AsyncSession, station_id: str) -> pd.DataFrame:
     )
     frame = C.add_row_hash(frame)
     return C.validate(frame)
+
+
+async def station_frame(session: AsyncSession, station_id: str) -> pd.DataFrame:
+    """Reconstruct a station's readings as a canonical long frame.
+
+    Used by the explain layer to rebuild the feature matrix for one station without
+    re-reading the source files. Returns an empty (correctly-typed) frame when the
+    station has no readings.
+    """
+    rows = (
+        await session.scalars(
+            select(m.Reading)
+            .where(m.Reading.station_id == station_id)
+            .order_by(m.Reading.parameter, m.Reading.timestamp_utc)
+        )
+    ).all()
+    return _frame_from_reading_rows(rows)
+
+
+async def network_frame(session: AsyncSession) -> pd.DataFrame:
+    """Reconstruct every station's readings as one canonical long frame.
+
+    Used by the graph-attention endpoint to rebuild the multi-station feature matrix
+    the HST-GAT needs, without re-reading the source files (mirrors
+    :func:`station_frame` without the station filter).
+    """
+    rows = (
+        await session.scalars(
+            select(m.Reading).order_by(
+                m.Reading.station_id, m.Reading.parameter, m.Reading.timestamp_utc
+            )
+        )
+    ).all()
+    return _frame_from_reading_rows(rows)
 
 
 async def list_events(

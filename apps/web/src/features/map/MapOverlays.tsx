@@ -11,7 +11,7 @@ import {
   type StationMarker,
   type WindVector,
 } from "./stationMarkers";
-import type { WindEdge } from "./windEdges";
+import type { AttentionEdge, WindEdge } from "./windEdges";
 
 /**
  * Everything drawn *over* the basemap: markers, wind, legend, layer switches.
@@ -236,6 +236,71 @@ export function WindEdgeLayer({ edges, project }: WindEdgeLayerProps) {
             data-testid="wind-edge"
             data-src={edge.srcId}
             data-dst={edge.dstId}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+export interface AttentionEdgeLayerProps {
+  edges: readonly AttentionEdge[];
+  project: (lon: number, lat: number) => { x: number; y: number } | null;
+}
+
+/**
+ * The HST-GAT's learned attention, drawn under the markers, over the wind edges.
+ *
+ * A different *claim* from the analytic wind-conditioned edges above, so it must
+ * look different at a glance: same interactive blue (the palette has no second
+ * interactive colour to spend on it), but dashed rather than solid, with its own
+ * arrowhead, so the two layers never blur into one line even where they agree.
+ * Line weight and opacity carry the attention magnitude (already in [0, 1], a
+ * softmax weight - no renormalising against a local maximum the way wind edges
+ * need). Pure SVG over the projected positions, exactly like WindEdgeLayer, so the
+ * two can never drift apart geometrically.
+ */
+export function AttentionEdgeLayer({ edges, project }: AttentionEdgeLayerProps) {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      data-testid="attention-edge-layer"
+      aria-hidden="true"
+    >
+      <defs>
+        <marker
+          id="attention-edge-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="4"
+          markerHeight="4"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--prov-interactive)" />
+        </marker>
+      </defs>
+      {edges.map((edge) => {
+        const a = project(edge.srcLon, edge.srcLat);
+        const b = project(edge.dstLon, edge.dstLat);
+        if (!a || !b) return null;
+        return (
+          <line
+            key={`${edge.relation}-${edge.srcId}-${edge.dstId}`}
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke="var(--prov-interactive)"
+            strokeWidth={0.5 + edge.attention * 3.5}
+            strokeOpacity={0.15 + edge.attention * 0.55}
+            strokeDasharray="1.5 3"
+            strokeLinecap="round"
+            markerEnd="url(#attention-edge-arrow)"
+            data-testid="attention-edge"
+            data-src={edge.srcId}
+            data-dst={edge.dstId}
+            data-relation={edge.relation}
           />
         );
       })}

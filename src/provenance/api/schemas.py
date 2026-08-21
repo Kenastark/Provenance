@@ -231,6 +231,31 @@ class ReferenceCountersOut(BaseModel):
     counters: list[TrafficCounterOut]
 
 
+class AttentionEdgeOut(BaseModel):
+    src: str
+    dst: str
+    attention: float
+    edge_weight: float
+
+
+class AttentionOverlayOut(BaseModel):
+    """The HST-GAT's attention over the graph edges, for the map overlay (§8).
+
+    ``available=False`` means no trained HST-GAT artefact exists, or its target
+    parameter is not present in the currently loaded data — a fact about the model,
+    not an empty overlay (standing rule 6): the map disables the toggle with
+    ``reason`` as its tooltip rather than rendering nothing silently or erroring.
+    A read-out of what the model attended to, never an accuracy claim (standing
+    rule 4) — there is no score here, only edges and their weights.
+    """
+
+    available: bool
+    reason: str | None = None
+    at: str | None = None
+    target_parameter: str | None = None
+    relations: dict[str, list[AttentionEdgeOut]] = Field(default_factory=dict)
+
+
 class VersionOut(BaseModel):
     version: str
     git_sha: str

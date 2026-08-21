@@ -104,7 +104,11 @@ describe("reference layers", () => {
   });
 
   it("keeps a layer disabled while its query is still loading", () => {
-    const layers = resolveMapLayers(MAP_LAYERS, { busStops: undefined, trafficCounters: undefined });
+    const layers = resolveMapLayers(MAP_LAYERS, {
+      busStops: undefined,
+      trafficCounters: undefined,
+      attentionOverlay: undefined,
+    });
     const busStop = layers.find((l) => l.id === "busStop")!;
     expect(busStop.available).toBe(false);
     expect(busStop.unavailableReason).toBeTruthy();
@@ -114,6 +118,7 @@ describe("reference layers", () => {
     const layers = resolveMapLayers(MAP_LAYERS, {
       busStops: fixtures.referenceStopsAvailable,
       trafficCounters: fixtures.referenceCountersUnavailable,
+      attentionOverlay: undefined,
     });
     const busStop = layers.find((l) => l.id === "busStop")!;
     const trafficCounter = layers.find((l) => l.id === "trafficCounter")!;
@@ -121,6 +126,39 @@ describe("reference layers", () => {
     expect(busStop.unavailableReason).toBeUndefined();
     expect(trafficCounter.available).toBe(false);
     expect(trafficCounter.unavailableReason).toMatch(/provisional placeholders/);
+  });
+
+  it("keeps the learned attention layer disabled while its query is still loading", () => {
+    const layers = resolveMapLayers(MAP_LAYERS, {
+      busStops: undefined,
+      trafficCounters: undefined,
+      attentionOverlay: undefined,
+    });
+    const attention = layers.find((l) => l.id === "attentionOverlay")!;
+    expect(attention.available).toBe(false);
+    expect(attention.unavailableReason).toBeTruthy();
+  });
+
+  it("disables the learned attention layer with the backend's own reason once it answers", () => {
+    const layers = resolveMapLayers(MAP_LAYERS, {
+      busStops: undefined,
+      trafficCounters: undefined,
+      attentionOverlay: fixtures.attentionOverlayUnavailable,
+    });
+    const attention = layers.find((l) => l.id === "attentionOverlay")!;
+    expect(attention.available).toBe(false);
+    expect(attention.unavailableReason).toBe(fixtures.attentionOverlayUnavailable.reason);
+  });
+
+  it("enables the learned attention layer once the HST-GAT has been trained", () => {
+    const layers = resolveMapLayers(MAP_LAYERS, {
+      busStops: undefined,
+      trafficCounters: undefined,
+      attentionOverlay: fixtures.attentionOverlayAvailable,
+    });
+    const attention = layers.find((l) => l.id === "attentionOverlay")!;
+    expect(attention.available).toBe(true);
+    expect(attention.unavailableReason).toBeUndefined();
   });
 });
 
@@ -295,6 +333,51 @@ describe("NetworkMap", () => {
     // The edge layer is drawn once enabled (empty of lines under jsdom, which has no
     // WebGL projection, but present as its own layer over the map).
     expect(await screen.findByTestId("wind-edge-layer")).toBeInTheDocument();
+  });
+
+  it("keeps the learned attention layer disabled with a tooltip when the HST-GAT has not been trained", async () => {
+    // The default stub route is the honest current demo state: no HST-GAT trained.
+    renderWithProviders(<NetworkMap />);
+    const toggle = await screen.findByTestId("layer-toggle-attentionOverlay");
+    expect(toggle).toBeDisabled();
+    expect(toggle.closest("label")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/has not been trained/),
+    );
+  });
+
+  it("enables the learned attention overlay once the HST-GAT is trained, drawn distinctly from wind edges", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NetworkMap />, {
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayAvailable },
+    });
+
+    const toggle = await screen.findByTestId("layer-toggle-attentionOverlay");
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+
+    const layer = await screen.findByTestId("attention-edge-layer");
+    const edges = within(layer).getAllByTestId("attention-edge");
+    // Every edge across every relation in the fixture resolves against a mapped
+    // station (STA-01..03 all carry coordinates), so all three draw.
+    expect(edges).toHaveLength(3);
+    for (const edge of edges) {
+      // Dashed, not solid: the one visual tell that separates a learned claim from
+      // the analytic wind kernel, since the palette has no second interactive
+      // colour to spend on it - both layers stay on Trust Blue.
+      expect(edge).toHaveAttribute("stroke-dasharray");
+      expect(edge).toHaveAttribute("stroke", "var(--prov-interactive)");
+    }
+  });
+
+  it("never draws the learned attention overlay when the toggle is off, even with real data available", async () => {
+    renderWithProviders(<NetworkMap />, {
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayAvailable },
+    });
+    await screen.findByTestId("layer-toggle-attentionOverlay");
+    expect(screen.queryByTestId("attention-edge-layer")).not.toBeInTheDocument();
   });
 
   it("lets the available layer be switched off", async () => {
