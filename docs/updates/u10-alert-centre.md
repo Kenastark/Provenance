@@ -166,48 +166,49 @@ extensions to `App.test.tsx` (nav visibility per role, the role-forbidden block)
 **End-to-end**, against the real API and the real demo corpus (`make demo-data`,
 no models trained — the pinned pre-training state):
 ```
-64 passed, 7 failed, 1 skipped   (10.2min → after fixing bugs 1-5 above)
+71 passed   (2.6min)
 ```
-The 7 failures are one issue, not seven: a pre-existing station-marker layout
-problem on the **network map** (untouched by this update — no file under
-`features/map/` was edited). The real DEB-KER corpus's coordinates cluster tightly
-enough at the default zoom that overlapping markers' event-glyph SVGs intercept
-clicks meant for the marker beneath them:
-```
-<svg ... data-shape="circle-half">…</svg> from <li class="pointer-events-auto absolute">…</li>
-  subtree intercepts pointer events
-```
-This blocks `demo-path.spec.ts`'s map→station test, all three `drawer-resize.spec.ts`
-tests, `station detail` (both themes) in `visual.spec.ts`, and one mobile
-`responsive.spec.ts` test — all of them reach the map screen via
-`station-marker.first().click()`. Every one of these tests passes up to that click;
-none of them exercise anything this update built. See "Flag for review."
+That is the whole suite: `accessibility.spec.ts` (every route including the new
+`/alerts` and the three new admin-role cases), `demo-path.spec.ts` (including the
+new Alert Centre case, verifying the real risk ordering — `risks[i-1] >= risks[i]`
+— against real API data, not a fixture), `drawer-resize.spec.ts`,
+`responsive.spec.ts` (including `/alerts` and `/admin`), `signoff-flow.spec.ts` (the
+full sign-off→dispatch walkthrough, the structural-unreachability proof, and the
+per-alert form reset), and `visual.spec.ts`.
 
-Everything this update *did* build passes cleanly, confirmed with three full runs
-after the bug-fix pass (the run above, plus a `--update-snapshots` pass, plus a
-final unscoped re-verify): all `accessibility.spec.ts` cases including the new
-`/alerts` route and the three new admin-role cases; `responsive.spec.ts` for
-`/alerts` and `/admin`; all three `signoff-flow.spec.ts` cases (one `test.skip`s
-itself honestly when the run has fewer than two candidate alerts to prove the
-per-alert reset with); the new `demo-path.spec.ts` Alert Centre case, verifying the
-real risk ordering (`risks[i-1] >= risks[i]`) against real API data rather than a
-fixture; and every `visual.spec.ts` case except the two pre-existing map-marker
-casualties.
+Getting to a clean 71/71 took a second pass for a reason worth recording. The
+first full run had 7 failures that looked like a real, pre-existing bug: a
+network-map station marker's event-glyph intercepting clicks meant for a
+neighbour, blocking every test that opens the station detail drawer. It wasn't.
+This machine's `provenance-db-1` container had been running for 18 hours,
+carrying accumulated data from earlier sessions on top of what a single
+`make demo-data` writes — denser than a fresh corpus, dense enough that markers
+overlapped at the default zoom. `docker compose down -v && make up && make
+demo-data` against a genuinely fresh volume reproduced nothing: all 71 tests,
+including the map ones, passed outright. Every "bug" described in an earlier
+draft of this section was an artefact of a contaminated local database, not a
+map defect — corrected here rather than left in. The same reset also surfaced a
+second artefact worth naming: `POST /v1/maintenance/rebuild`, called by hand
+earlier in this session to sanity-check the endpoint, is not something
+`make demo-data` calls — a truly fresh clone's maintenance queue is empty until
+an operator (or a future demo-pipeline change) populates it, which the Alert
+Centre already renders as an honest empty state rather than hiding the section.
 
-**Visual baselines**, both platforms, re-verified stable after regeneration
-(`pnpm e2e:update` on darwin; `make web-visual-linux` then `make web-visual-check`
-in the pinned `mcr.microsoft.com/playwright:v1.62.1-noble` container):
+**Visual baselines**, both platforms, regenerated and re-verified stable against
+the fresh database (`pnpm e2e:update` on darwin; `make web-visual-linux` then
+`make web-visual-check` in the pinned `mcr.microsoft.com/playwright:v1.62.1-noble`
+container):
 ```
-darwin:  10 passed, 2 failed (station detail — pre-existing, see above)
-linux:   10 passed, 2 failed (station detail — pre-existing, see above)
+darwin:  71 passed (full suite, 2.6min)
+linux:   12 passed (visual.spec.ts only, 1.5min) — twice, to confirm stability
 ```
 New baselines: `alert-centre-{dark,light}-chromium-{darwin,linux}.png`,
-`admin-{dark,light}-chromium-{darwin,linux}.png`. Changed baselines: `map-*` and
-`quality-monitor-*` on both platforms and both themes (the two added nav tabs and
-the account menu's dynamic role label shift shared chrome by a few pixels).
-`timeline-*` and `station-detail-*` are byte-unchanged (the latter never reached
-its screenshot call in this run, for the reason above, and its last-known-good
-baseline was left alone rather than overwritten with a failure).
+`admin-{dark,light}-chromium-{darwin,linux}.png`. Changed baselines: `map-*`,
+`quality-monitor-*`, and `station-detail-*` on both platforms and both themes —
+partly the two added nav tabs and the account menu's dynamic role label shifting
+shared chrome by a few pixels, partly the fresh (correctly smaller) demo corpus
+replacing baselines that had themselves been captured against the same
+contaminated database before this was caught. `timeline-*` is byte-unchanged.
 
 ## Deviations from the prompt
 
@@ -247,18 +248,25 @@ baseline was left alone rather than overwritten with a failure).
 
 ## Flag for review
 
-**The network map has a real, pre-existing bug this update did not fix.**
-Station markers can overlap tightly enough at the default zoom (confirmed against
-the real DEB-KER coordinates, not the old synthetic layout) that an "active event"
-glyph's `<li>` intercepts pointer events meant for a neighbouring marker. This
-predates this branch (no `features/map/` file was touched) and affects five
-pre-existing tests, none of which exercise anything built here. It is out of scope
-for a frontend update about the operational layer, but it is real, it is now
-demonstrated against the real demo corpus rather than theoretical, and it should
-be looked at before the network map is relied on for a live click-through on stage
-— a screenshot below shows the cluster:
-`apps/web/e2e/visual.spec.ts-snapshots/map-dark-chromium-darwin.png` region around
-DEB-KER08/DEB-KER09/DEB-KER10.
+**The maintenance queue is empty on a fresh `make demo-data`, by design, and
+nothing currently fills it before a demo.** `rebuild_maintenance` only runs when
+an operator calls `POST /v1/maintenance/rebuild` (or clicks "Rebuild from latest
+run" on the Alert Centre) — it is not part of `make demo-data` or `make demo`.
+The screen handles this honestly (an explicit empty state with the action right
+there), but whoever runs the live demo should click that button once first, or
+this is a one-line addition to the demo pipeline if an always-populated queue is
+preferred. Deliberately not added to the Makefile here, since it weakens the
+"this is a real, no-op-until-clicked action" argument the button itself makes.
+
+**Local dev note, not a product issue:** this session's Docker Postgres volume
+had 18 hours of accumulated state from earlier work before the visual gate first
+ran against it, which cost real time chasing a phantom network-map bug (see
+"Test gate" above) before `docker compose down -v` isolated it as environmental
+contamination rather than a real defect. Worth remembering for
+next time this repo's local stack has been sitting around: `make demo-data` is
+idempotent-looking but not idempotent against a dirty volume, and a "the map
+looks wrong" report is worth a clean `down -v && up && demo-data` before it's
+worth an hour of debugging `features/map/`.
 
 **The dispatch flow has now been exercised for real, twice**, against the real
 `gate.dispatch` — `channels.py`'s "offline by construction" contract held both
