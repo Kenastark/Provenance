@@ -115,13 +115,16 @@ enclod_traffic:
         note: "carries only time/uuid/nick/lat/lng - a coverage fact (R19-shaped), not a defect" }
     - { class: cars, present: ["cars_60+"],
         note: "cars carries only the 60+ bucket; vans and trucks each carry four. Asymmetry is in the source, not in our read." }
-  # Confirmed by profiling, and NOT yet reconciled with the competition brief:
+  # Confirmed by profiling ALL 10 measure columns x 42 counters (420 series),
+  # not just cars_60+ - see docs/updates/u12-enclod.md for the full
+  # reconciliation. Still NOT fully reconciled with the competition brief; see
+  # that document's "escalated to you" section.
   observed_quality_notes:
-    duplicate_timestamps: "9,724 on cars_60+ alone across the 42 counters"
-    nonmonotonic_runs: "63 on cars_60+"
-    resets_found: 0            # brief expects ~80-96 per column; see ADR 0005
-    dead_counters_found: 0     # brief expects 2; only cars_60+ was swept
-    completeness_range: "0.24 .. 0.99 per counter"
+    duplicate_timestamps: "97,240 across all 10 columns (9,724 per column - one duplicated row is visible in every column)"
+    nonmonotonic_runs: "566 across all 10 columns (45-66 per column)"
+    resets_found: 3            # brief expects ~80-96 per column; full sweep, not just cars_60+; see u12-enclod.md §3
+    dead_counters_found: 0     # by R21 (whole-series flatline); brief expects 2 - u12-enclod.md §4 finds 2 by a DIFFERENT signature (permanent row dropout), not yet a coded detector
+    completeness_range: "0.199 .. 0.994 per (counter, column) series"
 
 weather:
   source: HungaroMet

@@ -22,6 +22,24 @@ Format: Keep a Changelog. Versioning: SemVer.
   Frontend contract regenerated (`make web-contract`); visual baselines
   regenerated on both platforms (the layer panel gained a row). See
   `docs/updates/u11-attention-overlay.md`.
+- **Enclod counter-repair reconciliation.** Phase 1 swept only `cars_60+` and
+  reported 0 resets / 0 dead counters against a brief expecting ~80-96 resets
+  per column and two dead sensors. Reran `repair_counter` over all ten measure
+  columns × all 42 counters (420 series) against the real archive: resets stay
+  at 3 (not 80-96) because the data genuinely contains no per-counter reset
+  pattern — 83% of all backward-step events land on one calendar date
+  (2026-05-24) across 39 counters and all 10 columns, a proportional ~1.5% dip
+  at the same instant, the signature of a vendor-side batch correction rather
+  than device resets. R21 (whole-series flatline) still finds 0 dead counters,
+  but two counters (`nLAUrPvFow5EmokJd4oc8H`, `8zeqGioF5wq6yV6YdzYMzN`) do go
+  silently dead by a signature R21 can't see — they stop emitting rows
+  entirely partway through the archive and never return, which their own-span
+  completeness (0.94, 0.94) doesn't flag since that metric only measures gaps
+  within a counter's own observed window. `schema_assumptions.yaml`'s
+  `observed_quality_notes` updated to the full-sweep figures; no detector
+  retuned, no headline number changed. Two follow-ups escalated rather than
+  decided unilaterally: whether a new dropout detector and a cross-fleet
+  correction flag are worth building. See `docs/updates/u12-enclod.md`.
 - **The Alert Centre (`/alerts`) and Admin (`/admin`) screens** — the phase-7
   operational layer (maintenance queue, risk-ranked alerts, sign-off gate, RBAC,
   admin) existed at the API/CLI only until now. The Alert Centre ranks candidate
