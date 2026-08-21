@@ -85,7 +85,7 @@ describe("AlertCentre", () => {
     const detail = await screen.findByTestId("alert-detail");
     const breakdown = within(detail).getByTestId("factor-breakdown");
     expect(within(breakdown).getByText("Genuineness")).toBeInTheDocument();
-    expect(within(breakdown).getByText("Exposure")).toBeInTheDocument();
+    expect(within(breakdown).getByText("Exposure (rel.)")).toBeInTheDocument();
     expect(within(breakdown).getByText("Hazard")).toBeInTheDocument();
     expect(within(breakdown).getByText("Confidence weight")).toBeInTheDocument();
   });

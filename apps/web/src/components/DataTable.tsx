@@ -18,6 +18,9 @@ import type { KeyboardEvent, ReactNode } from "react";
 export interface Column<Row> {
   key: string;
   header: string;
+  /** Shown as a native tooltip on the header, for a caveat too long for the label
+   * itself (e.g. a provisional/relative figure) - never the only place it is said. */
+  headerHint?: string;
   /** Extracted once per row per sort; keep it cheap. */
   sortValue?: (row: Row) => string | number | null;
   render: (row: Row) => ReactNode;
@@ -149,6 +152,7 @@ export function DataTable<Row>({
                       onClick={() => toggleSort(column.key)}
                       className="flex w-full items-center gap-1 px-3 py-2 text-left font-semibold text-text-secondary hover:text-text"
                       style={column.align === "right" ? { justifyContent: "flex-end" } : undefined}
+                      title={column.headerHint}
                     >
                       {column.header}
                       <span aria-hidden="true" className="text-micro">
@@ -156,7 +160,9 @@ export function DataTable<Row>({
                       </span>
                     </button>
                   ) : (
-                    <span className="block px-3 py-2">{column.header}</span>
+                    <span className="block px-3 py-2" title={column.headerHint}>
+                      {column.header}
+                    </span>
                   )}
                 </th>
               );

@@ -86,6 +86,53 @@ async def test_quality_summary_reports_last_reading_time(api_client: httpx.Async
     assert by_station["STA-01"]["last_reading_at"] == "2026-05-14T23:00:00"
 
 
+async def test_quality_summary_uptime_is_none_without_a_bounded_window(
+    api_client: httpx.AsyncClient,
+) -> None:
+    # No start/end means no denominator to divide by - reported honestly as
+    # unmeasured (standing rule 6), not as a number derived from nothing.
+    body = (await api_client.get("/v1/quality/summary", headers=PUBLIC)).json()
+    assert body["stations"]
+    assert all(r["uptime_pct"] is None for r in body["stations"])
+    assert all(r["expected_cells"] is None for r in body["stations"])
+
+
+async def test_quality_summary_uptime_over_a_bounded_window(api_client: httpx.AsyncClient) -> None:
+    # fixtures/generator.py's _inject removes 5 scattered interior hours of CO2 at
+    # STA-01 (hours 30, 60, 90, 120, 150 from the 2026-05-01T00:00:00 start) - all
+    # inside the corpus's first 7 days, so a 168-hour window recovers exactly 5 R01
+    # cells for that station.
+    start, end = "2026-05-01T00:00:00", "2026-05-08T00:00:00"
+    body = (
+        await api_client.get(
+            "/v1/quality/summary", params={"start": start, "end": end}, headers=PUBLIC
+        )
+    ).json()
+    by_station = {r["station_id"]: r for r in body["stations"]}
+    sta01 = by_station["STA-01"]
+    assert sta01["absent_cells"] == 5
+    expected_cells = 168.0 * sta01["n_parameters"]
+    assert sta01["expected_cells"] == pytest.approx(expected_cells)
+    assert sta01["uptime_pct"] == pytest.approx(100.0 * (1 - 5 / expected_cells))
+
+
+async def test_quality_summary_calibration_epoch_is_honestly_null(
+    api_client: httpx.AsyncClient,
+) -> None:
+    # No R15 CALIBRATION_EPOCH_DISCONTINUITY detector is wired up yet (it is
+    # registered in the reason-code table but not in default_detectors()), so this
+    # must read null rather than fabricate a date - the frontend no longer computes
+    # this figure itself, so the backend owns saying so honestly.
+    start, end = "2026-05-01T00:00:00", "2026-05-15T00:00:00"
+    body = (
+        await api_client.get(
+            "/v1/quality/summary", params={"start": start, "end": end}, headers=PUBLIC
+        )
+    ).json()
+    assert body["stations"]
+    assert all(r["last_calibration_at"] is None for r in body["stations"])
+
+
 async def test_readings_quality_flagged_annotates_defect_cells(
     api_client: httpx.AsyncClient,
 ) -> None:

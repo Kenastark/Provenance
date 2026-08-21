@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { Defect, QualityStation, Station } from "../../api/client";
-import { useDefects, useQualitySummary, useStations } from "../../api/queries";
+import type { QualityStation, Station } from "../../api/client";
+import { useQualitySummary, useStations } from "../../api/queries";
 import { DataTable, type Column } from "../../components/DataTable";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { StateGlyph } from "../../components/StateGlyph";
@@ -14,70 +14,20 @@ import { StationDetailPanel } from "../station/StationDetailPanel";
 /**
  * The Data Quality Monitor: one dense row per station.
  *
- * Two of the columns are computed here rather than served, because the API has no
- * field for either and inventing one would be worse than deriving it:
- *
- * * **Uptime** is 1 - (absent hours / expected hours), and absent hours are exactly
- *   what R01 counts. Missingness in this corpus appears as absent rows rather than
- *   nulls, so the audit's own R01 ledger is the honest source.
- * * **Last calibration epoch** is the newest R15 discontinuity the audit detected.
- *   Where no discontinuity was found the cell says so; it does not say "unknown" as
- *   though a date existed somewhere and we failed to fetch it.
- *
- * Both derivations are stated in the column help text, on screen, next to the
- * number - the same discipline the audit report applies to the defect rate.
+ * Uptime and last-calibration epoch are served by `/v1/quality/summary` (windowed
+ * by the same start/end the operator's screen uses), computed once in
+ * `io/db/repository.py::quality_summary` rather than re-derived per screen - the
+ * engine owns the definition, the dashboard just displays what it is given.
  */
 
 interface QualityRow {
   station: QualityStation;
   meta: Station | undefined;
-  absentHours: number;
-  expectedHours: number | null;
-  uptimePct: number | null;
-  lastCalibration: string | null;
 }
 
-function buildRows(
-  quality: readonly QualityStation[],
-  stations: readonly Station[],
-  absences: readonly Defect[],
-  calibrations: readonly Defect[],
-  windowHours: number | null,
-): QualityRow[] {
+function buildRows(quality: readonly QualityStation[], stations: readonly Station[]): QualityRow[] {
   const stationById = new Map(stations.map((s) => [s.station_id, s]));
-
-  const absentByStation = new Map<string, number>();
-  for (const defect of absences) {
-    absentByStation.set(defect.station_id, (absentByStation.get(defect.station_id) ?? 0) + 1);
-  }
-
-  const calibrationByStation = new Map<string, string>();
-  for (const defect of calibrations) {
-    const current = calibrationByStation.get(defect.station_id);
-    if (!current || defect.timestamp_utc > current) {
-      calibrationByStation.set(defect.station_id, defect.timestamp_utc);
-    }
-  }
-
-  return quality.map((station) => {
-    const absentHours = absentByStation.get(station.station_id) ?? 0;
-    // Expected cells over the window: one per parameter per hour. Without a bounded
-    // window (full corpus) there is no denominator to divide by here, and the
-    // column honestly shows nothing rather than a number derived from nothing.
-    const expectedHours =
-      windowHours !== null && station.n_parameters > 0 ? windowHours * station.n_parameters : null;
-    return {
-      station,
-      meta: stationById.get(station.station_id),
-      absentHours,
-      expectedHours,
-      uptimePct:
-        expectedHours && expectedHours > 0
-          ? Math.max(0, 100 * (1 - absentHours / expectedHours))
-          : null,
-      lastCalibration: calibrationByStation.get(station.station_id) ?? null,
-    };
-  });
+  return quality.map((station) => ({ station, meta: stationById.get(station.station_id) }));
 }
 
 export function QualityMonitor() {
@@ -87,26 +37,12 @@ export function QualityMonitor() {
   const [filter, setFilter] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | "verified" | "degraded" | "fault" | "unknown">("all");
 
-  const quality = useQualitySummary();
+  const quality = useQualitySummary(undefined, { start: resolved.start, end: resolved.end });
   const stations = useStations();
-  const absences = useDefects({ code: "R01", start: resolved.start, end: resolved.end });
-  const calibrations = useDefects({ code: "R15", start: resolved.start, end: resolved.end });
-
-  const windowHours = useMemo(() => {
-    if (!resolved.start || !resolved.end) return null;
-    return (new Date(resolved.end).getTime() - new Date(resolved.start).getTime()) / 3600_000;
-  }, [resolved]);
 
   const rows = useMemo(
-    () =>
-      buildRows(
-        quality.data?.stations ?? [],
-        stations.data ?? [],
-        absences.data?.items ?? [],
-        calibrations.data?.items ?? [],
-        windowHours,
-      ),
-    [quality.data, stations.data, absences.data, calibrations.data, windowHours],
+    () => buildRows(quality.data?.stations ?? [], stations.data ?? []),
+    [quality.data, stations.data],
   );
 
   const filtered = useMemo(() => {
@@ -166,23 +102,23 @@ export function QualityMonitor() {
         key: "uptime",
         header: "Uptime",
         align: "right",
-        sortValue: (row) => row.uptimePct,
+        sortValue: (row) => row.station.uptime_pct ?? null,
         render: (row) =>
-          row.uptimePct === null ? (
+          row.station.uptime_pct === null ? (
             <span className="text-text-tertiary">—</span>
           ) : (
-            <span title={`${row.absentHours} absent of ${row.expectedHours} expected cells`}>
-              {formatPercent(row.uptimePct)}
+            <span title={`${row.station.absent_cells} absent of ${row.station.expected_cells} expected cells`}>
+              {formatPercent(row.station.uptime_pct)}
             </span>
           ),
       },
       {
         key: "calibration",
         header: "Last calibration",
-        sortValue: (row) => row.lastCalibration,
+        sortValue: (row) => row.station.last_calibration_at ?? null,
         render: (row) =>
-          row.lastCalibration ? (
-            formatDate(row.lastCalibration)
+          row.station.last_calibration_at ? (
+            formatDate(row.station.last_calibration_at)
           ) : (
             <span className="text-text-tertiary">none detected</span>
           ),

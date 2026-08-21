@@ -85,6 +85,16 @@ explanation found" is never mistaken for "explanation ruled out".
   choice, not a calibrated value. The verdict is only as good as those defaults, and
   the characterization test (`tests/fixtures/graph/centrepiece_adjudication.json`)
   exists so any change to them that moves the demo's centrepiece verdict fails CI.
+- **PopulationExposure is relative, not absolute.** `grid/exposure.py` min-max
+  normalises transit service intensity across the stations in the current drop
+  (`config/graph.yaml`'s `exposure:` block, also `status: provisional`), so a
+  station's exposure factor depends on which other stations are loaded alongside
+  it. It does not feed the adjudication verdict itself, but it does feed downstream
+  Risk ranking and maintenance priority off the same config file this card
+  documents. Two different networks' exposure factors are **not comparable**
+  without renormalising against a shared reference — there is no absolute scale
+  until a real ridership figure replaces the transit-intensity proxy. The UI marks
+  every displayed exposure/importance figure as relative for this reason.
 
 ## Determinism
 

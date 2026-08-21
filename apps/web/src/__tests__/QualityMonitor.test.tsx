@@ -12,46 +12,22 @@ function rowIds(): string[] {
     .filter(Boolean);
 }
 
-describe("uptime and calibration derivation", () => {
-  it("computes uptime from R01 absent cells over expected cells", () => {
+describe("row building", () => {
+  // Uptime and last-calibration are served by /v1/quality/summary now (computed in
+  // io/db/repository.py::quality_summary), not derived here - buildRows is just the
+  // station/meta join. The formula's assumptions are pinned on the backend in
+  // tests/unit/test_uptime_assumptions.py.
+  it("joins each quality station to its station metadata", () => {
     const rows = buildQualityRows(
-      [fixtures.qualityStation({ station_id: "STA-01", n_parameters: 2 })],
-      [fixtures.station()],
-      [
-        fixtures.defect({ id: 1, reason_code: "R01", station_id: "STA-01" }),
-        fixtures.defect({ id: 2, reason_code: "R01", station_id: "STA-01" }),
-      ],
-      [],
-      10, // ten hours of window
+      [fixtures.qualityStation({ station_id: "STA-01" })],
+      [fixtures.station({ station_id: "STA-01", name: "Nagyerdő" })],
     );
-
-    // 2 absent of (10 hours x 2 parameters) = 20 expected -> 90%.
-    expect(rows[0]?.expectedHours).toBe(20);
-    expect(rows[0]?.uptimePct).toBeCloseTo(90);
+    expect(rows[0]?.meta?.name).toBe("Nagyerdő");
   });
 
-  it("shows no uptime at all rather than a number without a denominator", () => {
-    const rows = buildQualityRows([fixtures.qualityStation()], [fixtures.station()], [], [], null);
-    expect(rows[0]?.uptimePct).toBeNull();
-  });
-
-  it("takes the newest R15 discontinuity as the last calibration epoch", () => {
-    const rows = buildQualityRows(
-      [fixtures.qualityStation()],
-      [fixtures.station()],
-      [],
-      [
-        fixtures.defect({ id: 3, reason_code: "R15", station_id: "STA-01", timestamp_utc: "2026-05-02T00:00:00" }),
-        fixtures.defect({ id: 4, reason_code: "R15", station_id: "STA-01", timestamp_utc: "2026-05-09T00:00:00" }),
-      ],
-      168,
-    );
-    expect(rows[0]?.lastCalibration).toBe("2026-05-09T00:00:00");
-  });
-
-  it("leaves the calibration epoch null when the audit detected none", () => {
-    const rows = buildQualityRows([fixtures.qualityStation()], [fixtures.station()], [], [], 168);
-    expect(rows[0]?.lastCalibration).toBeNull();
+  it("leaves meta undefined when a station has no matching metadata row", () => {
+    const rows = buildQualityRows([fixtures.qualityStation({ station_id: "STA-99" })], []);
+    expect(rows[0]?.meta).toBeUndefined();
   });
 });
 
@@ -142,5 +118,49 @@ describe("QualityMonitor", () => {
     renderWithProviders(<QualityMonitor />);
     await waitFor(() => expect(rowIds().length).toBeGreaterThan(0));
     expect(screen.getByTestId("data-table")).toHaveClass("prov-table");
+  });
+
+  it("renders the served uptime and calibration figures as given, not re-derived", async () => {
+    renderWithProviders(<QualityMonitor />, {
+      routes: {
+        "/v1/quality/summary": {
+          audit_run_id: "run-2026-05-15",
+          stations: [
+            fixtures.qualityStation({
+              station_id: "STA-01",
+              uptime_pct: 87.5,
+              absent_cells: 5,
+              expected_cells: 40,
+              last_calibration_at: "2026-05-09T00:00:00",
+            }),
+          ],
+        },
+      },
+    });
+    await waitFor(() => expect(rowIds()).toEqual(["STA-01"]));
+    expect(screen.getByText("87.50%")).toBeInTheDocument();
+    expect(screen.getByTitle("5 absent of 40 expected cells")).toBeInTheDocument();
+  });
+
+  it("shows an em dash for uptime and 'none detected' for calibration when neither is served", async () => {
+    renderWithProviders(<QualityMonitor />, {
+      routes: {
+        "/v1/quality/summary": {
+          audit_run_id: "run-2026-05-15",
+          stations: [
+            fixtures.qualityStation({
+              station_id: "STA-01",
+              uptime_pct: null,
+              absent_cells: 0,
+              expected_cells: null,
+              last_calibration_at: null,
+            }),
+          ],
+        },
+      },
+    });
+    await waitFor(() => expect(rowIds()).toEqual(["STA-01"]));
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("none detected")).toBeInTheDocument();
   });
 });
