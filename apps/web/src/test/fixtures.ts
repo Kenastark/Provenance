@@ -108,6 +108,23 @@ export const attentionOverlayAvailable: AttentionOverlay = {
   },
 };
 
+// A dense real-drop-like overlay: 12 edges touch STA-03, well past the card's
+// display cap, to exercise the "strongest N of M" truncation note.
+export const attentionOverlayManyEdges: AttentionOverlay = {
+  available: true,
+  reason: null,
+  at: "2026-05-14T23:00:00",
+  target_parameter: "PM10",
+  relations: {
+    wind_conditioned: Array.from({ length: 12 }, (_, i) => ({
+      src: "STA-03",
+      dst: `STA-${String(i + 10).padStart(2, "0")}`,
+      attention: 0.5 - i * 0.02,
+      edge_weight: 0.1,
+    })),
+  },
+};
+
 export const trustComponents = [
   {
     name: "HealthConf",
@@ -395,6 +412,26 @@ export const explainDegraded: Explain = {
   attributions: [],
   model_versions: {},
   notes: ["No model artefact was available; this explanation comes from the statistics layer alone."],
+};
+
+// A rule-decided explanation for a parameter the deweather model does not cover
+// (e.g. Wind_Speed) - the real shape `explain_defect` returns for R12/frozen-sensor
+// style codes, distinct from the R07 "impossible reading, model-backed anyway" case
+// `explain` above represents.
+export const explainRuleFallback: Explain = {
+  ...explain,
+  reason_code: "R12",
+  method: "rule",
+  fault_class: null,
+  sentence: "Reading has not changed for 29d 10h - likely a frozen sensor.",
+  base_value: null,
+  prediction: null,
+  residual: null,
+  reconstructs: null,
+  attributions: [],
+  notes: [
+    "Wind_Speed is not covered by the deweather model (PM10, NO2, O3, CO, CO2); the deterministic reason is shown.",
+  ],
 };
 
 // A stored deweathered series for STA-03 · PM10: raw vs weather-predicted vs residual.

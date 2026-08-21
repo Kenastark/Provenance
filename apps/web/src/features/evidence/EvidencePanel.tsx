@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ReferenceArea,
@@ -26,6 +27,7 @@ import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { EmptyState, ErrorState, LoadingState, NotYetComputed } from "../../components/States";
 import { formatMeasurement, formatTimestamp, toDate } from "../../lib/format";
 import { useWindowState } from "../../lib/windowContext";
+import { haversineKm } from "../map/windEdges";
 
 /**
  * Why a particular reading is wrong.
@@ -141,7 +143,7 @@ export function EvidencePanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-      <header className="flex flex-wrap items-end gap-3">
+      <header className="sticky top-0 z-10 -mx-4 -mt-4 flex flex-wrap items-end gap-3 border-b border-border bg-bg px-4 pb-3 pt-4">
         <div className="flex-1">
           <h2 className="text-heading">Evidence</h2>
           <p className="text-caption text-text-tertiary">
@@ -255,22 +257,39 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
     limit: 200,
   });
 
-  // The neighbours this reading contradicts: every other station that carries the
-  // same parameter. Which of them are *physically connected* is a phase-4 question
-  // (that is what the wind-conditioned graph answers); until then the honest claim
-  // is "other stations measuring the same thing at the same time".
-  const neighbourIds = useMemo(
-    () =>
-      (stations.data ?? [])
-        .filter(
-          (station) =>
-            station.station_id !== defect.station_id &&
-            Object.prototype.hasOwnProperty.call(station.coverage ?? {}, defect.parameter),
-        )
-        .map((station) => station.station_id)
-        .slice(0, 3),
-    [stations.data, defect],
-  );
+  // The neighbours this reading contradicts: the nearest other stations that carry
+  // the same parameter, ranked by real distance when the flagged station has
+  // coordinates to rank from. Which of them are *physically connected* (wind-aware)
+  // is a phase-4 question, answered by the wind-conditioned graph; until then the
+  // honest claim is "the closest stations measuring the same thing at the same
+  // time", not an arbitrary 3 - so this sorts by haversine distance rather than
+  // taking whatever order the station list happens to arrive in.
+  const targetStation = (stations.data ?? []).find((s) => s.station_id === defect.station_id);
+  const rankedByDistance = targetStation?.lat != null && targetStation?.lon != null;
+  const neighbours = useMemo(() => {
+    const candidates = (stations.data ?? []).filter(
+      (station) =>
+        station.station_id !== defect.station_id &&
+        Object.prototype.hasOwnProperty.call(station.coverage ?? {}, defect.parameter),
+    );
+    if (!rankedByDistance || !targetStation) {
+      return candidates
+        .slice(0, 3)
+        .map((station) => ({ stationId: station.station_id, distanceKm: null as number | null }));
+    }
+    const lat = targetStation.lat as number;
+    const lon = targetStation.lon as number;
+    return candidates
+      .map((station) => ({
+        stationId: station.station_id,
+        distanceKm:
+          station.lat != null && station.lon != null
+            ? haversineKm(lat, lon, station.lat, station.lon)
+            : null,
+      }))
+      .sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+      .slice(0, 3);
+  }, [stations.data, defect, rankedByDistance, targetStation]);
 
   const unit = target.data?.[0]?.unit ?? null;
 
@@ -308,15 +327,21 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
             This detector recorded no numeric evidence beyond the flag itself.
           </p>
         ) : (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption" data-testid="evidence-numbers">
-            {Object.entries(defect.evidence).map(([key, value]) => (
-              <div key={key} className="contents">
-                <dt className="text-text-tertiary">{key}</dt>
-                <dd className="prov-numeric m-0 font-mono text-text">
-                  {typeof value === "number" ? formatMeasurement(value) : String(value)}
-                </dd>
-              </div>
-            ))}
+          <dl
+            className="grid grid-cols-[max-content_1fr] gap-x-3 text-caption"
+            data-testid="evidence-numbers"
+          >
+            {Object.entries(defect.evidence).map(([key, value], index, entries) => {
+              const divider = index < entries.length - 1 ? "border-b border-border" : "";
+              return (
+                <div key={key} className="contents">
+                  <dt className={`py-1.5 text-text-tertiary ${divider}`}>{key}</dt>
+                  <dd className={`prov-numeric m-0 py-1.5 font-mono text-text ${divider}`}>
+                    {typeof value === "number" ? formatMeasurement(value) : String(value)}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         )}
       </div>
@@ -389,21 +414,25 @@ export function DefectEvidence({ defect }: { defect: Defect }) {
 
       {/* -------------------------------------------------- the neighbours */}
       <div className="prov-panel p-4">
-        <h4 className="mb-2 text-subhead">Neighbouring stations measuring {defect.parameter}</h4>
-        {neighbourIds.length === 0 ? (
+        <h4 className="mb-2 text-subhead">
+          {rankedByDistance ? "Nearest stations" : "Neighbouring stations"} measuring{" "}
+          {defect.parameter}
+        </h4>
+        {neighbours.length === 0 ? (
           <p className="text-caption text-text-tertiary">
             No other loaded station carries {defect.parameter}, so this reading has nothing to be
             contradicted by. That is a coverage fact, not an endorsement.
           </p>
         ) : (
           <ul className="m-0 list-none space-y-3 p-0">
-            {neighbourIds.map((stationId) => (
+            {neighbours.map((neighbour) => (
               <NeighbourSeries
-                key={stationId}
-                stationId={stationId}
+                key={neighbour.stationId}
+                stationId={neighbour.stationId}
                 parameter={defect.parameter}
                 start={start}
                 end={end}
+                distanceKm={neighbour.distanceKm}
               />
             ))}
           </ul>
@@ -432,11 +461,13 @@ function NeighbourSeries({
   parameter,
   start,
   end,
+  distanceKm,
 }: {
   stationId: string;
   parameter: string;
   start: string | null;
   end: string | null;
+  distanceKm: number | null;
 }) {
   const readings = useReadings({ stationId, parameter, start, end, limit: 200 });
   const values = (readings.data ?? [])
@@ -447,7 +478,12 @@ function NeighbourSeries({
 
   return (
     <li className="flex items-baseline justify-between gap-3" data-testid="neighbour-series">
-      <span className="font-mono text-body">{stationId}</span>
+      <span className="font-mono text-body">
+        {stationId}
+        {distanceKm != null && (
+          <span className="ml-2 text-micro text-text-tertiary">{distanceKm.toFixed(1)} km</span>
+        )}
+      </span>
       <span className="prov-numeric text-caption text-text-secondary">
         {values.length} readings · mean {formatMeasurement(mean, unit)}
       </span>
@@ -489,7 +525,8 @@ export function ShapAttribution({ defect }: { defect: Defect }) {
         <h4 className="mb-1 text-subhead">Feature attribution (SHAP)</h4>
         <p className="text-caption text-text-tertiary" data-testid="shap-degraded">
           {data.method === "rule"
-            ? `This flag is decided by a deterministic rule (${data.fault_class ?? "physical"}); there is no model attribution to show.`
+            ? (data.notes?.[0] ??
+              `This flag is decided by a deterministic rule${data.fault_class ? ` (${data.fault_class})` : ""}; there is no model attribution to show.`)
             : "No trained model is loaded, so this runs on the statistics layer alone. Train one with `prov models train` to see per-feature SHAP attributions."}
         </p>
       </div>
@@ -520,7 +557,10 @@ function ShapBars({ data }: { data: Explain }) {
       </p>
       <ul className="m-0 list-none space-y-2 p-0" data-testid="shap-bars">
         {top.map((attr) => {
-          const width = `${(Math.abs(attr.value) / maxAbs) * 100}%`;
+          // Drawn from a centreline in both directions, so each side only ever
+          // owns half the track - capping at 50% (not 100%) keeps the largest bar
+          // from overrunning the card's right edge.
+          const width = `${(Math.abs(attr.value) / maxAbs) * 50}%`;
           const positive = attr.value >= 0;
           return (
             <li key={attr.feature} className="grid grid-cols-[10rem_1fr] items-center gap-2">
@@ -593,7 +633,7 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     );
   }
 
-  const edges = Object.entries(data.relations ?? {})
+  const allEdges = Object.entries(data.relations ?? {})
     .flatMap(([relation, relationEdges]) =>
       relationEdges
         .filter((edge) => edge.src === defect.station_id || edge.dst === defect.station_id)
@@ -601,7 +641,7 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     )
     .sort((a, b) => b.attention - a.attention);
 
-  if (edges.length === 0) {
+  if (allEdges.length === 0) {
     return (
       <div className="prov-panel p-4" data-testid="graph-attention">
         <h4 className="mb-1 text-subhead">Graph attention over neighbouring stations</h4>
@@ -614,6 +654,12 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     );
   }
 
+  // The full edge set can run into the dozens across both relation types; capped to
+  // the strongest few (mirroring ShapBars' own top-6 cap) so the card stays scannable
+  // rather than an unbroken wall of near-identical bars - the omission is stated
+  // rather than silent, the same "truncated" honesty the defect table uses.
+  const EDGE_CAP = 8;
+  const edges = allEdges.slice(0, EDGE_CAP);
   const maxAttention = Math.max(1e-9, ...edges.map((edge) => edge.attention));
 
   return (
@@ -633,7 +679,7 @@ export function GraphAttention({ defect }: { defect: Defect }) {
           return (
             <li
               key={`${edge.relation}-${edge.src}-${edge.dst}`}
-              className="grid grid-cols-[10rem_1fr] items-center gap-2"
+              className="grid grid-cols-[14rem_1fr_3.5rem] items-center gap-2"
             >
               <span className="truncate text-caption text-text-secondary" title={edge.relation}>
                 {outgoing ? "→" : "←"} <span className="font-mono">{neighbour}</span>
@@ -643,13 +689,21 @@ export function GraphAttention({ defect }: { defect: Defect }) {
                 <span
                   className="h-3 rounded-sm"
                   style={{ width, background: "var(--prov-chart-series-1)" }}
-                  title={`attention ${edge.attention.toFixed(3)}`}
                 />
+              </span>
+              <span className="prov-numeric text-right text-micro text-text-tertiary">
+                {edge.attention.toFixed(3)}
               </span>
             </li>
           );
         })}
       </ul>
+      {allEdges.length > EDGE_CAP && (
+        <p className="mt-2 text-micro text-text-tertiary" data-testid="attention-edges-truncated">
+          Showing the strongest {EDGE_CAP} of {allEdges.length} edges touching{" "}
+          {defect.station_id}.
+        </p>
+      )}
       <p className="mt-2 text-micro text-text-tertiary">
         Softmax attention weight over {defect.station_id}'s edges of each relation — a
         read-out of what the model attended to, never an accuracy claim.
@@ -755,11 +809,12 @@ export function DeweatherChart({
                 fontSize: "var(--prov-size-caption)",
               }}
             />
+            <Legend wrapperStyle={{ fontSize: "var(--prov-size-caption)" }} />
             {view !== "residual" && (
               <Line
                 type="monotone"
                 dataKey="actual"
-                name="raw"
+                name="Raw"
                 stroke="var(--prov-chart-series-1)"
                 dot={false}
                 strokeWidth={1.5}
@@ -771,7 +826,7 @@ export function DeweatherChart({
               <Line
                 type="monotone"
                 dataKey="residual"
-                name="residual"
+                name="Residual"
                 stroke="var(--prov-chart-series-2)"
                 dot={false}
                 strokeWidth={1.5}

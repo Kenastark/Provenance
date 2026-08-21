@@ -4,6 +4,61 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Fixed
+- **Ten Evidence-tab issues found in a user review of the real `DEB-KER03 · CO2`
+  defect, plus one crash the review's own verification surfaced.**
+  - `explain_defect` (`explain/service.py`) no longer runs the weather-SHAP
+    explanation for R10 (declared-unit mismatch) or R11 (detection-limit floor):
+    these flag the reading's *metadata*, not its magnitude, so a residual near zero
+    (weather predicts the mislabelled-but-otherwise-ordinary number just fine) would
+    make the model look like it "explains" a defect it has nothing to do with. R07-R09
+    (genuine physical-bound violations) are unchanged - the existing "impossible
+    reading, model-backed context anyway" design stays intact, still pinned by
+    `test_explain_api.py`. New `tests/unit/test_explain_service.py`.
+  - The SHAP card's rule-decided fallback (`EvidencePanel.tsx`) now shows the
+    backend's own `notes[0]` (e.g. "Wind_Speed is not covered by the deweather
+    model...") instead of a hardcoded `(physical)` filler that was simply wrong for
+    any non-physical rule-decided code (frozen sensor, drift, etc.) - that filler is
+    what looked like a missing `fault_class` in the original report.
+  - `ShapBars`' bar width was computed up to 100% of the track from a centreline
+    that only owns 50% each side, so the largest attribution could run to 150% and
+    push the whole label column off-screen. Capped at 50%.
+  - `GraphAttention`'s edge list had no cap (a real drop can carry 40+ edges per
+    station) and a 10rem label column too narrow for `→ DEB-KER18
+    (wind_conditioned)`; capped to the strongest 8 (mirroring `ShapBars`' own top-6,
+    with an honest "showing N of M" note when truncated), widened to 14rem, and
+    added the numeric weight beside each bar instead of only on hover.
+  - `DeweatherChart` gained a `<Legend>` (matching `AdjudicationDetail.tsx`'s
+    existing pattern) - the raw/residual lines had no on-chart label at all.
+  - The Evidence header (title + Station/Code/Severity filters) is now `sticky`
+    with a bottom border, so it stays visible while the rest of the page scrolls.
+  - The "Detector evidence" key/value list moved from an even 50/50 grid split
+    (which could put a value far from its label on a wide screen) to
+    content-sized columns with a divider line per row.
+  - **The "neighbouring stations" list was never actually nearest** - it took
+    whichever 3 same-parameter stations came first in `/v1/stations`' alphabetical
+    order, not by distance. Confirmed against the real drop: for `DEB-KER03` this
+    picked `DEB-KER01/02/04` while the true 3 nearest are `DEB-KER04/14/07`
+    (3.4/3.7/5.7 km - haversine, reusing `windEdges.ts`'s existing formula). Now
+    sorted by real distance when the flagged station has coordinates, each shown
+    with its distance; falls back to the previous order otherwise. Header renamed
+    "Nearest stations measuring X" when distance-ranked.
+  - Severity's "info" option is confirmed by design, not a bug: it's the fifth
+    rung of the shared ordinal scale (`ops/severity.py`) and 5 real defects use it.
+  - **Wiring the attention card to a real trained artefact (above) made a
+    previously-optional crash near-certain.** `GET /v1/graph/attention` SIGSEGVs
+    the API process on macOS/Homebrew/arm64 (two conflicting `libomp.dylib` copies
+    from torch and scikit-learn colliding inside the real OS thread
+    `run_in_threadpool` spawns for the HST-GAT forward pass) - a known, previously
+    unfixed risk flagged in update-14, until now only reachable by manually
+    toggling the map's attention layer. Reproduced directly (`curl` twice, process
+    died both times); `OMP_NUM_THREADS=1` prevents it (`KMP_DUPLICATE_LIB_OK` does
+    not - wrong OpenMP implementation). Set for `make api`/`make api-bg` only, not
+    the whole Makefile or `infra/docker/api.Dockerfile`'s Linux/glibc image, which
+    is not known to share this failure mode.
+  - Full detail and live verification (screenshots against the real 16-station
+    drop): `docs/updates/u17-evidence-review-fixes.md`.
+
 ### Changed
 - **The Data Quality Monitor's uptime and last-calibration figures move from the
   frontend into the audit engine.** `QualityMonitor.tsx`'s `buildRows` used to

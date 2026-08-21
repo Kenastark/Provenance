@@ -201,10 +201,25 @@ API_PID := .demo-api.pid
 # Loopback locally. CI overrides it to 0.0.0.0 so the browser running inside the
 # pinned Playwright container can reach back through the Docker bridge.
 API_HOST ?= 127.0.0.1
+# macOS/Homebrew/arm64 only: torch and scikit-learn each load their own copy of
+# LLVM's libomp.dylib, and the two colliding inside a real OS thread (exactly what
+# `run_in_threadpool` spawns for /v1/graph/attention's HST-GAT forward pass) SIGSEGVs
+# the whole process - reproducible, not a logic bug (see
+# docs/updates/u14-train-hstgat-real.md's "Flag for review"; the Evidence tab's
+# attention card now calling that endpoint on every defect view, unconditionally,
+# makes it near-certain to hit rather than only possible on a manual map-layer
+# toggle). `KMP_DUPLICATE_LIB_OK=TRUE` does not help (that variable is for Intel's
+# iomp5, not LLVM's libomp); forcing single-threaded OpenMP does, confirmed by
+# repeated reproduction just now. Scoped to the two targets that actually serve this
+# endpoint, not the whole Makefile - `infra/docker/api.Dockerfile`'s Debian/glibc
+# image uses a different OpenMP runtime (libgomp) and isn't known to share this
+# failure mode, so it is left alone rather than paying this same throttling cost
+# somewhere it may not be needed.
+API_ENV := OMP_NUM_THREADS=1
 
 .PHONY: api
 api: ## run the API in the foreground
-	$(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
+	$(API_ENV) $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
 	  --host $(API_HOST) --port 8000 --reload
 
 .PHONY: api-bg
@@ -212,7 +227,7 @@ api-bg: ## start the API in the background (writes $(API_PID))
 	@if curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1; then \
 	  echo "API already listening on :8000"; \
 	else \
-	  $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
+	  $(API_ENV) $(VENV)/bin/python -m uvicorn provenance.api.app:create_app --factory \
 	    --host $(API_HOST) --port 8000 > .demo-api.log 2>&1 & echo $$! > $(API_PID); \
 	  for i in $$(seq 1 40); do \
 	    curl -sf http://127.0.0.1:8000/healthz >/dev/null 2>&1 && break; sleep 1; \

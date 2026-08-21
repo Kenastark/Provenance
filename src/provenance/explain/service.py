@@ -31,6 +31,17 @@ from provenance.models.deweather.model import RESIDUAL
 from provenance.models.features import build_features
 from provenance.schema import canonical as C
 
+# R10 (declared unit contradicts the observed range) and R11 (pinned at the
+# instrument's detection limit) flag a property of the reading's METADATA, not its
+# magnitude - unlike R07-R09, where "how far is this from what weather predicts" is
+# itself informative (a physically-impossible value is often also a weather-residual
+# outlier), a mislabelled-unit or censored reading is typically unremarkable relative
+# to weather (its own residual near zero, since the raw number was never actually
+# wrong). Showing a weather-SHAP explanation there would suggest a cause - "driven by
+# the boundary layer, humidity, ..." - that has nothing to do with the actual defect.
+# So these two skip the model path even when their pollutant is otherwise covered.
+_METADATA_ONLY_CODES = frozenset({"R10", "R11"})
+
 
 @dataclass(frozen=True, slots=True)
 class DefectRef:
@@ -136,6 +147,21 @@ def explain_defect(
 
     # Fault class from the hybrid classifier (rules first), for context on any cell.
     fault_class = _fault_class_for(frame, ref, bundle, weather)
+
+    if ref.reason_code in _METADATA_ONLY_CODES:
+        return ExplanationResult(
+            ref=ref,
+            method="rule",
+            sentence=_reason_sentence(ref),
+            degraded=False,
+            model_versions=versions,
+            fault_class=fault_class,
+            notes=[
+                f"{ref.reason_code} flags the reading's declared unit or detection "
+                "limit, not its magnitude; weather does not explain that, so the "
+                "deterministic reason is shown instead of a model attribution.",
+            ],
+        )
 
     if ref.parameter not in deweather.regressors or frame.empty:
         return ExplanationResult(
