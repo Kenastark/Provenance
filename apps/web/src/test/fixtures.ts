@@ -1,4 +1,5 @@
 import type {
+  AttentionOverlay,
   AuditRun,
   BusStop,
   Defect,
@@ -81,6 +82,30 @@ export const referenceCountersUnavailable: ReferenceCounters = { available: fals
 export const referenceCountersAvailable: ReferenceCounters = {
   available: true,
   counters: [trafficCounter(), trafficCounter({ counter_id: "RbuHQFeNkxcPagEZdwc4PH", name: "BMW körút" })],
+};
+
+/** No HST-GAT artefact trained - the honest default a fresh clone actually reports
+ * (the demo pipeline trains the tree models but not the HST-GAT by default). */
+export const attentionOverlayUnavailable: AttentionOverlay = {
+  available: false,
+  reason: "The HST-GAT has not been trained. Run `prov models train-hstgat` to enable the learned attention overlay.",
+  at: null,
+  target_parameter: null,
+  relations: {},
+};
+
+export const attentionOverlayAvailable: AttentionOverlay = {
+  available: true,
+  reason: null,
+  at: "2026-05-14T23:00:00",
+  target_parameter: "PM10",
+  relations: {
+    wind_conditioned: [
+      { src: "STA-01", dst: "STA-02", attention: 0.62, edge_weight: 0.4 },
+      { src: "STA-03", dst: "STA-02", attention: 0.31, edge_weight: 0.22 },
+    ],
+    spatial_proximity: [{ src: "STA-02", dst: "STA-01", attention: 0.18, edge_weight: 0.5 }],
+  },
 };
 
 export const trustComponents = [

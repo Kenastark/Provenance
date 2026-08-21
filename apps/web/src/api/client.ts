@@ -226,6 +226,7 @@ export type BusStop = Schemas["BusStopOut"];
 export type ReferenceStops = Schemas["ReferenceStopsOut"];
 export type TrafficCounter = Schemas["TrafficCounterOut"];
 export type ReferenceCounters = Schemas["ReferenceCountersOut"];
+export type AttentionOverlay = Schemas["AttentionOverlayOut"];
 
 /** Every list endpoint answers with this envelope. */
 export interface Page<T> {
@@ -260,4 +261,8 @@ export type _ReferenceCountersRouteMatches = AssertAssignable<
     paths["/v1/reference/traffic-counters"]["get"]["responses"][200]["content"]
   >["application/json"],
   ReferenceCounters
+>;
+export type _AttentionOverlayRouteMatches = AssertAssignable<
+  NonNullable<paths["/v1/graph/attention"]["get"]["responses"][200]["content"]>["application/json"],
+  AttentionOverlay
 >;

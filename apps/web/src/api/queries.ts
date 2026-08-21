@@ -10,6 +10,7 @@ import { createContext, useContext } from "react";
 import {
   createClient,
   type ApiClient,
+  type AttentionOverlay,
   type AuditRun,
   type Defect,
   type DeweatherSeries,
@@ -78,6 +79,7 @@ export const queryKeys = {
     ["deweather", stationId, parameter] as const,
   busStops: ["reference", "bus-stops"] as const,
   trafficCounters: ["reference", "traffic-counters"] as const,
+  attentionOverlay: ["graph", "attention"] as const,
   alerts: (runId?: string) => ["alerts", runId ?? "latest"] as const,
   maintenance: (status?: string) => ["maintenance", status ?? "all"] as const,
   maintenanceItem: (id: number) => ["maintenance", "item", id] as const,
@@ -134,6 +136,18 @@ export function useTrafficCounters(): UseQueryResult<ReferenceCounters> {
     queryKey: queryKeys.trafficCounters,
     queryFn: ({ signal }) =>
       client.get<ReferenceCounters>("/v1/reference/traffic-counters", { signal }),
+    staleTime: Infinity,
+  });
+}
+
+/** The HST-GAT's attention overlay: real edges, or `available: false` with the
+ * backend's own reason (e.g. "has not been trained") - see stationMarkers.ts's
+ * LayerDefinition and the attentionOverlay entry in MAP_LAYERS. */
+export function useAttentionOverlay(): UseQueryResult<AttentionOverlay> {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.attentionOverlay,
+    queryFn: ({ signal }) => client.get<AttentionOverlay>("/v1/graph/attention", { signal }),
     staleTime: Infinity,
   });
 }

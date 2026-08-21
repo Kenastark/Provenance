@@ -42,6 +42,7 @@ export const defaultRoutes: RouteMap = {
   "/v1/deweather/STA-03": fixtures.deweatherSeries,
   "/v1/reference/bus-stops": fixtures.referenceStopsUnavailable,
   "/v1/reference/traffic-counters": fixtures.referenceCountersUnavailable,
+  "/v1/graph/attention": fixtures.attentionOverlayUnavailable,
   "/v1/alerts": fixtures.alertsResponse(),
   "/v1/maintenance": page(fixtures.maintenanceItems),
   "/v1/maintenance/1": { ...fixtures.maintenanceItem(), history: [] },

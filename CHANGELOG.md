@@ -5,6 +5,23 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The HST-GAT's learned attention as a map overlay.** `attention.py`'s per-edge
+  attention weights were exported and fully tested but never rendered. `GET
+  /v1/graph/attention` now serves them (public-read, computed live off the DB's
+  current frame in a worker thread — never a file the frontend reads directly):
+  `available: false` with a human-readable reason when no HST-GAT artefact is
+  trained, or when the trained model's target parameter is not in the currently
+  loaded data (standing rule 6 — never a silent empty overlay, never an error). A
+  new "Learned attention (HST-GAT)" map layer, off by default, renders these edges
+  dashed rather than solid — line weight and dash carry the attention magnitude, no
+  new hue spent (blue is the only interactive colour) — so it can never be mistaken
+  for the analytic wind-conditioned edges beside it. The toggle is disabled with the
+  backend's own tooltip until a model is trained; `attentionEdgesFromOverlay`
+  resolves each edge against the same station-marker lookup `windEdges.ts` projects
+  the analytic edges from, so the two layers cannot drift apart geometrically.
+  Frontend contract regenerated (`make web-contract`); visual baselines
+  regenerated on both platforms (the layer panel gained a row). See
+  `docs/updates/u11-attention-overlay.md`.
 - **The Alert Centre (`/alerts`) and Admin (`/admin`) screens** — the phase-7
   operational layer (maintenance queue, risk-ranked alerts, sign-off gate, RBAC,
   admin) existed at the API/CLI only until now. The Alert Centre ranks candidate
