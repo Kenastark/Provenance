@@ -102,7 +102,15 @@ worker thread (`run_in_threadpool`, like the explain endpoint's SHAP path).
   darwin, locally via `playwright test --project=chromium e2e/visual.spec.ts
   --update-snapshots` — `12 passed (44.6s)`. Only the four `map-*` baselines (both
   themes, both platforms) are committed — see the deviation below re.
-  `station-detail-*-darwin`.
+  `station-detail-*-darwin`. One self-inflicted false alarm along the way, worth
+  recording because it will recur: after committing, restoring the artefacts to
+  their normal local-dev location (moved aside only for the capture) while the
+  *same* long-lived API process was still serving requests flipped every
+  model-backed screen out of degraded mode and failed all 12 `web-visual-check`
+  cases at once — nothing to do with this branch, just the live artefact check
+  re-evaluating mid-session. Moved them aside again, confirmed
+  `GET /v1/graph/attention` back to `available: false`, and got a clean
+  `12 passed (1.5m)` before restoring them for good.
 - Manually verified against the live demo API: `curl /v1/graph/attention` returns
   `{"available": false, "reason": "The HST-GAT has not been trained. Run \`prov
   models train-hstgat\` to enable the learned attention overlay.", "at": null,
