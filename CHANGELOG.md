@@ -29,6 +29,20 @@ Format: Keep a Changelog. Versioning: SemVer.
   platforms.
 
 ### Added
+- **`make demo-real-hstgat`.** `prov models train-hstgat` worked but was wired into
+  no `make` target, so the "Learned attention (HST-GAT)" map layer shipped disabled
+  by default even against a real drop. Its own target (not folded into `demo-real` —
+  training is the slowest step in the whole path, ~4m20s, and a judge re-running
+  `demo-real` to reset state shouldn't pay that every time) trains the HST-GAT and
+  conformal-calibrates it against `data/raw`; the trained artefact is picked up live
+  by `GET /v1/graph/attention` (`store.latest_stem()`), no restart needed.
+  `demo-real`'s help text and closing output mention it as an optional follow-up.
+  Verified against the real Green Sentinel drop: 3,299 parameters, `calibrated: true`
+  (2,816 calibration points, well above the `min_calibration: 20` floor), and the
+  network map's dashed attention edges draw once the toggle is live. See
+  `docs/updates/u14-train-hstgat-real.md` — also flags a pre-existing `libomp.dylib`
+  duplicate-runtime crash in the attention endpoint on macOS/Homebrew/arm64, first
+  surfaced by this update actually exercising it against real data.
 - **The HST-GAT's learned attention as a map overlay.** `attention.py`'s per-edge
   attention weights were exported and fully tested but never rendered. `GET
   /v1/graph/attention` now serves them (public-read, computed live off the DB's
