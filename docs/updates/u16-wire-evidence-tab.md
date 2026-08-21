@@ -144,8 +144,10 @@ gates the PR): first push failed on the `toHaveCount(0)` change (`Received: 2`),
 correctly, for the reason in §3 above; every other check
 (`architecture`, `backend` — 683 passed, 90.59% coverage, `contract`, `web`,
 `no-data-required`, both CodeQL `analyze` jobs, GitGuardian) passed on that same
-push. Reverted the count to `2` and re-pushed; final CI status recorded once
-that run completes (see PR #30).
+push. Reverted the count to `2` and re-pushed: **all ten PR checks pass** on the
+corrected commit (`cba1c5f`) — `architecture`, `backend`, `contract`, `e2e`,
+`web`, `no-data-required`, both CodeQL `analyze` jobs, GitGuardian, and CodeQL's
+own status check.
 
 No visual baselines regenerated: the Evidence tab (`/evidence`) is not currently
 covered by `e2e/visual.spec.ts` (checked — no `evidence` baseline exists in
