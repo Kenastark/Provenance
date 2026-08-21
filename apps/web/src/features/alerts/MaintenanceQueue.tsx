@@ -224,7 +224,12 @@ function TicketDetail({
 }) {
   const factors: Factor[] = [
     { key: "severity_weight", label: "Severity weight", value: ticket.severity_weight },
-    { key: "importance", label: "Station importance", value: ticket.importance },
+    {
+      key: "importance",
+      label: "Station importance (rel.)",
+      value: ticket.importance,
+      hint: "PopulationExposure, provisional: min-max normalised across the stations in the current drop, not an absolute figure - not comparable across two different networks without renormalising.",
+    },
   ];
   const next = MAINTENANCE_TRANSITIONS[ticket.status];
 

@@ -51,7 +51,12 @@ export function AlertDetail({ alert }: { alert: AlertItem | null }) {
 
   const riskFactors: Factor[] = [
     { key: "genuineness", label: "Genuineness", value: alert.risk_factors.genuineness },
-    { key: "exposure", label: "Exposure", value: alert.risk_factors.exposure },
+    {
+      key: "exposure",
+      label: "Exposure (rel.)",
+      value: alert.risk_factors.exposure,
+      hint: "Provisional: min-max normalised across the stations in the current drop, not an absolute figure - not comparable across two different networks without renormalising.",
+    },
     { key: "hazard", label: "Hazard", value: alert.risk_factors.hazard },
     { key: "confidence_weight", label: "Confidence weight", value: alert.risk_factors.confidence_weight },
   ];

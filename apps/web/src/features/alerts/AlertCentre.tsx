@@ -87,7 +87,9 @@ export function AlertCentre() {
       },
       {
         key: "exposure",
-        header: "Exposure",
+        header: "Exposure (rel.)",
+        headerHint:
+          "Provisional: min-max normalised across the stations in the current drop, not an absolute figure - not comparable across two different networks without renormalising.",
         align: "right",
         sortValue: (row) => row.exposure,
         render: (row) => row.exposure.toFixed(2),

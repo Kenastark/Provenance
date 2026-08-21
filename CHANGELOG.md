@@ -4,6 +4,30 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Changed
+- **The Data Quality Monitor's uptime and last-calibration figures move from the
+  frontend into the audit engine.** `QualityMonitor.tsx`'s `buildRows` used to
+  compute `1 - (R01 absent cells / expected cells)` and the newest R15
+  discontinuity itself, off the `/v1/defects` list - honest, but business logic
+  sitting in a presentation layer (flagged in the phase-3 report's flag review).
+  `io/db/repository.py::quality_summary` now computes both, windowed by the same
+  `start`/`end` `/v1/quality/summary` now accepts as query params (mirroring
+  `/v1/defects`); `QualityStationOut` gains `uptime_pct`, `absent_cells`,
+  `expected_cells`, `last_calibration_at`. The frontend now only displays what it
+  is given. `tests/unit/test_uptime_assumptions.py`'s two pinning tests move to
+  naming the repository function instead of the frontend file. Frontend contract
+  regenerated; quality-monitor visual baselines regenerated on both platforms.
+- **PopulationExposure is now marked provisional wherever it is displayed**, not
+  only in `config/graph.yaml`'s own comments. The Alert Centre's Exposure column,
+  the alert detail's risk-factor breakdown, and the maintenance queue's "Station
+  importance" factor (the same figure, differently named) all gain a "(rel.)"
+  label suffix and a tooltip explaining the min-max, relative-to-the-current-drop
+  normalisation - a station's exposure factor is not comparable across two
+  different networks without renormalising. Also noted in
+  `docs/model-cards/propagation-adjudicator-v1.md`. The normalisation method
+  itself is unchanged. Alert Centre visual baselines regenerated on both
+  platforms.
+
 ### Added
 - **The HST-GAT's learned attention as a map overlay.** `attention.py`'s per-edge
   attention weights were exported and fully tested but never rendered. `GET

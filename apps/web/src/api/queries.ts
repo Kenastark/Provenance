@@ -65,7 +65,8 @@ function defaultClient(): ApiClient {
 export const queryKeys = {
   version: ["version"] as const,
   stations: ["stations"] as const,
-  quality: (runId?: string) => ["quality", runId ?? "latest"] as const,
+  quality: (runId?: string, start?: string | null, end?: string | null) =>
+    ["quality", runId ?? "latest", start ?? null, end ?? null] as const,
   auditRuns: ["audit", "runs"] as const,
   auditRun: (runId: string) => ["audit", "run", runId] as const,
   events: (stationId?: string) => ["events", stationId ?? "all"] as const,
@@ -152,13 +153,23 @@ export function useAttentionOverlay(): UseQueryResult<AttentionOverlay> {
   });
 }
 
-export function useQualitySummary(runId?: string): UseQueryResult<QualitySummary> {
+/** ``window`` bounds the served ``uptime_pct``/``last_calibration_at`` figures to
+ * the operator's selected time window, the same way `useDefects`' start/end do;
+ * omit it for an unbounded call (e.g. the window anchor itself, which cannot
+ * depend on a window it has not resolved yet). */
+export function useQualitySummary(
+  runId?: string,
+  window?: { start?: string | null; end?: string | null },
+): UseQueryResult<QualitySummary> {
   const client = useApiClient();
   return useQuery({
-    queryKey: queryKeys.quality(runId),
+    queryKey: queryKeys.quality(runId, window?.start, window?.end),
     placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      client.get<QualitySummary>("/v1/quality/summary", { query: { run_id: runId }, signal }),
+      client.get<QualitySummary>("/v1/quality/summary", {
+        query: { run_id: runId, start: window?.start ?? undefined, end: window?.end ?? undefined },
+        signal,
+      }),
   });
 }
 

@@ -865,6 +865,11 @@
       },
       "QualityStationOut": {
         "properties": {
+          "absent_cells": {
+            "default": 0,
+            "title": "Absent Cells",
+            "type": "integer"
+          },
           "components": {
             "items": {
               "$ref": "#/components/schemas/ComponentOut"
@@ -876,6 +881,17 @@
             "additionalProperties": true,
             "title": "Evidence",
             "type": "object"
+          },
+          "expected_cells": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Cells"
           },
           "flag_count": {
             "title": "Flag Count",
@@ -891,6 +907,17 @@
               }
             ],
             "title": "Health"
+          },
+          "last_calibration_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Calibration At"
           },
           "last_reading_at": {
             "anyOf": [
@@ -928,6 +955,17 @@
               }
             ],
             "title": "Trust"
+          },
+          "uptime_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uptime Pct"
           },
           "zone_type": {
             "anyOf": [
@@ -2547,6 +2585,44 @@
               ],
               "description": "Audit run; defaults to the latest.",
               "title": "Run Id"
+            }
+          },
+          {
+            "description": "Uptime/calibration window start.",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Uptime/calibration window start.",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "Uptime/calibration window end.",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Uptime/calibration window end.",
+              "title": "End"
             }
           }
         ],

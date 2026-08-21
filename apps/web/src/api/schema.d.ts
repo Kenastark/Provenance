@@ -816,16 +816,25 @@ export interface components {
         };
         /** QualityStationOut */
         QualityStationOut: {
+            /**
+             * Absent Cells
+             * @default 0
+             */
+            absent_cells: number;
             /** Components */
             components?: components["schemas"]["ComponentOut"][];
             /** Evidence */
             evidence?: {
                 [key: string]: unknown;
             };
+            /** Expected Cells */
+            expected_cells?: number | null;
             /** Flag Count */
             flag_count: number;
             /** Health */
             health: number | null;
+            /** Last Calibration At */
+            last_calibration_at?: string | null;
             /** Last Reading At */
             last_reading_at: string | null;
             /** N Parameters */
@@ -836,6 +845,8 @@ export interface components {
             station_id: string;
             /** Trust */
             trust: number | null;
+            /** Uptime Pct */
+            uptime_pct?: number | null;
             /** Zone Type */
             zone_type: string | null;
         };
@@ -1690,6 +1701,10 @@ export interface operations {
             query?: {
                 /** @description Audit run; defaults to the latest. */
                 run_id?: string | null;
+                /** @description Uptime/calibration window start. */
+                start?: string | null;
+                /** @description Uptime/calibration window end. */
+                end?: string | null;
             };
             header?: never;
             path?: never;

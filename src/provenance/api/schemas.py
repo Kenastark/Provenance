@@ -128,6 +128,13 @@ class QualityStationOut(BaseModel):
     flag_count: int
     n_parameters: int
     last_reading_at: str | None
+    # 1 - (R01 absent cells / expected cells) over the request's start/end window;
+    # None with no bounded window, since there is then no denominator (rule 6).
+    uptime_pct: float | None = None
+    absent_cells: int = 0
+    expected_cells: float | None = None
+    # Newest R15 CALIBRATION_EPOCH_DISCONTINUITY inside the window, or None.
+    last_calibration_at: str | None = None
     # Even the at-a-glance tile is never a bare number: it carries the same
     # explanation the trust endpoint does (standing rule 9).
     components: list[ComponentOut] = Field(default_factory=list)

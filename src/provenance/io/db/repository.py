@@ -263,8 +263,25 @@ async def last_reading_at_by_station(session: AsyncSession) -> dict[str, datetim
     return {str(station): ts for station, ts in rows if ts is not None}
 
 
-async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, Any]]:
-    """Per-station Data Quality Monitor payload for a given run."""
+async def quality_summary(
+    session: AsyncSession,
+    run_id: str,
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Per-station Data Quality Monitor payload for a given run.
+
+    ``start``/``end`` bound the uptime and last-calibration figures to the
+    operator's selected time window, the same way they bound ``/v1/defects``.
+    Uptime is ``1 - (R01 absent cells / expected cells)``, where expected cells is
+    ``window_hours x n_parameters`` — one cell per hour per parameter, pinned by
+    ``tests/unit/test_uptime_assumptions.py``. With no bounded window there is no
+    denominator to divide by, so ``uptime_pct`` is honestly ``None`` rather than a
+    number derived from nothing (standing rule 6). ``last_calibration_at`` is the
+    newest R15 CALIBRATION_EPOCH_DISCONTINUITY inside the window, or ``None`` where
+    the audit found none.
+    """
     stations = (await session.scalars(select(m.Station).order_by(m.Station.station_id))).all()
     defects = await defects_for_audit_run(session, run_id)
     last_reading = await last_reading_at_by_station(session)
@@ -282,9 +299,38 @@ async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, 
         if d.counts_toward_rate:
             flags_by_station[d.station_id] = flags_by_station.get(d.station_id, 0) + 1
 
+    windowed = [
+        d
+        for d in defects
+        if (start is None or d.timestamp_utc >= start) and (end is None or d.timestamp_utc <= end)
+    ]
+    absent_by_station: dict[str, int] = {}
+    calibration_by_station: dict[str, datetime] = {}
+    for d in windowed:
+        if d.reason_code == "R01":
+            absent_by_station[d.station_id] = absent_by_station.get(d.station_id, 0) + 1
+        elif d.reason_code == "R15":
+            cur_ts = calibration_by_station.get(d.station_id)
+            if cur_ts is None or d.timestamp_utc > cur_ts:
+                calibration_by_station[d.station_id] = d.timestamp_utc
+
+    window_hours = (
+        (end - start).total_seconds() / 3600.0 if start is not None and end is not None else None
+    )
+
     out: list[dict[str, Any]] = []
     for s in stations:
         ts = latest_trust.get(s.station_id)
+        n_parameters = len(s.coverage)
+        expected_cells = (
+            window_hours * n_parameters if window_hours is not None and n_parameters > 0 else None
+        )
+        absent_cells = absent_by_station.get(s.station_id, 0)
+        uptime_pct = (
+            max(0.0, 100.0 * (1 - absent_cells / expected_cells))
+            if expected_cells is not None and expected_cells > 0
+            else None
+        )
         out.append(
             {
                 "station_id": s.station_id,
@@ -292,9 +338,17 @@ async def quality_summary(session: AsyncSession, run_id: str) -> list[dict[str, 
                 "health": None if ts is None else _component_value(ts, "HealthConf"),
                 "trust": None if ts is None else ts.trust,
                 "flag_count": flags_by_station.get(s.station_id, 0),
-                "n_parameters": len(s.coverage),
+                "n_parameters": n_parameters,
                 "last_reading_at": (
                     last_reading[s.station_id].isoformat() if s.station_id in last_reading else None
+                ),
+                "uptime_pct": uptime_pct,
+                "absent_cells": absent_cells,
+                "expected_cells": expected_cells,
+                "last_calibration_at": (
+                    calibration_by_station[s.station_id].isoformat()
+                    if s.station_id in calibration_by_station
+                    else None
                 ),
                 "components": [] if ts is None else list(ts.components),
                 "reason_codes": [] if ts is None else list(ts.reason_codes),

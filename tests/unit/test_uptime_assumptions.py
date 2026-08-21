@@ -1,20 +1,15 @@
-"""The assumptions the dashboard's derived uptime column rests on.
+"""The assumptions the Data Quality Monitor's served uptime figure rests on.
 
-The Data Quality Monitor computes uptime as ``1 - (R01 absent cells / expected
-cells)``, where expected cells is ``window_hours x n_parameters``. The API serves no
-uptime field, so that arithmetic lives in the presentation layer - which is exactly
-the kind of thing that drifts away from the engine's own definition without anyone
-noticing.
+``io/db/repository.py::quality_summary`` computes uptime as ``1 - (R01 absent cells
+/ expected cells)``, where expected cells is ``window_hours x n_parameters``. That
+used to live in the frontend (`apps/web/src/features/quality/QualityMonitor.tsx`);
+it is now engine-adjacent, served rather than re-derived per screen, so the
+dashboard just displays what it is given.
 
-These tests are the tether. They assert, on the backend, the two properties the
-frontend's formula silently assumes. If either stops holding, a test here fails and
-names the frontend file that has to change, rather than the dashboard quietly
-reporting a wrong percentage.
-
-The alternative - serving a computed uptime from the audit engine - is the right
-long-term answer and is recorded as such; it is not done here because it would mean
-adding a windowed aggregate to the audit run, which is engine work rather than
-dashboard work.
+These tests are the tether. They assert, on the backend, the two properties that
+formula silently assumes. If either stops holding, a test here fails and names the
+repository function that has to change, rather than the dashboard quietly serving a
+wrong percentage.
 """
 
 from __future__ import annotations
@@ -42,9 +37,9 @@ def test_every_station_series_is_hourly(corpus: tuple[pd.DataFrame, object]) -> 
     """The uptime denominator is `window_hours x n_parameters`, i.e. one cell an hour.
 
     If a source with another cadence (the Enclod counters are 15-minute) ever becomes
-    a station, that denominator is wrong and the column silently overstates uptime.
+    a station, that denominator is wrong and the served uptime silently overstates it.
 
-    Fix location: apps/web/src/features/quality/QualityMonitor.tsx, `buildRows`.
+    Fix location: src/provenance/io/db/repository.py, `quality_summary`.
     """
     _, coverage = corpus
     offenders = {
@@ -53,9 +48,8 @@ def test_every_station_series_is_hourly(corpus: tuple[pd.DataFrame, object]) -> 
         if grid.cadence != HOURLY
     }
     assert not offenders, (
-        "The dashboard's uptime denominator assumes one cell per hour per parameter, "
-        f"but these series are not hourly: {offenders}. Either serve uptime from the "
-        "audit engine or make the frontend cadence-aware."
+        "The served uptime denominator assumes one cell per hour per parameter, "
+        f"but these series are not hourly: {offenders}. Make quality_summary cadence-aware."
     )
 
 

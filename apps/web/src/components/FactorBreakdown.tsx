@@ -15,6 +15,9 @@ export interface Factor {
   key: string;
   label: string;
   value: number;
+  /** Shown as a native tooltip on the row label, for a caveat too long for the
+   * label itself (e.g. a provisional/relative figure) - never the only place it is said. */
+  hint?: string;
 }
 
 export interface FactorBreakdownProps {
@@ -57,7 +60,7 @@ export function FactorBreakdown({
         <tbody>
           {factors.map((factor) => (
             <tr key={factor.key} data-testid={`factor-${factor.key}`}>
-              <th scope="row" className="py-1 text-left font-normal text-text">
+              <th scope="row" className="py-1 text-left font-normal text-text" title={factor.hint}>
                 {factor.label}
               </th>
               <td className="prov-numeric py-1 text-right font-mono">{formatTrust(factor.value)}</td>
