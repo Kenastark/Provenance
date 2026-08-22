@@ -142,10 +142,17 @@ class TrainedModel:
     metrics: dict[str, Any]
     window_start: str
     window_end: str
+    artefact_name: str | None = None
+    """Overrides the artefact's persisted name (default ``NAME_FOR_KIND[kind]``).
+
+    Lets a caller train several distinguishable artefacts off the same architecture
+    ``kind`` — e.g. one imputation model per parameter (``imputation-PM10``,
+    ``imputation-NO2``, ...) — without adding a new registered kind to
+    :mod:`.store`."""
 
     @property
     def name(self) -> str:
-        return NAME_FOR_KIND.get(self.kind, self.kind)
+        return self.artefact_name or NAME_FOR_KIND.get(self.kind, self.kind)
 
     @property
     def version(self) -> str:
@@ -175,7 +182,7 @@ class TrainedModel:
 def _evaluate(
     model: nn.Module, batch: TemporalGraphBatch, test_idx: np.ndarray
 ) -> dict[str, float]:
-    """Held-out reconstruction NLL/MSE on a strictly-later time block.
+    """Held-out reconstruction NLL/RMSE/MAE on a strictly-later time block.
 
     The whole observed test-block is hidden and reconstructed from neighbours + history
     — a graph-conditioned imputation score, not a verdict accuracy.
@@ -192,12 +199,14 @@ def _evaluate(
         if hidden.sum() > 0:
             diff = (fc.mean[hidden] - batch.target[hidden]) * batch.std
             mse = float((diff.pow(2)).mean())
+            mae = float(diff.abs().mean())
             n = int(hidden.sum())
         else:  # pragma: no cover - defensive
-            mse, n = float("nan"), 0
+            mse, mae, n = float("nan"), float("nan"), 0
     return {
         "heldout_nll": round(nll, 6),
         "heldout_rmse_physical": round(mse**0.5, 6),
+        "heldout_mae_physical": round(mae, 6),
         "n_heldout": n,
     }
 
@@ -211,6 +220,7 @@ def train_model(
     resample_mask: bool = True,
     fixed_plan: MaskPlan | None = None,
     data_checksum: str = "unknown",
+    artefact_name: str | None = None,
 ) -> TrainedModel:
     """Train an HST-GAT (or the GCN baseline) on a corpus batch, reproducibly.
 
@@ -224,6 +234,9 @@ def train_model(
         fixed_plan: an explicit masked-AE plan reused every epoch — the
             overfit-a-tiny-batch gate passes one hiding exactly its handful of cells.
         data_checksum: the corpus checksum, threaded into the version and the card.
+        artefact_name: overrides the persisted artefact name (see
+            :attr:`TrainedModel.artefact_name`); ``None`` keeps the default
+            ``NAME_FOR_KIND[kind]`` (e.g. plain ``train-hstgat`` usage).
     """
     cfg = cfg or load_models_config()
     config = HSTGATConfig.from_config(cfg)
@@ -289,6 +302,7 @@ def train_model(
         metrics=metrics,
         window_start=batch.times[0].isoformat(),
         window_end=batch.times[-1].isoformat(),
+        artefact_name=artefact_name,
     )
 
 

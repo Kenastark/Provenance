@@ -653,6 +653,168 @@ def models_train_hstgat(
     console.print("[dim]No propagation accuracy/F1 is reported (standing rule 4).[/dim]")
 
 
+@models_app.command("train-imputation")
+def models_train_imputation(
+    source: Path = typer.Option(
+        _DATA_DEFAULT, "--source", help="Data drop with station coordinates to train on."
+    ),
+    epochs: int = typer.Option(0, "--epochs", help="Override configured epochs (0 = use config)."),
+    baseline: bool = typer.Option(
+        True,
+        "--baseline/--no-baseline",
+        help="Also train the GCN baseline per parameter for the card comparison.",
+    ),
+    skip_if_cached: bool = typer.Option(
+        False,
+        "--skip-if-cached/--no-skip-if-cached",
+        help=(
+            "Reuse an already-trained, card-verified artefact for this exact data drop "
+            "(by content checksum) per parameter instead of retraining. `make demo-real` "
+            "uses this so re-running it doesn't pay the training cost again for the same "
+            "drop; `demo-real-imputation` run directly still always retrains."
+        ),
+    ),
+) -> None:
+    """Train the graph-conditioned imputation model (§7.2), one per eligible parameter.
+
+    Same mechanism `train-hstgat` already trains with (masked-autoencoder reconstruction,
+    masked Gaussian NLL, mean + variance per masked cell) and the same graph-building and
+    training code, but a separate artefact per parameter with >= 2 carrying stations
+    (`imputation-<PARAMETER>`) - never the fault-adjudication PM10 artefact, which serves a
+    different calibration target. Feeds the trust score's ImputationUncertainty term
+    (§7.8) once trained; a parameter with no artefact keeps the raw absent-fraction
+    placeholder there.
+    """
+    import time
+
+    from provenance.config.loading import config_hash, load_graph_config, load_models_config
+    from provenance.graph.build import station_points_from_metadata
+    from provenance.graph.wind import WindField
+    from provenance.io import loaders
+    from provenance.models.hstgat import store
+    from provenance.models.hstgat.conformalize import calibrate_and_coverage
+    from provenance.models.hstgat.data import build_batch, imputable_parameters
+    from provenance.models.hstgat.imputation_serving import artefact_name
+    from provenance.models.hstgat.train import train_model
+    from provenance.models.registry import ModelCardMissingError
+    from provenance.schema.observe import observe
+
+    frame = loaders.load_data(source)
+    meta = loaders.load_station_metadata(source)
+    points = station_points_from_metadata(dict(meta))
+    if not points:
+        console.print(
+            "[red]No station coordinates in this drop; cannot train the graph model.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    parameters = imputable_parameters(frame)
+    if not parameters:
+        console.print("[yellow]No parameter has 2+ carrying stations; nothing to train.[/yellow]")
+        raise typer.Exit(code=1)
+
+    checksum = observe(frame).checksum
+    gcfg = load_graph_config()
+    mcfg = load_models_config()
+    wind = WindField.from_frame(frame)
+    conf_cfg = mcfg.get("conformal", {})
+    ep = epochs if epochs > 0 else None
+
+    started = time.perf_counter()
+    trained_count = 0
+    for target in parameters:
+        name = artefact_name(target)
+        if skip_if_cached:
+            expected_stem = f"{name}-v1-{checksum[:8]}"
+            try:
+                store.load_artefact(expected_stem)
+            except ModelCardMissingError:
+                pass
+            else:
+                console.print(
+                    f"[green]{name} already cached[/green] for this data drop "
+                    f"({expected_stem}); skipping training."
+                )
+                continue
+
+        try:
+            batch = build_batch(frame, points, wind, gcfg, target_parameter=target)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            continue
+
+        console.print(
+            f"Training imputation model on {batch.n_env} stations x {batch.n_times} hours "
+            f"({target})."
+        )
+        trained = train_model(
+            batch,
+            kind="hstgat",
+            cfg=mcfg,
+            epochs=ep,
+            data_checksum=checksum,
+            artefact_name=name,
+        )
+        console.print(
+            f"[green]{name}[/green] {trained.version}: {trained.parameter_count} parameters."
+        )
+        if "heldout_rmse_physical" in trained.metrics:
+            console.print(
+                f"  Held-out RMSE {trained.metrics['heldout_rmse_physical']:g}, "
+                f"MAE {trained.metrics['heldout_mae_physical']:g} "
+                f"(n={trained.metrics['n_heldout']}, physical units)."
+            )
+
+        baseline_metrics = None
+        if baseline:
+            gcn = train_model(
+                batch,
+                kind="gcn",
+                cfg=mcfg,
+                epochs=ep,
+                data_checksum=checksum,
+            )
+            baseline_metrics = gcn.metrics
+            console.print(
+                f"[green]GCN baseline[/green] {gcn.parameter_count} parameters (comparison)."
+            )
+
+        conformal, coverage = calibrate_and_coverage(
+            trained.model,
+            trained.mean,
+            trained.std,
+            batch,
+            alpha=float(conf_cfg.get("alpha", 0.1)),
+            n_splits=int(mcfg["hstgat"]["n_splits"]),
+            min_calibration=int(conf_cfg.get("min_calibration", 20)),
+        )
+        if coverage.get("calibrated"):
+            console.print(
+                f"[green]Conformal[/green] nominal {coverage['nominal_coverage']} → "
+                f"empirical {coverage['empirical_coverage']} (n={coverage['n_calibration']})."
+            )
+        else:
+            console.print(f"[yellow]Conformal not calibrated:[/yellow] {coverage.get('reason')}")
+
+        conformal_dict = conformal.to_dict() if conformal is not None else None
+        paths = store.save_model(
+            trained,
+            config_hash=config_hash(),
+            coverage=coverage,
+            baseline=baseline_metrics,
+            conformal=conformal_dict,
+        )
+        console.print(f"[green]Saved[/green] {paths['model'].name}, card {paths['doc']}")
+        trained_count += 1
+
+    elapsed = time.perf_counter() - started
+    console.print(
+        f"[green]Imputation training done:[/green] {trained_count}/{len(parameters)} "
+        f"parameter model(s) trained in {elapsed:.1f}s."
+    )
+    console.print("[dim]No propagation accuracy/F1 is reported (standing rule 4).[/dim]")
+
+
 @models_app.command("residuals")
 def models_residuals(
     source: Path = typer.Option(_DATA_DEFAULT, "--source", help="Data drop already loaded to DB."),

@@ -348,6 +348,21 @@ _REGISTRY: tuple[ReasonCode, ...] = (
         notes="This term is explicitly a placeholder until the phase-5 imputation model lands.",
     ),
     _c(
+        "T06",
+        "TRUST_IMPUTATION_MODELLED",
+        "Imputation uncertainty is modelled ({modelled_pct}%); absent in window "
+        "{pct}% (see evidence).",
+        Category.TRUST,
+        Severity.INFO,
+        counts=False,
+        phase=6,
+        notes=(
+            "The graph-conditioned imputation model (§7.2) covers this station's parameter; "
+            "its calibrated uncertainty now drives the ImputationCertainty term instead of "
+            "the raw absent-fraction placeholder (T02), which is still reported alongside it."
+        ),
+    ),
+    _c(
         "T03",
         "TRUST_CROSS_SENSOR_DISAGREEMENT",
         "Trust is reduced by disagreement with {n} neighbouring station(s).",

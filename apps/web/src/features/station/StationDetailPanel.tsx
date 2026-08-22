@@ -30,6 +30,7 @@ import { SignoffPanel } from "../alerts/SignoffPanel";
 const CODE_TO_COMPONENT: Record<string, string> = {
   T01: "HealthConf",
   T02: "ImputationCertainty",
+  T06: "ImputationCertainty",
   T03: "CrossSensorConsistency",
   T05: "CrossSensorConsistency",
   T04: "PhysicalPlausibility",

@@ -33,6 +33,29 @@ const PRETTY_NAME: Record<string, string> = {
   PhysicalPlausibility: "Physical plausibility",
 };
 
+/** `evidence.pct` / `evidence.modelled_pct` are numbers keyed loosely (see schemas.py). */
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The ImputationCertainty row's two figures, each labelled so a reader never mistakes
+ * one for the other: the raw fraction of the window that is absent (always present),
+ * and the trained model's calibrated uncertainty for this station/window (only once a
+ * model covers it - see `provenance.models.hstgat.imputation_serving`).
+ */
+function imputationLines(component: TrustComponent): string[] {
+  if (component.name !== "ImputationCertainty") return [];
+  const pct = asNumber(component.evidence?.pct);
+  const modelledPct = asNumber(component.evidence?.modelled_pct);
+  const lines: string[] = [];
+  if (pct !== null) lines.push(`Absent in window: ${pct}%`);
+  if (modelledPct !== null) {
+    lines.push(`Imputation uncertainty (modelled): ${(modelledPct / 100).toFixed(2)}`);
+  }
+  return lines;
+}
+
 function prettyName(name: string): string {
   const known = PRETTY_NAME[name];
   if (known) return known;
@@ -91,8 +114,19 @@ export function TrustBreakdown({ components, className }: TrustBreakdownProps) {
                     </span>
                   )}
                 </span>
-                {component.detail && (
-                  <span className="text-caption text-text-tertiary">{component.detail}</span>
+                {imputationLines(component).length > 0 ? (
+                  <span
+                    className="flex flex-col text-caption text-text-tertiary"
+                    data-testid="imputation-uncertainty-lines"
+                  >
+                    {imputationLines(component).map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                  </span>
+                ) : (
+                  component.detail && (
+                    <span className="text-caption text-text-tertiary">{component.detail}</span>
+                  )
                 )}
               </span>
             </th>

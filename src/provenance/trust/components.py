@@ -145,13 +145,19 @@ def imputation_uncertainty(
     station_id: str,
     at: pd.Timestamp,
     cfg: dict[str, Any],
+    *,
+    modelled: float | None = None,
 ) -> _ComponentResult:
-    """Placeholder uncertainty term. 1.0 for absent readings, relieved by neighbours.
+    """Uncertainty term, modelled where a trained imputation model covers the station.
 
-    There is no imputation model in v1. This measures the fraction of the station's
-    covered cells that are absent in the window and relieves it partially where
-    neighbours still cover the same parameter. The component reports
-    ``1 - uncertainty`` and is always flagged as a placeholder.
+    Absent ``modelled``, this is the v1 placeholder: the fraction of the station's
+    covered cells that are absent in the window, relieved partially where neighbours
+    still cover the same parameter. When ``modelled`` is given (§7.2's graph-
+    conditioned imputation model's calibrated uncertainty for this station/window,
+    already normalised to [0, 1) — see
+    :mod:`provenance.models.hstgat.imputation_serving`), it drives the component
+    instead: the term is no longer a placeholder, and the raw absent fraction is kept
+    alongside it in ``evidence`` for transparency, never dropped.
     """
     icfg = cfg["imputation"]
     window_hours = int(icfg["window_hours"])
@@ -179,24 +185,52 @@ def imputation_uncertainty(
         neighbour_frac = _neighbour_fraction(coverage, station_id, params)
         uncertainty = raw * (1.0 - relief * neighbour_frac)
     uncertainty = float(min(max(uncertainty, 0.0), 1.0))
-    certainty = 1.0 - uncertainty
+    raw_pct = round(100.0 * uncertainty, 1)
+
+    reason_codes: list[str] = []
+    notes: list[str] = []
+    evidence: dict[str, Any] = {"pct": raw_pct}
+
+    if modelled is not None:
+        modelled = float(min(max(modelled, 0.0), 1.0))
+        certainty = 1.0 - modelled
+        modelled_pct = round(100.0 * modelled, 1)
+        evidence["modelled_pct"] = modelled_pct
+        reason_codes.append("T06")
+        notes.append(
+            f"ImputationUncertainty is modelled ({modelled_pct}%); absent in window "
+            f"{raw_pct}% (see evidence)."
+        )
+        detail = f"absent in window {raw_pct}% · imputation uncertainty (modelled) {modelled_pct}%"
+        return (
+            TrustComponent(
+                name="ImputationCertainty",
+                value=certainty,
+                weight=0.0,
+                is_placeholder=False,
+                detail=detail,
+                evidence=evidence,
+            ),
+            reason_codes,
+            notes,
+        )
 
     # T02 explains the placeholder only when the term actually bites (some absence).
     # A fully-present station carries no imputation caveat.
-    reason_codes: list[str] = []
-    notes: list[str] = []
-    pct = round(100.0 * uncertainty, 1)
+    certainty = 1.0 - uncertainty
     if uncertainty > 0.0:
         reason_codes.append("T02")
-        notes.append(f"ImputationUncertainty is a placeholder term ({pct}% absent); no model yet.")
+        notes.append(
+            f"ImputationUncertainty is a placeholder term ({raw_pct}% absent); no model yet."
+        )
     return (
         TrustComponent(
             name="ImputationCertainty",
             value=certainty,
             weight=0.0,
             is_placeholder=True,
-            detail=f"imputation uncertainty {pct}% (placeholder, no model)",
-            evidence={"pct": pct},  # T02
+            detail=f"imputation uncertainty {raw_pct}% (placeholder, no model)",
+            evidence=evidence,  # T02
         ),
         reason_codes,
         notes,
