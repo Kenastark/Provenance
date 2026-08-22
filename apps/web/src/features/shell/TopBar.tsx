@@ -1,8 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { useVersion } from "../../api/queries";
+import { formatRelative, formatTimestamp } from "../../lib/format";
 import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
 import { useTheme, type ThemePreference } from "../../lib/theme";
 import { TIME_WINDOWS, type TimeWindowKey } from "../../lib/timeWindow";
+import { useWindowState } from "../../lib/windowContext";
 
 /**
  * The operator chrome.
@@ -47,6 +49,7 @@ export interface TopBarProps {
 export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
   const { preference, resolved, setPreference } = useTheme();
   const { role, setRole, canSwitch, signOut } = useRole();
+  const { anchor } = useWindowState();
   const version = useVersion();
   const visibleNav = NAV.filter((item) => !item.role || roleAtLeast(role, item.role));
 
@@ -92,6 +95,24 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
           </NavLink>
         ))}
       </nav>
+
+      {/* Deliberately the one place freshness is measured against the real wall
+          clock rather than the dataset's own anchor: this answers "is the pipeline
+          itself live right now", a whole-network fact, not "did this station fall
+          behind its peers" (what the station drawer's "last reading" shows, and
+          which stays anchor-relative on purpose - see lib/format.ts's formatRelative
+          doc comment). A frozen historical drop reads as increasingly old here,
+          honestly, rather than every station masking that fact by looking current
+          relative only to itself. */}
+      {anchor && (
+        <p
+          className="shrink-0 whitespace-nowrap text-caption text-text-tertiary"
+          data-testid="data-freshness"
+          title={`Newest ingested reading: ${formatTimestamp(anchor.toISOString())}`}
+        >
+          Data as of {formatTimestamp(anchor.toISOString())} ({formatRelative(anchor.toISOString())})
+        </p>
+      )}
 
       <label className="flex shrink-0 items-center gap-2 text-caption text-text-tertiary">
         <span>Window</span>

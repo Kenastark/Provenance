@@ -5,6 +5,20 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **A whole-network "Data as of" freshness indicator in the top bar**, measured
+  against the real wall clock (`formatTimestamp`/`formatRelative` over
+  `useWindowState().anchor`, deliberately not anchor-overridden here). Answers
+  a different question than the station drawer's per-station "last reading",
+  which stays anchor-relative on purpose (update 19): "is the pipeline itself
+  live right now" (whole-network, real-time) versus "did this station fall
+  behind its peers" (per-station, relative). Follow-up from update 19, after
+  the user asked whether anchoring per-station freshness on the dataset
+  defeated the point of detecting a sensor that stopped transmitting - it
+  didn't for the per-station case (all 16 stations in the current drop share
+  one last-reading timestamp, so there's no per-station variance to lose), but
+  exposed a real gap for the whole-deployment-liveness question, which this
+  closes. `data-testid="data-freshness"`. Details:
+  `docs/updates/u20-data-freshness-indicator.md`.
 - **`prov models train-hstgat --skip-if-cached`, and `make demo-real` uses it.**
   The flag computes the current data drop's content checksum and reuses an
   already-trained, card-verified artefact for that exact checksum instead of
