@@ -4,6 +4,39 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Added
+- **A "Network-wide findings" section on the Audit report**, closing the first of
+  update-17's two open items. The audit engine now computes, generically (never a
+  hardcoded code or parameter), which (reason_code, parameter) pairs fire on
+  *every* station carrying that parameter and on at least `thresholds.yaml`'s new
+  `network_wide_finding.min_fraction` (0.95) of that parameter's actual readings -
+  a single systemic fact about a whole channel (a mislabelled unit, confirmed:
+  R10/CO2 on the real drop, 10,627 of 10,627 readings, all 16 stations) rather
+  than thousands of individual per-reading defects. New `AuditResult
+  .network_wide_findings` field (`audit/result.py`,
+  `audit/orchestrator.py::_network_wide_findings`), a matching section in
+  `report/render.py`'s markdown output (golden `audit.md` regenerated), and a new
+  panel on `AuditReportView.tsx` linking each finding to its evidence. Explicitly
+  excludes absence-pattern codes like R01 (checked generically by set membership
+  against the frame's present cells, not a hardcoded code list) - an absent cell
+  has no reading to compare against, so "what fraction of readings are flagged"
+  does not apply to it; that is a completeness story the coverage summary already
+  reports separately. Caught and fixed during this update's own verification
+  against the real drop: an earlier version divided by expected-cell counts
+  uniformly, which put R01/NOx and R01/NO's defect counts *above* their
+  denominators (a nonsensical fraction over 1) - now guarded by a regression test.
+  `tests/unit/test_network_wide_findings.py` (5 tests).
+- **A visual cue when the attention card's target parameter doesn't match the
+  viewed defect's**, closing update-17's second open item.
+  `GraphAttention` (`EvidencePanel.tsx`) now checks
+  `data.target_parameter !== defect.parameter` and, when they differ, shows an
+  amber (`prov-state-degraded`) note - "This overlay is trained to reconstruct
+  {target}, not {parameter} - read it as {target} network structure, not evidence
+  about this {parameter} reading" - instead of leaving the mismatch to the small
+  "target X" caption alone. Only one HST-GAT is ever trained at a time
+  (`models.yaml`'s `hstgat.target_parameter`), so this is a real, recurring case,
+  not a hypothetical.
+
 ### Fixed
 - **Ten Evidence-tab issues found in a user review of the real `DEB-KER03 · CO2`
   defect, plus one crash the review's own verification surfaced.**

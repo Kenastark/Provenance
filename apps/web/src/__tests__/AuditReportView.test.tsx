@@ -93,6 +93,40 @@ describe("AuditReportView", () => {
     expect(await screen.findByTestId("empty-state")).toHaveTextContent(/is a result/i);
   });
 
+  it("calls out a network-wide finding rather than burying it in the per-code count", async () => {
+    renderWithProviders(<AuditReportView />, {
+      route: "/audit",
+      routes: {
+        "/v1/audit/runs/run-2026-05-15": fixtures.auditRunDetailWithNetworkWideFinding,
+      },
+    });
+    const panel = await screen.findByTestId("network-wide-findings");
+    expect(panel).toHaveTextContent("affects CO2 at all 16 stations that carry it");
+    expect(panel).toHaveTextContent("10,627 of 10,627 readings");
+    expect(panel).toHaveTextContent("100.0%");
+    const link = within(panel).getByRole("link");
+    expect(link).toHaveAttribute("href", expect.stringContaining("/evidence?code=R10"));
+  });
+
+  it("says plainly when a run has no network-wide finding", async () => {
+    renderWithProviders(<AuditReportView />, {
+      route: "/audit",
+      routes: {
+        "/v1/audit/runs/run-2026-05-15": fixtures.auditRunDetailNoNetworkWideFindings,
+      },
+    });
+    const panel = await screen.findByTestId("network-wide-findings");
+    expect(panel).toHaveTextContent(/None in this run/i);
+  });
+
+  it("omits the network-wide findings panel for a run recorded before the field existed", async () => {
+    // auditRunDetail's summary predates this feature - no network_wide_findings key
+    // at all, distinct from an empty array (a settled "none found").
+    renderWithProviders(<AuditReportView />, { route: "/audit" });
+    await screen.findByTestId("audit-headline");
+    expect(screen.queryByTestId("network-wide-findings")).not.toBeInTheDocument();
+  });
+
   it("lets an older run be chosen when there is more than one", async () => {
     const user = userEvent.setup();
     renderWithProviders(<AuditReportView />, {

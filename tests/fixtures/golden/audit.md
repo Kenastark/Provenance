@@ -1,7 +1,7 @@
 # Provenance audit
 
 - Code version: `0.2.0`
-- Config hash: `ec8b9e439843a182`
+- Config hash: `f13cc7052837a932`
 - Data checksum: `0bd9c4dcc414f379`
 - Window: 2026-05-01T00:00:00 to 2026-05-14T23:00:00
 
@@ -50,6 +50,10 @@
 | STA-03 | NO | air | R18 | 336 |
 | STA-04 | WaterLevel | water | R19 | 336 |
 | STA-04 | WaterTemp | water | R19 | 336 |
+
+## Network-wide findings
+
+_None._
 
 ## Notable events
 
@@ -105,6 +109,11 @@ low_variance:
     sensors are not flagged.
   degraded_fraction: 0.1
   min_peers: 3
+network_wide_finding:
+  basis: 0.95 rather than a strict 1.0 tolerates the ordinary handful of dropped/absent
+    cells a real drop always carries, without admitting a merely common (not systemic)
+    code.
+  min_fraction: 0.95
 physical_bounds:
   CO:
     basis: ~87 ppm; acute urban CO. Ambient rarely exceeds 10000 µg/m3.

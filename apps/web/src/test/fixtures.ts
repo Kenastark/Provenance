@@ -243,6 +243,34 @@ export const auditRunDetail = {
   } as Record<string, unknown>,
 };
 
+/** A run whose summary carries a real network-wide finding (mirrors the confirmed
+ * real-drop case: R10 fires on every station carrying CO2). */
+export const auditRunDetailWithNetworkWideFinding = {
+  run: auditRun(),
+  summary: {
+    ...auditRunDetail.summary,
+    network_wide_findings: [
+      {
+        reason_code: "R10",
+        parameter: "CO2",
+        station_count: 16,
+        flagged_readings: 10627,
+        total_readings: 10627,
+        fraction: 1.0,
+      },
+    ],
+  } as Record<string, unknown>,
+};
+
+/** A run whose summary has settled with no network-wide finding at all. */
+export const auditRunDetailNoNetworkWideFindings = {
+  run: auditRun(),
+  summary: {
+    ...auditRunDetail.summary,
+    network_wide_findings: [],
+  } as Record<string, unknown>,
+};
+
 export const defect = (overrides: Partial<Defect> = {}): Defect => ({
   id: 1,
   audit_run_id: "run-2026-05-15",
