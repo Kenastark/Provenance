@@ -213,6 +213,32 @@ instead of 18. Fixed by splitting `forecast_at_hour`'s logic into
 per instant) in `imputation_serving.py`. After the fix, the same warm run
 took **6m36s** — see the timing section below for the full before/after.
 
+**A second, more serious bug found while regenerating visual baselines, also
+fixed, not left in**: `available_imputation_models` originally picked the
+latest artefact per parameter name with no check on which corpus trained it.
+The artefact store keeps exactly one file per name (`imputation-PM10.pt`,
+etc.) regardless of which drop produced it — so after training the 18
+real-drop models in this session, reloading the **synthetic** `demo-data`
+corpus (which happens to share the same pollutant vocabulary: PM10, NO,
+CO2, ...) silently ran the real-drop-trained models' inference against
+synthetic stations they had never seen, producing plausible-looking but
+meaningless numbers that materially moved Trust Scores on the synthetic
+corpus (caught because it changed the `quality-monitor` visual baseline,
+which this update should never have touched). Fixed by threading the
+frame's content checksum through: `available_imputation_models` now takes a
+required `data_checksum` and only uses an artefact whose own
+`LoadedModel.data_checksum` matches exactly — the same checksum discipline
+`--skip-if-cached` already uses for training, applied at serving time too.
+New regression test:
+`test_artefact_from_a_different_drop_is_not_used`
+(`tests/unit/test_imputation_model.py`), which trains a real artefact and
+asserts it both *is* used against its own checksum and *is not* used against
+a different one. Re-verified after the fix: `GET /v1/trust/STA-06` on the
+synthetic corpus is back to `is_placeholder: true`, T02, trust ≈0.576 (the
+small residual drift from the originally-committed baseline is elapsed real
+time in the "N days ago" window, not the bug), and `quality-monitor`'s Linux
+baseline no longer regenerates at all when the visual suite reruns.
+
 ## STEP 5 — `demo-real` pre-flight, and why it reverses part of U14
 
 `demo-real` now trains-or-skips **both** HST-GAT and the imputation models
@@ -301,33 +327,40 @@ reason code.
 
 ## Test gate
 
-**Backend** (`make check`): 700 passed, 2 deselected. Coverage 90.94% (gate
+**Backend** (`make check`): 701 passed, 2 deselected. Coverage 90.47% (gate
 88%). New: `tests/unit/test_imputation_model.py` (the `tanh` normalisation
 helper's bounds/monotonicity, `imputation_uncertainty()`'s modelled-vs-
 placeholder split and clamping, `available_imputation_models`'s graceful
-degradation on an empty store) and a `train-imputation` `--skip-if-cached`
-CLI test in `tests/unit/test_models_cli.py`, mirroring the existing
-`train-hstgat` one exactly. `tests/architecture/test_layering.py` (all 15
-checks, including the new `trust`-not-`io` import path) passes.
+degradation on an empty store, and the checksum-mismatch regression test for
+the cross-corpus bug below) and a `train-imputation` `--skip-if-cached` CLI
+test in `tests/unit/test_models_cli.py`, mirroring the existing `train-hstgat`
+one exactly. `tests/architecture/test_layering.py` (all 15 checks, including
+the new `trust`-not-`io` import path) passes.
 
 **Frontend** (`pnpm test:coverage`): 294 passed (26 files, +1 new
 `TrustBreakdown.test.tsx` covering both the placeholder-only and modelled
 render paths and the placeholder badge's presence/absence). `pnpm lint` /
 `pnpm typecheck` clean. `make web-contract-check` clean.
 
-**Visual baselines — blocked, not skipped.** `station-detail-{dark,light}-
-chromium-darwin.png` could not be regenerated: the underlying Playwright spec
-fails reproducibly clicking a station marker (`<li class="pointer-events-auto
-absolute">` intercepts the click) on **this machine, on unmodified `main`,
-with zero files from this branch present** — confirmed by stashing every
-change and re-running the same test. This is a pre-existing environmental
-flake, not something this update introduced or can fix within its scope; see
-"Flag for review". The Linux pinned-container regeneration
-(`make web-visual-linux`) was not attempted since it exercises the same
-station-detail interaction and would hit the same blocker. Two darwin
-baselines (`map-*`, `quality-monitor-*`) did regenerate when I ran the full
-suite but are unrelated to any code this update touches, so I reverted them
-rather than commit unrelated drift.
+**Visual baselines — all four regenerated and verified, both platforms.**
+`station-detail-{dark,light}-chromium-{darwin,linux}.png` all updated (the
+`ImputationCertainty` row's text genuinely changed: two labelled lines
+instead of one sentence). The darwin regeneration initially failed
+reproducibly — including on unmodified `main` with this branch's changes
+fully stashed — with a station-marker click intercepted by an overlapping
+map element; re-running it later, once the machine was no longer also
+running the hour-long imputation training and the CI-check polling loop
+concurrently, passed cleanly and stayed clean on a second, independent
+verification run. Read as CPU-contention-induced UI-animation timing, not a
+real defect in this branch — but I'm not fully certain, and it's worth a
+closer look if it recurs (see Flag for review). The Linux
+pinned-container regeneration (`make web-visual-linux`) passed on the first
+attempt once the underlying data bug below was fixed, and re-verified clean
+via `make web-visual-check` immediately after. One unrelated, pre-existing
+flake (`network map — light`, MapLibre/WebGL render-timing variance) surfaced
+during darwin verification and was left alone — same category of flake as
+the darwin station-detail one, not touched by this branch, and out of scope
+to chase down here.
 
 ## Cold/warm `demo-real` timing
 
@@ -369,16 +402,26 @@ rather than commit unrelated drift.
 
 ## Flag for review
 
-- **Live model discovery has no staleness check against the currently-loaded
-  drop**, the same gap U19 flagged for `store.latest_stem()` and
-  `GET /v1/graph/attention`: `available_imputation_models` picks the
-  newest-*mtime* `imputation-<PARAM>-*.pt` per parameter, not one
-  checksum-matched to whatever data is currently loaded. In the normal
-  workflow this never bites (one real drop in play at a time, and
-  `--skip-if-cached` already keys the *training* step on the drop's
-  checksum) — it would bite only if the artefacts directory ever accumulated
-  models trained on two genuinely different real drops. Same judgment as
-  U19: out of scope for this pass, flagged rather than silently left.
+- **The HST-GAT (fault-adjudication) model still has the checksum-staleness
+  gap U19 flagged, unfixed** — this update only fixed it for the *imputation*
+  models (`available_imputation_models`'s new `data_checksum` requirement).
+  `store.latest_stem()` (used by `GET /v1/graph/attention` and
+  `learned_provider_factory`) still picks the newest-*mtime* `hst-gat-*.pt`
+  with no check against the currently-loaded drop's checksum — the exact same
+  class of bug this update found and fixed for imputation, just not yet
+  applied to its sibling. Given how real the imputation version turned out to
+  be (it silently corrupted Trust Scores on the synthetic corpus during this
+  update's own verification, not a hypothetical), I'd treat this as higher
+  priority than U19's original "flagged, out of scope" framing suggested —
+  but fixing it is a change to `forecast.py`/`graph/adjudicate.py`, outside
+  this update's surface, so it's flagged rather than fixed here.
+- **The darwin visual-regression flake** (station-detail's marker click
+  intercepted under load, see Test gate) is read as CPU-contention timing,
+  not a defect, but that read is circumstantial (it stopped reproducing once
+  the machine was quieter, twice) rather than root-caused. Worth a dedicated
+  look if it recurs on a quiet machine — likely a `MapOverlays`/legend
+  z-index or pointer-events issue that only manifests under certain
+  animation timing.
 - **Wind_Speed's conformal coverage (0.7875) is a real, unresolved
   under-coverage**, not a small-n artefact like the LAEQ pair. A
   heteroskedasticity-aware calibration (e.g. binning `q` by wind-speed
@@ -386,12 +429,6 @@ rather than commit unrelated drift.
   that is a genuine modelling change outside this update's scope — reported
   here per standing rule 7 rather than patched by loosening
   `min_calibration` or hiding the number.
-- **The station-detail Playwright click-interception flake** (see Test gate)
-  blocks visual-baseline regeneration for that one screen on this machine,
-  independent of this branch. Worth a dedicated investigation (likely a
-  `MapOverlays`/legend z-index or pointer-events issue that only manifests
-  under certain animation timing) — out of scope here since it reproduces
-  identically on unmodified `main`.
 - `demo-real`'s cold-run time (~1h13m, dominated by 18×200-epoch trainings)
   is long enough to be worth a real UX decision before a live demo: reduce
   `epochs` for imputation specifically, parallelise the per-parameter loop,

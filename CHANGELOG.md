@@ -16,7 +16,11 @@ Format: Keep a Changelog. Versioning: SemVer.
   (`provenance.trust.imputation.ImputationLookup`, one graph batch per parameter per
   load, not per station) into `ImputationCertainty`'s value where a model is
   available; the raw absent-fraction figure is kept alongside it (`evidence.pct` vs.
-  `evidence.modelled_pct`), never replaced silently. New reason code **T06**
+  `evidence.modelled_pct`), never replaced silently. Model selection is scoped to
+  the currently-loaded drop's content checksum (`available_imputation_models`,
+  a real bug caught during verification: without it, a model trained on one
+  corpus silently ran inference against a different one sharing a parameter
+  name). New reason code **T06**
   (`TRUST_IMPUTATION_MODELLED`); T02's placeholder path is unchanged for any
   station/parameter without a model. `demo-real` now pre-flights and
   auto-trains-or-skips both HST-GAT and the imputation models (reversing part of

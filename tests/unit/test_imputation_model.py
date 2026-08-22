@@ -52,8 +52,60 @@ class TestSigmaToUncertainty:
 class TestAvailableImputationModels:
     def test_no_artefacts_dir_degrades_to_empty(self, tmp_path) -> None:
         # An empty/nonexistent store is a normal state (standing rule 6), not an error.
-        out = available_imputation_models(["PM10", "NO2"], artefacts_dir=tmp_path)
+        out = available_imputation_models(
+            ["PM10", "NO2"], data_checksum="anything", artefacts_dir=tmp_path
+        )
         assert out == {}
+
+    def test_artefact_from_a_different_drop_is_not_used(self, tmp_path) -> None:
+        """A real bug, not a hypothetical: the artefact store keeps one file per
+        parameter name regardless of which corpus trained it. Without this check, a
+        model trained on drop A silently runs inference against drop B whenever they
+        share a parameter name (e.g. the real Green Sentinel drop and the synthetic
+        demo corpus both carry "PM10") - a station graph the model never saw,
+        producing a plausible-looking but meaningless number. This is what actually
+        happened during this update's own verification (the synthetic demo corpus's
+        Trust Scores changed after training real-drop imputation models locally)."""
+        from provenance.config.loading import load_graph_config, load_models_config
+        from provenance.fixtures.generator import write_corpus
+        from provenance.graph.build import station_points_from_metadata
+        from provenance.graph.wind import WindField
+        from provenance.io import loaders
+        from provenance.models.hstgat import store
+        from provenance.models.hstgat.data import build_batch
+        from provenance.models.hstgat.train import train_model
+        from provenance.schema.observe import observe
+
+        source = tmp_path / "drop"
+        write_corpus(source, seed=1, n_days=14, n_stations=4)
+        frame = loaders.load_data(source)
+        meta = loaders.load_station_metadata(source)
+        points = station_points_from_metadata(dict(meta))
+        gcfg = load_graph_config()
+        mcfg = load_models_config()
+        wind = WindField.from_frame(frame)
+        batch = build_batch(frame, points, wind, gcfg, target_parameter="PM10")
+        checksum = observe(frame).checksum
+        trained = train_model(
+            batch,
+            kind="hstgat",
+            cfg=mcfg,
+            epochs=1,
+            data_checksum=checksum,
+            artefact_name="imputation-PM10",
+        )
+        art = tmp_path / "art"
+        store.save_model(trained, artefacts_dir=art, docs_dir=tmp_path / "docs")
+
+        # The exact checksum this artefact was trained on: used.
+        matching = available_imputation_models(["PM10"], data_checksum=checksum, artefacts_dir=art)
+        assert "PM10" in matching
+
+        # A different drop's checksum, same parameter name: not used.
+        mismatched = available_imputation_models(
+            ["PM10"], data_checksum="a-completely-different-drop-checksum", artefacts_dir=art
+        )
+        assert mismatched == {}
 
 
 class TestImputationUncertaintyComponent:

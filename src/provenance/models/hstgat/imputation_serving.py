@@ -34,12 +34,23 @@ def artefact_name(parameter: str) -> str:
 
 
 def available_imputation_models(
-    parameters: list[str], *, artefacts_dir: Path | None = None
+    parameters: list[str],
+    *,
+    data_checksum: str,
+    artefacts_dir: Path | None = None,
 ) -> dict[str, LoadedModel]:
-    """The latest, card-verified imputation artefact per parameter that has one.
+    """The latest, card-verified imputation artefact per parameter, for THIS drop.
 
-    A parameter with no artefact, or an artefact whose card does not match, is
-    silently omitted rather than raising — the caller degrades to the placeholder for
+    ``data_checksum`` is the content checksum of the frame being scored
+    (:func:`provenance.schema.observe.observe`). An artefact is used only when its
+    own ``data_checksum`` matches: the artefact store keeps only one file per
+    parameter name regardless of which drop trained it, so without this check a
+    model trained on one corpus (e.g. the real Green Sentinel drop) would silently
+    run inference against a different one sharing the same parameter vocabulary
+    (e.g. the synthetic demo corpus, whose station graph the model never saw) and
+    produce a plausible-looking but meaningless number. A parameter with no
+    artefact, a stale/mismatched one, or one whose card does not verify is silently
+    omitted rather than raising — the caller degrades to the placeholder for
     exactly that parameter, not the whole load.
     """
     out: dict[str, LoadedModel] = {}
@@ -48,7 +59,7 @@ def available_imputation_models(
             loaded = load_latest(name=artefact_name(p), artefacts_dir=artefacts_dir)
         except ModelCardMissingError:
             continue
-        if loaded is not None:
+        if loaded is not None and loaded.data_checksum == data_checksum:
             out[p] = loaded
     return out
 

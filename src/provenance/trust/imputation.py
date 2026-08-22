@@ -68,10 +68,13 @@ class ImputationLookup:
             # Location column) - the graph cannot be built, so every station stays
             # on the placeholder. Cheap: no model is even loaded.
             return cls(frame, [], None, {}, {})
+        from provenance.schema.observe import observe
+
         cfg = load_graph_config()
         wind = WindField.from_frame(frame)
         parameters = imputable_parameters(frame)
-        models = available_imputation_models(parameters)
+        checksum = observe(frame).checksum
+        models = available_imputation_models(parameters, data_checksum=checksum)
         return cls(frame, points, wind, cfg, models)
 
     def _batch_for(self, parameter: str) -> Any:
