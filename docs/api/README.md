@@ -75,6 +75,11 @@ curl -s -H "X-API-Key: prov-public-key" http://localhost:8000/v1/trust/STA-01
 #   "degraded": false,
 #   "notes": ["PopulationExposure is stubbed at 1.0 until GTFS ridership lands (§7.8)."]
 # }
+# population_exposure_stubbed is conditional, not permanent: this response is from
+# a corpus with no GTFS bundle under data/raw/gtfs, which is the state of the
+# bundled demo/fixture corpora. When a bundle is present, `population_exposure` is
+# a real transit-corridor factor computed from it and the note names the source
+# layer instead (`src/provenance/trust/engine.py`).
 
 # The score history (paginated):
 curl -s -H "X-API-Key: prov-public-key" "http://localhost:8000/v1/trust/STA-01?series=true&limit=50"

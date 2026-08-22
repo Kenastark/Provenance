@@ -53,6 +53,52 @@ def test_models_train_demo_branch(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
         get_settings.cache_clear()
 
 
+def test_models_train_hstgat_skip_if_cached_reuses_matching_artefact(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`make demo-real` relies on this: a valid cached artefact for the exact data
+    drop (by content checksum) is reused rather than retrained, but only when
+    ``--skip-if-cached`` is passed - the default (what ``demo-real-hstgat`` run
+    directly still uses) always retrains."""
+    from provenance.fixtures.generator import write_corpus
+
+    art = _env(monkeypatch, tmp_path)
+    source = tmp_path / "drop"
+    write_corpus(source, seed=1, n_days=14, n_stations=4)
+    args = [
+        "models",
+        "train-hstgat",
+        "--source",
+        str(source),
+        "--target",
+        "PM10",
+        "--no-baseline",
+        "--epochs",
+        "1",
+    ]
+    try:
+        first = runner.invoke(app, args)
+        assert first.exit_code == 0, first.output
+        assert "Training HST-GAT on" in first.output
+        artefacts = sorted(art.glob("hst-gat-*.pt"))
+        assert len(artefacts) == 1
+        trained_at = artefacts[0].stat().st_mtime
+
+        second = runner.invoke(app, [*args, "--skip-if-cached"])
+        assert second.exit_code == 0, second.output
+        assert "already cached" in second.output
+        assert "Training HST-GAT on" not in second.output
+        artefacts_after = sorted(art.glob("hst-gat-*.pt"))
+        assert len(artefacts_after) == 1
+        assert artefacts_after[0].stat().st_mtime == trained_at  # reused, not rewritten
+
+        third = runner.invoke(app, args)  # default: no --skip-if-cached
+        assert third.exit_code == 0, third.output
+        assert "Training HST-GAT on" in third.output  # always retrains without the flag
+    finally:
+        get_settings.cache_clear()
+
+
 def test_models_residuals_persists_to_db(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _env(monkeypatch, tmp_path)
     db_url = f"sqlite+aiosqlite:///{tmp_path / 'models.db'}"

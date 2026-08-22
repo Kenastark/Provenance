@@ -24,7 +24,13 @@ export function page<T>(items: T[]): Page<T> {
   return { items, next_cursor: null, count: items.length };
 }
 
-export type RouteMap = Record<string, unknown>;
+/** A GET fixture: either a fixed response, or a function of the request's query
+ * params - useful when two different callers hit the same path with different
+ * params expecting different slices back (e.g. the wind overlay's separate
+ * direction/speed reads of `/v1/readings`), which a single fixed fixture can't
+ * distinguish. Mirrors `PostHandler` below. */
+export type GetHandler = unknown | ((query: Record<string, unknown> | undefined) => unknown);
+export type RouteMap = Record<string, GetHandler>;
 
 export const defaultRoutes: RouteMap = {
   "/version": fixtures.version,
@@ -81,7 +87,12 @@ export function stubClient(options: StubOptions = {}): ApiClient {
           detail: `The stub has no fixture for ${path}.`,
         });
       }
-      return routes[path] as T;
+      const handler = routes[path];
+      return (
+        typeof handler === "function"
+          ? (handler as (q: Record<string, unknown> | undefined) => unknown)(requestOptions.query)
+          : handler
+      ) as T;
     },
     async post<T>(path: string, body: unknown) {
       options.onPost?.(path, body);

@@ -114,6 +114,10 @@ allowed-confusables = ["σ", "α", "β", "µ", "μ", "π", "θ", "Δ", "ŷ", "·
 # root); an adapter that fails before using it is correct, not dead code. N818:
 # SourceNotReady reads better without an Error suffix and sits beside SchemaDriftError.
 "src/provenance/io/ingest/**" = ["ARG002", "N818"]
+# E402: OMP_NUM_THREADS must be set before any router import can pull torch in
+# transitively (the macOS/arm64 libomp crash fix) - that necessarily puts a
+# statement ahead of the router imports below it.
+"src/provenance/api/app.py" = ["E402"]
 
 # ----------------------------------------------------------------------------
 [tool.mypy]

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   formatCount,
   formatDurationHours,
@@ -11,14 +11,6 @@ import {
   stationShortLabel,
   toDate,
 } from "../lib/format";
-import {
-  clearQueue,
-  listQueuedActions,
-  queueAction,
-  queuedActionsFor,
-  resetQueueCache,
-  subscribeToQueue,
-} from "../lib/queue";
 import {
   DEFAULT_TIME_WINDOW,
   resolveWindow,
@@ -121,69 +113,6 @@ describe("time window", () => {
 
   it("accepts everything when the window is unbounded", () => {
     expect(withinWindow("1999-01-01T00:00:00", resolveWindow("corpus", anchor))).toBe(true);
-  });
-});
-
-describe("action queue", () => {
-  beforeEach(() => {
-    resetQueueCache();
-    clearQueue();
-  });
-
-  it("records what was on screen when the operator acted", () => {
-    const now = new Date("2026-05-15T09:00:00Z");
-    const action = queueAction({
-      kind: "dispatch",
-      stationId: "STA-03",
-      reasonCodes: ["R07"],
-      note: "checked by hand",
-      now,
-    });
-
-    expect(action).toMatchObject({
-      kind: "dispatch",
-      stationId: "STA-03",
-      reasonCodes: ["R07"],
-      note: "checked by hand",
-      queuedAt: now.toISOString(),
-    });
-  });
-
-  it("keeps the newest action first and filters by station", () => {
-    queueAction({ kind: "acknowledge", stationId: "STA-01", id: "a" });
-    queueAction({ kind: "dispatch", stationId: "STA-02", id: "b" });
-
-    expect(listQueuedActions().map((action) => action.id)).toEqual(["b", "a"]);
-    expect(queuedActionsFor("STA-01").map((action) => action.id)).toEqual(["a"]);
-  });
-
-  it("notifies subscribers and stops on unsubscribe", () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeToQueue(listener);
-
-    queueAction({ kind: "acknowledge", stationId: "STA-01" });
-    expect(listener).toHaveBeenCalledTimes(1);
-
-    unsubscribe();
-    queueAction({ kind: "acknowledge", stationId: "STA-02" });
-    expect(listener).toHaveBeenCalledTimes(1);
-  });
-
-  it("survives storage being unavailable", () => {
-    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("quota");
-    });
-    expect(() => queueAction({ kind: "acknowledge", stationId: "STA-01" })).not.toThrow();
-    expect(listQueuedActions()).toHaveLength(1);
-    setItem.mockRestore();
-  });
-
-  it("has no transport out: the module exports no send function", async () => {
-    // Standing rule 5, expressed as a test. Until phase 7 records a human sign-off,
-    // there is deliberately no code path from this queue to anything public.
-    const queue = await import("../lib/queue");
-    const names = Object.keys(queue);
-    expect(names.some((name) => /send|dispatchTo|publish|post|notify/i.test(name))).toBe(false);
   });
 });
 

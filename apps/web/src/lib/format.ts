@@ -77,7 +77,17 @@ export function toDate(iso: string | null | undefined): Date | null {
   return parseUtc(iso);
 }
 
-/** "3 days ago" / "in 2 hours", relative to `now`. */
+/**
+ * "3 days ago" / "in 2 hours", relative to `now`.
+ *
+ * The default is the real wall clock only because there is no other sensible
+ * fallback for a caller with no window context at all. Anywhere the dataset's own
+ * anchor is available (`useWindowState().anchor` - see `lib/windowContext.tsx`),
+ * pass it explicitly: the corpus is a fixed historical drop, not a live feed, so a
+ * station's last reading drifting further "ago" every day the demo sits unopened,
+ * against a browser clock that keeps moving while the data does not, reads as the
+ * station going stale when nothing about it has changed.
+ */
 export function formatRelative(iso: string | null | undefined, now: Date = new Date()): string {
   const date = parseUtc(iso);
   if (!date) return "—";

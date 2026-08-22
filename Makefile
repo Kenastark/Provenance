@@ -210,8 +210,11 @@ API_HOST ?= 127.0.0.1
 # makes it near-certain to hit rather than only possible on a manual map-layer
 # toggle). `KMP_DUPLICATE_LIB_OK=TRUE` does not help (that variable is for Intel's
 # iomp5, not LLVM's libomp); forcing single-threaded OpenMP does, confirmed by
-# repeated reproduction just now. Scoped to the two targets that actually serve this
-# endpoint, not the whole Makefile - `infra/docker/api.Dockerfile`'s Debian/glibc
+# repeated reproduction just now. `provenance/api/app.py` now sets the same env var
+# itself before its router imports can pull torch in, so this is a second, harmless
+# layer rather than the only guard - it also covers the plain `uvicorn` command in
+# docs/api/README.md and any other way of starting the API these two targets don't.
+# Not applied to the whole Makefile - `infra/docker/api.Dockerfile`'s Debian/glibc
 # image uses a different OpenMP runtime (libgomp) and isn't known to share this
 # failure mode, so it is left alone rather than paying this same throttling cost
 # somewhere it may not be needed.
@@ -279,7 +282,7 @@ check-real-drop: ## fail loudly if data/raw has no real drop to load (no silent 
 	fi
 
 .PHONY: demo-real
-demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained, API up, dashboard open (optional follow-up: make demo-real-hstgat)
+demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained (incl. HST-GAT, cached across re-runs), API up, dashboard open
 	$(MAKE) up
 	@# station_id and parameter name are global primary keys shared by every batch
 	@# ever loaded (synthetic demo stations use the same STA-xx ids and the same
@@ -294,6 +297,13 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	$(VENV)/bin/prov graph adjudicate --data data/raw --out reports/adjudications
 	$(VENV)/bin/prov models train --source data/raw
 	$(VENV)/bin/prov models residuals --source data/raw
+	@# --skip-if-cached reuses an already-trained, card-verified artefact for this
+	@# exact data drop (matched by content checksum, not file mtime) instead of
+	@# retraining - so a judge re-running this target to reset state only pays the
+	@# ~4min HST-GAT training cost once per drop, not on every re-run. A drop that
+	@# has never been trained on trains here automatically; there is no separate
+	@# step to remember. Force a fresh model with `make demo-real-hstgat`.
+	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10 --skip-if-cached
 	$(MAKE) api-bg
 	cd apps/web && pnpm install --no-frozen-lockfile
 	@# The streets and their labels are a nice-to-have. If either fetch cannot reach
@@ -306,19 +316,18 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	@echo "  Dashboard : http://localhost:5173"
 	@echo "  API docs  : http://localhost:8000/docs"
 	@echo "  Stop with : make demo-stop"
-	@echo "  Optional  : make demo-real-hstgat (trains the HST-GAT; enables the"
-	@echo "              Attention overlay map layer; slow, not run above)"
+	@echo "  The Attention overlay map layer is already live for this drop above."
+	@echo "  Force a fresh HST-GAT: make demo-real-hstgat"
 	@echo ""
 	$(MAKE) web
 
-# Deliberately its own target, not folded into demo-real: HST-GAT + conformal
-# calibration is the slowest step in the whole real-drop path, and a judge
-# re-running `make demo-real` to reset state (db reset --yes, fresh audit/
-# adjudication) shouldn't eat that cost every time just to look at the map again.
-# The trained artefact is picked up live - see the API's `store.latest_stem()`
-# check in `api/routers/graph.py` - so no restart is needed after this finishes.
+# A separate, always-retrains target for forcing a fresh HST-GAT (a config or code
+# change that `demo-real`'s checksum-based cache wouldn't detect, since that cache
+# key is the data drop's content, not the model config). `demo-real` above already
+# trains-or-reuses one automatically, so this is no longer required before the
+# Attention overlay works - only to retrain on purpose.
 .PHONY: demo-real-hstgat
-demo-real-hstgat: check-real-drop ## train the HST-GAT + conformal calibration on the REAL drop (slow; optional follow-up to demo-real; enables the Attention overlay map layer)
+demo-real-hstgat: check-real-drop ## force-retrain the HST-GAT + conformal calibration on the REAL drop (slow; demo-real already trains one automatically, this is only for a deliberate retrain)
 	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10
 	@echo ""
 	@echo "  HST-GAT trained on the real Green Sentinel drop (data/raw)."
