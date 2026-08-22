@@ -95,6 +95,25 @@ def render_markdown(result: AuditResult) -> str:
         add("_None._")
     add("")
 
+    add("## Network-wide findings")
+    add("")
+    if r.network_wide_findings:
+        add("| Code | Parameter | Stations | Flagged readings | Total readings | Fraction |")
+        add("| --- | --- | ---: | ---: | ---: | ---: |")
+        for f in r.network_wide_findings:
+            add(
+                f"| {f.reason_code} | {f.parameter} | {f.station_count} | "
+                f"{f.flagged_readings:,} | {f.total_readings:,} | {f.fraction:.2%} |"
+            )
+        add("")
+        add(
+            "> Each row above fires on every station carrying that parameter - a single "
+            "systemic fact about the whole channel, not a station-specific fault."
+        )
+    else:
+        add("_None._")
+    add("")
+
     add("## Notable events")
     add("")
     if r.notable_events:

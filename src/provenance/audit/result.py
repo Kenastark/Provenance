@@ -49,6 +49,26 @@ class StructuralAbsenceRow:
 
 
 @dataclass(frozen=True, slots=True)
+class NetworkWideFinding:
+    """A (reason_code, parameter) pair that fires on every carrying station.
+
+    Computed generically from the defect frame and the coverage model's
+    per-parameter carrier set (never a hardcoded parameter or code) - see
+    ``orchestrator._network_wide_findings``. A single fact about a whole channel
+    (e.g. a mislabelled unit) reads very differently from a station-specific
+    fault, and burying it as thousands of individual per-reading defects hides
+    that distinction.
+    """
+
+    reason_code: str
+    parameter: str
+    station_count: int
+    flagged_readings: int
+    total_readings: int
+    fraction: float
+
+
+@dataclass(frozen=True, slots=True)
 class NotableEvent:
     rank: int
     category: str
@@ -72,6 +92,7 @@ class AuditResult:
     defects_by_day: dict[str, int]
     structural_absences: list[StructuralAbsenceRow]
     notable_events: list[NotableEvent]
+    network_wide_findings: list[NetworkWideFinding] = field(default_factory=list)
     thresholds: dict[str, Any] = field(default_factory=dict)
     defects: list[dict[str, Any]] = field(default_factory=list)
     """The full DefectFrame as records, for report drill-down."""
@@ -93,6 +114,7 @@ class AuditResult:
             "defects_by_day": self.defects_by_day,
             "structural_absences": [asdict(s) for s in self.structural_absences],
             "notable_events": [asdict(e) for e in self.notable_events],
+            "network_wide_findings": [asdict(f) for f in self.network_wide_findings],
             "thresholds": self.thresholds,
         }
         if not include_generated_at:

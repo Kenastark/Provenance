@@ -163,6 +163,29 @@ describe("EvidencePanel", () => {
     );
   });
 
+  it("flags when the attention overlay's target parameter differs from the viewed defect's", async () => {
+    // Defect 3 (fixtures) is STA-03 · NO; attentionOverlayAvailable's HST-GAT
+    // targets PM10 - a real mismatch the operator could easily miss glancing at
+    // the small "target PM10" caption alone.
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence?defect=3",
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayAvailable },
+    });
+    const attention = await screen.findByTestId("graph-attention");
+    const mismatch = within(attention).getByTestId("attention-parameter-mismatch");
+    expect(mismatch).toHaveTextContent("trained to reconstruct PM10, not NO");
+  });
+
+  it("does not flag a mismatch when the attention target matches the defect's parameter", async () => {
+    // The default selected defect (id 1) is PM10, matching the fixture's own target.
+    renderWithProviders(<EvidencePanel />, {
+      route: "/evidence",
+      routes: { "/v1/graph/attention": fixtures.attentionOverlayAvailable },
+    });
+    const attention = await screen.findByTestId("graph-attention");
+    expect(within(attention).queryByTestId("attention-parameter-mismatch")).not.toBeInTheDocument();
+  });
+
   it("points to the event timeline for the adjudication verdict", async () => {
     // The defect view is the statistical evidence; the plume-vs-fault verdict is
     // adjudicated per event over the wind graph, and lives on the timeline.

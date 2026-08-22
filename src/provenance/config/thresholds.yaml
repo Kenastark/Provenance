@@ -100,3 +100,15 @@ sensor_dead:
   # consecutive intervals is silently dead. Two Enclod counters are dead this way.
   dead_min_consecutive_intervals: 672
   basis: "672 fifteen-minute intervals is one week of zero throughput on a roadside counter that should never be idle that long."
+
+network_wide_finding:
+  # A reporting gate, not a detector - a (reason_code, parameter) pair is called
+  # out as network-wide when it fires on every station that carries the
+  # parameter AND on at least this fraction of that parameter's total readings
+  # (the fraction guards against a coincidental one-off that happens to touch
+  # every station lightly). Exists so a defect that is really a single, systemic
+  # fact about a whole channel - e.g. R10 firing on 100% of CO2 readings across
+  # all 16 real stations - surfaces as one finding instead of being buried as
+  # thousands of individual per-reading rows.
+  min_fraction: 0.95
+  basis: "0.95 rather than a strict 1.0 tolerates the ordinary handful of dropped/absent cells a real drop always carries, without admitting a merely common (not systemic) code."

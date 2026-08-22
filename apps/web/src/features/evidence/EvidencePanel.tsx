@@ -633,6 +633,25 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     );
   }
 
+  // The network only ever trains one HST-GAT at a time (`models.yaml`'s
+  // `hstgat.target_parameter`), so this overlay can easily be showing a different
+  // pollutant's propagation structure than the one the operator is actually looking
+  // at - real, but easy to miss glancing at the small "target X" caption alone. Flagged
+  // in amber (the brand's own "ambiguity" colour) rather than left to the caption.
+  const parameterMismatch = Boolean(
+    data.target_parameter && data.target_parameter !== defect.parameter,
+  );
+  const mismatchNote = parameterMismatch && (
+    <p
+      className="mb-2 text-caption prov-state-degraded"
+      data-testid="attention-parameter-mismatch"
+    >
+      This overlay is trained to reconstruct {data.target_parameter}, not{" "}
+      {defect.parameter} - read it as {data.target_parameter} network structure, not
+      evidence about this {defect.parameter} reading.
+    </p>
+  );
+
   const allEdges = Object.entries(data.relations ?? {})
     .flatMap(([relation, relationEdges]) =>
       relationEdges
@@ -645,6 +664,7 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     return (
       <div className="prov-panel p-4" data-testid="graph-attention">
         <h4 className="mb-1 text-subhead">Graph attention over neighbouring stations</h4>
+        {mismatchNote}
         <p className="text-caption text-text-tertiary" data-testid="graph-attention-empty">
           The trained HST-GAT (target {data.target_parameter}) carries no attention edges
           touching {defect.station_id}. That is a graph-topology fact, not a missing
@@ -666,11 +686,14 @@ export function GraphAttention({ defect }: { defect: Defect }) {
     <div className="prov-panel p-4" data-testid="graph-attention">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <h4 className="text-subhead">Graph attention over neighbouring stations</h4>
-        <span className="prov-numeric text-caption text-text-tertiary">
+        <span
+          className={`prov-numeric text-caption ${parameterMismatch ? "prov-state-degraded" : "text-text-tertiary"}`}
+        >
           target {data.target_parameter}
           {data.at && <> · {formatTimestamp(data.at)}</>}
         </span>
       </div>
+      {mismatchNote}
       <ul className="m-0 list-none space-y-2 p-0" data-testid="attention-edges">
         {edges.map((edge) => {
           const outgoing = edge.src === defect.station_id;

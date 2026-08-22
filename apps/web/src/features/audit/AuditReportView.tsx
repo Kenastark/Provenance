@@ -71,6 +71,54 @@ function buildTallies(counts: Map<string, number>): CodeTally[] {
     .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 }
 
+interface NetworkWideFinding {
+  reasonCode: string;
+  parameter: string;
+  stationCount: number;
+  flaggedReadings: number;
+  totalReadings: number;
+  fraction: number;
+}
+
+/**
+ * A (reason_code, parameter) pair the audit engine found firing on every station
+ * that carries that parameter - a single systemic fact about a whole channel (a
+ * mislabelled unit, say) rather than thousands of individual per-reading defects.
+ * `summary.network_wide_findings` is computed generically by the engine (never a
+ * hardcoded code or parameter here); this just parses the untyped summary blob the
+ * same defensive way `tallyFromSummary` does.
+ */
+export function networkWideFindingsFromSummary(
+  summary: Record<string, unknown> | undefined,
+): NetworkWideFinding[] | null {
+  const raw = summary?.["network_wide_findings"];
+  if (!Array.isArray(raw)) return null;
+  const findings: NetworkWideFinding[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    if (
+      typeof r.reason_code !== "string" ||
+      typeof r.parameter !== "string" ||
+      typeof r.station_count !== "number" ||
+      typeof r.flagged_readings !== "number" ||
+      typeof r.total_readings !== "number" ||
+      typeof r.fraction !== "number"
+    ) {
+      continue;
+    }
+    findings.push({
+      reasonCode: r.reason_code,
+      parameter: r.parameter,
+      stationCount: r.station_count,
+      flaggedReadings: r.flagged_readings,
+      totalReadings: r.total_readings,
+      fraction: r.fraction,
+    });
+  }
+  return findings;
+}
+
 function Headline({ run }: { run: AuditRun }) {
   const cells = [
     {
@@ -130,6 +178,10 @@ export function AuditReportView() {
   // the screen says the counts are a lower bound.
   const authoritative = useMemo(
     () => tallyFromSummary(detail.data?.summary),
+    [detail.data],
+  );
+  const networkWideFindings = useMemo(
+    () => networkWideFindingsFromSummary(detail.data?.summary),
     [detail.data],
   );
   // Only reach for the ledger once the summary has settled *without* a tally.
@@ -264,6 +316,47 @@ export function AuditReportView() {
           {formatRateAsPercent(run.defect_rate)}
         </p>
       </div>
+
+      {summarySettled && networkWideFindings && (
+        <div className="prov-panel p-4" data-testid="network-wide-findings">
+          <h3 className="text-subhead">Network-wide findings</h3>
+          {networkWideFindings.length === 0 ? (
+            <p className="mt-1 text-body text-text-secondary">
+              None in this run — no reason code fires on every station carrying a given
+              parameter.
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 text-body text-text-secondary">
+                Each row below fires on every station that carries that parameter — a single
+                systemic fact about the whole channel, not a station-specific fault. Called out
+                separately so it is not read as thousands of unrelated per-reading defects.
+              </p>
+              <ul className="mt-3 m-0 list-none space-y-2 p-0">
+                {networkWideFindings.map((f) => (
+                  <li
+                    key={`${f.reasonCode}-${f.parameter}`}
+                    className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2 last:border-b-0 last:pb-0"
+                  >
+                    <span className="text-body">
+                      <ReasonCodeBadge code={f.reasonCode} variant="code" /> affects{" "}
+                      <strong>{f.parameter}</strong> at all {f.stationCount} stations that carry
+                      it
+                    </span>
+                    <Link
+                      className="prov-numeric text-caption text-interactive underline"
+                      to={`/evidence?code=${encodeURIComponent(f.reasonCode)}`}
+                    >
+                      {formatCount(f.flaggedReadings)} of {formatCount(f.totalReadings)} readings
+                      ({formatRateAsPercent(f.fraction, 1)})
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="prov-panel p-4">
         <h3 className="mb-2 text-subhead">Defect breakdown by reason code</h3>

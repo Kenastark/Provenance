@@ -19,6 +19,7 @@ from provenance import __version__
 from provenance.audit.result import (
     AuditResult,
     CoverageSummary,
+    NetworkWideFinding,
     NotableEvent,
     RunMeta,
     StructuralAbsenceRow,
@@ -78,6 +79,7 @@ def run_audit(frame: pd.DataFrame, *, now: datetime | None = None) -> AuditResul
             for s in model.structural_absences
         ],
         notable_events=_notable_events(defects),
+        network_wide_findings=_network_wide_findings(counting, frame, model, thresholds),
         thresholds=thresholds,
         defects=_defects_records(defects),
     )
@@ -118,6 +120,94 @@ def _by_day(defects: pd.DataFrame) -> dict[str, int]:
     days = pd.to_datetime(defects[C.TIMESTAMP]).dt.date.astype(str)
     counts = days.value_counts()
     return {str(k): int(v) for k, v in sorted(counts.items())}
+
+
+def _network_wide_findings(
+    counting: pd.DataFrame,
+    frame: pd.DataFrame,
+    model: coverage_mod.CoverageModel,
+    thresholds: dict[str, Any],
+) -> list[NetworkWideFinding]:
+    """A (reason_code, parameter) fires on every station that carries the parameter,
+    for essentially every *reading* that parameter has - a single systemic fact
+    about a whole channel (e.g. a mislabelled unit), not a station-specific fault.
+
+    Generic over both dimensions - never a hardcoded code or parameter (standing
+    rule 1/2): "every carrying station" comes from the coverage model's own
+    ``series_grids`` keys, and the fraction gate is a configured reporting
+    threshold (``thresholds.yaml``'s ``network_wide_finding.min_fraction``), not a
+    magic number in code.
+
+    Restricted to codes whose flagged cells are all *present* readings (checked by
+    set membership against the frame's own non-null cells, never a hardcoded code
+    list) - an absence-pattern code like R01 has no present reading to compare
+    against at all, so "what fraction of readings are flagged" is not a question
+    that applies to it; that is a completeness story, already reported separately
+    by the coverage summary, not this one.
+    """
+    if counting.empty:
+        return []
+    min_fraction = float(thresholds.get("network_wide_finding", {}).get("min_fraction", 0.95))
+
+    carriers: dict[str, set[str]] = {}
+    for station, parameter in model.series_grids:
+        carriers.setdefault(parameter, set()).add(station)
+
+    present = frame[frame[C.VALUE].notna()]
+    present_cells = set(
+        zip(
+            present[C.STATION_ID].astype(str),
+            present[C.PARAMETER].astype(str),
+            present[C.TIMESTAMP],
+            strict=True,
+        )
+    )
+    present_counts = present.groupby(C.PARAMETER).size()
+
+    # A cell can be flagged by the same code more than once if a detector or the
+    # registry ever double-fires - drop_duplicates keeps "flagged" a cell count,
+    # matching the defect rate's own established cell-dedup (see `defective_cells`
+    # above).
+    deduped = counting.drop_duplicates(subset=[*_CELL_KEYS, REASON_CODE])
+
+    findings: list[NetworkWideFinding] = []
+    for key, rows in deduped.groupby([REASON_CODE, C.PARAMETER]):
+        code, parameter = str(key[0]), str(key[1])
+        carrying_stations = carriers.get(parameter, set())
+        if not carrying_stations:
+            continue
+        affected_stations = set(rows[C.STATION_ID].astype(str).unique())
+        if affected_stations != carrying_stations:
+            continue  # not every carrying station is affected - a local fault, not systemic
+        flagged_keys = set(
+            zip(
+                rows[C.STATION_ID].astype(str),
+                rows[C.PARAMETER].astype(str),
+                rows[C.TIMESTAMP],
+                strict=True,
+            )
+        )
+        if not flagged_keys.issubset(present_cells):
+            continue  # an absence-pattern code - a completeness story, not this one
+        total_readings = int(present_counts.get(parameter, 0))
+        if total_readings == 0:
+            continue
+        flagged_readings = len(rows)
+        fraction = flagged_readings / total_readings
+        if fraction < min_fraction:
+            continue
+        findings.append(
+            NetworkWideFinding(
+                reason_code=code,
+                parameter=parameter,
+                station_count=len(carrying_stations),
+                flagged_readings=flagged_readings,
+                total_readings=total_readings,
+                fraction=round(fraction, 6),
+            )
+        )
+    findings.sort(key=lambda f: (-f.fraction, f.reason_code, f.parameter))
+    return findings
 
 
 def _headline(code: str, parameter: str, evidence: dict[str, Any]) -> str:
