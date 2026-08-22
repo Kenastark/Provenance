@@ -80,6 +80,18 @@ describe("application shell", () => {
     renderWithProviders(<AppRoutes />);
     expect(screen.getByLabelText(/window/i)).toHaveValue("7d");
   });
+
+  it("shows the whole network's data freshness against real time, not the per-station anchor", async () => {
+    renderWithProviders(<AppRoutes />);
+    const freshness = await screen.findByTestId("data-freshness");
+    // The fixture's anchor (newest reading network-wide) is fixed; this text must
+    // stay measured against the real clock (unlike the station drawer's own "last
+    // reading", which is deliberately anchor-relative) so it keeps reading as
+    // increasingly old for a corpus that never advances, rather than always
+    // looking current relative only to itself.
+    expect(freshness).toHaveTextContent("14 May 2026, 23:00 UTC");
+    expect(freshness).toHaveTextContent(/ago/i);
+  });
 });
 
 describe("theme", () => {
