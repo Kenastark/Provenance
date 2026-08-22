@@ -342,25 +342,49 @@ the new `trust`-not-`io` import path) passes.
 render paths and the placeholder badge's presence/absence). `pnpm lint` /
 `pnpm typecheck` clean. `make web-contract-check` clean.
 
-**Visual baselines — all four regenerated and verified, both platforms.**
-`station-detail-{dark,light}-chromium-{darwin,linux}.png` all updated (the
-`ImputationCertainty` row's text genuinely changed: two labelled lines
-instead of one sentence). The darwin regeneration initially failed
-reproducibly — including on unmodified `main` with this branch's changes
-fully stashed — with a station-marker click intercepted by an overlapping
-map element; re-running it later, once the machine was no longer also
-running the hour-long imputation training and the CI-check polling loop
-concurrently, passed cleanly and stayed clean on a second, independent
-verification run. Read as CPU-contention-induced UI-animation timing, not a
-real defect in this branch — but I'm not fully certain, and it's worth a
-closer look if it recurs (see Flag for review). The Linux
-pinned-container regeneration (`make web-visual-linux`) passed on the first
-attempt once the underlying data bug below was fixed, and re-verified clean
-via `make web-visual-check` immediately after. One unrelated, pre-existing
-flake (`network map — light`, MapLibre/WebGL render-timing variance) surfaced
-during darwin verification and was left alone — same category of flake as
-the darwin station-detail one, not touched by this branch, and out of scope
-to chase down here.
+**Visual baselines — all four regenerated and verified, both platforms, twice
+over (once wrong, once right).** `station-detail-{dark,light}-chromium-
+{darwin,linux}.png` all updated (the `ImputationCertainty` row's text
+genuinely changed: two labelled lines instead of one sentence). Two separate
+problems had to be found and cleared before these were trustworthy:
+
+1. The darwin regeneration initially failed reproducibly — including on
+   unmodified `main` with this branch's changes fully stashed — with a
+   station-marker click intercepted by an overlapping map element;
+   re-running it later, once the machine was no longer also running the
+   hour-long imputation training and the CI-check polling loop concurrently,
+   passed cleanly and stayed clean on a second, independent verification
+   run. Read as CPU-contention-induced UI-animation timing, not a real
+   defect in this branch — but I'm not fully certain, and it's worth a
+   closer look if it recurs (see Flag for review).
+2. **A third bug, pre-existing and not introduced by this branch, but
+   directly triggered by testing it locally**: my very first regeneration
+   attempt (after fixing the cross-corpus imputation bug above) produced a
+   `station-detail` baseline that then **failed on push, in CI** — a much
+   larger diff than expected. CI's job showed a `Degraded mode — statistics
+   layer only` banner my local capture never showed. Cause: `demo-data`
+   deliberately never trains the tree models (deweather/fault), so CI's
+   fresh checkout is always in degraded mode there — but my local artefacts
+   directory still had `deweather`/`fault` models left over from training
+   the real drop earlier in this same session, and `registry.bundle_available()`
+   (which `models_available()`/the trust router's `degraded` flag reads) has
+   the *exact same* checksum-blind bug `available_imputation_models` had
+   before I fixed it — it just serves whatever `deweather-*.joblib`/
+   `fault-*.joblib` exist, regardless of which corpus trained them. My local
+   capture was therefore non-degraded and wrong; CI's was degraded and
+   right. Fixed procedurally for this update — cleared the local artefacts
+   directory entirely before recapturing (matching CI's genuinely clean
+   state) — not by changing `registry.py`, which is out of this update's
+   surface; see Flag for review for the code-level version of this still
+   sitting unfixed in the tree-model/HST-GAT loaders.
+
+The Linux pinned-container regeneration (`make web-visual-linux`) passed
+cleanly once both were addressed, re-verified via `make web-visual-check`
+immediately after, and CI's `backend` and `e2e` jobs both went green on the
+resulting push. One unrelated, pre-existing flake (`network map — light`,
+MapLibre/WebGL render-timing variance) surfaced once during darwin
+verification and was left alone — same category as the darwin
+station-detail one, not touched by this branch.
 
 ## Cold/warm `demo-real` timing
 
@@ -402,19 +426,30 @@ to chase down here.
 
 ## Flag for review
 
-- **The HST-GAT (fault-adjudication) model still has the checksum-staleness
-  gap U19 flagged, unfixed** — this update only fixed it for the *imputation*
-  models (`available_imputation_models`'s new `data_checksum` requirement).
-  `store.latest_stem()` (used by `GET /v1/graph/attention` and
-  `learned_provider_factory`) still picks the newest-*mtime* `hst-gat-*.pt`
-  with no check against the currently-loaded drop's checksum — the exact same
-  class of bug this update found and fixed for imputation, just not yet
-  applied to its sibling. Given how real the imputation version turned out to
-  be (it silently corrupted Trust Scores on the synthetic corpus during this
-  update's own verification, not a hypothetical), I'd treat this as higher
-  priority than U19's original "flagged, out of scope" framing suggested —
-  but fixing it is a change to `forecast.py`/`graph/adjudicate.py`, outside
-  this update's surface, so it's flagged rather than fixed here.
+- **The same checksum-staleness bug this update fixed for imputation still
+  sits, unfixed, in every other model loader** — this update only fixed
+  `available_imputation_models`. Confirmed still present, and confirmed to
+  bite in practice (not hypothetical) twice during this update's own
+  verification:
+  - `provenance.models.registry.bundle_available()`/`load_bundle()`
+    (deweather/fault) — this is what actually surfaced the bug: my local
+    `deweather`/`fault` artefacts, trained against the real drop earlier in
+    this session, were silently served against the synthetic `demo-data`
+    corpus, producing a non-degraded station-detail baseline that then
+    failed in CI (see Test gate). Worked around procedurally for this
+    update (cleared the artefacts directory before recapturing); not fixed
+    in `registry.py` itself.
+  - `store.latest_stem()` (HST-GAT, used by `GET /v1/graph/attention` and
+    `learned_provider_factory`) — the exact gap U19 already flagged, still
+    open, still unfixed by this update.
+  All three loaders need the same treatment `available_imputation_models`
+  got: an explicit `data_checksum` match against the currently-loaded drop,
+  not "the newest file on disk with this name." Given how easily this
+  reproduces (any local dev session that trains against one corpus and then
+  works with another hits it), I'd treat this as a real correctness gap
+  worth fixing soon, not just a flagged edge case — but touching
+  `registry.py`/`forecast.py`/`graph/adjudicate.py` is outside this update's
+  surface, so it's flagged rather than fixed here.
 - **The darwin visual-regression flake** (station-detail's marker click
   intercepted under load, see Test gate) is read as CPU-contention timing,
   not a defect, but that read is circumstantial (it stopped reproducing once
