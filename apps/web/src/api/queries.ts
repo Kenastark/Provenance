@@ -41,10 +41,6 @@ import type {
 /**
  * Data access for the dashboard.
  *
- * Every hook here is read-only, because in phase 3 the whole product is read-only:
- * the only write surface is the local action queue, which deliberately has no
- * transport (see lib/queue.ts).
- *
  * The client is injected through context so tests can hand in a stub and exercise
  * the real hooks. Nothing constructs a client at module scope.
  */
@@ -499,13 +495,19 @@ export function useReadings(options: {
   end?: string | null;
   limit?: number;
   enabled?: boolean;
+  /** Fetch across every station instead of requiring one. The wind overlay is the
+   * only caller: "current wind" is a network-level readout, not one station's
+   * series, so there is no single `stationId` to gate on. Every other call site
+   * leaves this false, so an in-flight `stationId` of `undefined` still disables
+   * the query as before. */
+  networkWide?: boolean;
 }): UseQueryResult<Reading[]> {
   const client = useApiClient();
-  const { stationId, parameter, start, end, limit, enabled = true } = options;
+  const { stationId, parameter, start, end, limit, enabled = true, networkWide = false } = options;
   return useQuery({
     queryKey: queryKeys.readings(stationId ?? "", parameter, start),
     placeholderData: keepPreviousData,
-    enabled: enabled && Boolean(stationId),
+    enabled: enabled && (Boolean(stationId) || networkWide),
     queryFn: async ({ signal }) => {
       const page = await client.get<Page<Reading>>("/v1/readings", {
         query: {

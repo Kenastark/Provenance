@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import type { QualityStation, Station, TrustComponent } from "../../api/client";
 import { evidenceFor, sortCodesBySeverity } from "../../api/reason-codes";
-import { useDefects, useReadings, useTrust, useTrustSeries } from "../../api/queries";
+import { useDefects, useEvents, useReadings, useTrust, useTrustSeries } from "../../api/queries";
 import { DrawerResizeHandle } from "../../components/DrawerResizeHandle";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { Sparkline } from "../../components/Sparkline";
@@ -12,9 +12,10 @@ import { TrustBreakdown } from "../../components/TrustBreakdown";
 import { TrustChip, type NonEmpty } from "../../components/TrustChip";
 import { useDrawerWidth } from "../../lib/drawerWidth";
 import { formatCount, formatRelative, formatTimestamp } from "../../lib/format";
-import { queueAction, queuedActionsFor, QUEUE_DISCLOSURE } from "../../lib/queue";
+import { ROLE_LABELS, useRole } from "../../lib/role";
 import { trustBandDescription, trustState } from "../../lib/trust";
 import { useWindowState } from "../../lib/windowContext";
+import { SignoffPanel } from "../alerts/SignoffPanel";
 
 /**
  * Everything known about one station, in the order an operator needs it.
@@ -124,13 +125,14 @@ function StationDetailBody({
   qualityRow: QualityStation | null;
   onClose: () => void;
 }) {
-  const { resolved } = useWindowState();
+  const { resolved, anchor } = useWindowState();
   const trust = useTrust(stationId);
   const series = useTrustSeries(stationId);
   // R18 is the authoritative structural-absence signal. It is a coverage fact, and
   // it never counts toward the defect rate.
   const coverageFacts = useDefects({ station: stationId, code: "R18" });
-  const [queued, setQueued] = useState(() => queuedActionsFor(stationId));
+  const stationEvents = useEvents(stationId);
+  const { role } = useRole();
   const [showAllParameters, setShowAllParameters] = useState(false);
 
   const score = trust.data;
@@ -159,10 +161,15 @@ function StationDetailBody({
   }, [station]);
   const visibleParameters = showAllParameters ? parameters : parameters.slice(0, 6);
 
-  const act = (kind: "acknowledge" | "dispatch") => {
-    queueAction({ kind, stationId, reasonCodes });
-    setQueued(queuedActionsFor(stationId));
-  };
+  // The most notable adjudicated event for this station, if one exists - sign-off
+  // and dispatch operate on an event, not a station (`POST /v1/decision/signoff`
+  // requires an `event_id`), and events only exist once an audit run has raised one
+  // (`io/db/loader.py::_insert_events`), never created on demand from this panel.
+  const activeEvent = useMemo(() => {
+    const items = stationEvents.data ?? [];
+    if (items.length === 0) return null;
+    return [...items].sort((a, b) => a.rank - b.rank)[0] ?? null;
+  }, [stationEvents.data]);
 
   return (
     <div className="flex flex-col gap-5 p-4">
@@ -173,7 +180,7 @@ function StationDetailBody({
           <p className="text-caption text-text-tertiary">
             {station?.zone_type ? `${station.zone_type} zone · ` : ""}
             {qualityRow?.last_reading_at
-              ? `last reading ${formatRelative(qualityRow.last_reading_at)}`
+              ? `last reading ${formatRelative(qualityRow.last_reading_at, anchor ?? undefined)}`
               : "no readings"}
           </p>
         </div>
@@ -334,26 +341,34 @@ function StationDetailBody({
           >
             View evidence
           </Link>
-          <button type="button" className="prov-button" onClick={() => act("acknowledge")}>
-            Acknowledge
-          </button>
-          <button type="button" className="prov-button" onClick={() => act("dispatch")}>
-            Dispatch
-          </button>
         </div>
-        <p className="mt-2 text-caption text-text-tertiary">{QUEUE_DISCLOSURE}</p>
-        {queued.length > 0 && (
-          <ul
-            className="mt-3 list-none space-y-1 p-0 text-caption text-text-secondary"
-            data-testid="queued-actions"
-          >
-            {queued.map((action) => (
-              <li key={action.id}>
-                {action.kind === "acknowledge" ? "Acknowledged" : "Dispatch queued"} ·{" "}
-                {formatTimestamp(action.queuedAt)}
-              </li>
-            ))}
-          </ul>
+
+        {stationEvents.isLoading && <LoadingState label="Checking for an adjudicated alert" />}
+        {!stationEvents.isLoading && !activeEvent && (
+          <p className="mt-2 text-caption text-text-tertiary" data-testid="no-active-event">
+            No adjudicated alert exists yet for this station. Alerts are raised from audit
+            runs, not from this panel — sign-off and dispatch will appear here once one is
+            raised, or open the{" "}
+            <Link className="prov-button mt-1 inline-flex" to="/alerts">
+              Alert Centre
+            </Link>{" "}
+            to see what has already been raised network-wide.
+          </p>
+        )}
+        {activeEvent && (
+          <div className="mt-3 flex flex-col gap-2" data-testid="station-signoff">
+            <p className="text-caption text-text-secondary">
+              {(stationEvents.data?.length ?? 0) > 1
+                ? `Sign-off applies to the most notable of ${stationEvents.data?.length} adjudicated events for this station: `
+                : "Sign-off applies to this station's adjudicated event: "}
+              <strong className="text-text">{activeEvent.headline}</strong>
+              {" · "}
+              <Link className="prov-button inline-flex" to={`/alerts?event=${activeEvent.id}`}>
+                Open in Alert Centre
+              </Link>
+            </p>
+            <SignoffPanel eventId={activeEvent.id} defaultOperator={ROLE_LABELS[role]} />
+          </div>
         )}
       </section>
     </div>
@@ -383,18 +398,23 @@ function ParameterSparkline({
 
   return (
     <li className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
+      <div className="min-w-0 shrink-0">
         <p className="truncate text-body">{parameter}</p>
         <p className="prov-numeric text-caption text-text-tertiary">
           {formatCount(count)} readings
           {unit ? ` · ${unit}` : ""}
         </p>
       </div>
-      {readings.isLoading ? (
-        <span className="text-caption text-text-tertiary">…</span>
-      ) : (
-        <Sparkline label={`${parameter} at ${stationId}`} unit={unit} points={points} />
-      )}
+      {/* flex-1 gives the sparkline a real flex-basis to stretch into, the same way
+          the trust trajectory chart's own section fills its width - the fixed-width
+          label above must not grow to match, so it gets shrink-0 instead. */}
+      <div className="min-w-0 flex-1">
+        {readings.isLoading ? (
+          <span className="text-caption text-text-tertiary">…</span>
+        ) : (
+          <Sparkline label={`${parameter} at ${stationId}`} unit={unit} points={points} fluid />
+        )}
+      </div>
     </li>
   );
 }

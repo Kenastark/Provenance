@@ -33,7 +33,7 @@ function buildRows(quality: readonly QualityStation[], stations: readonly Statio
 export function QualityMonitor() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedStationId = searchParams.get("station");
-  const { resolved, timeWindow } = useWindowState();
+  const { resolved, timeWindow, anchor } = useWindowState();
   const [filter, setFilter] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | "verified" | "degraded" | "fault" | "unknown">("all");
 
@@ -145,7 +145,7 @@ export function QualityMonitor() {
         key: "last",
         header: "Last reading",
         sortValue: (row) => row.station.last_reading_at,
-        render: (row) => formatRelative(row.station.last_reading_at),
+        render: (row) => formatRelative(row.station.last_reading_at, anchor ?? undefined),
       },
     ],
     [],

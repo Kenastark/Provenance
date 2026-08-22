@@ -33,6 +33,8 @@ import {
   resolveMapLayers,
   summariseMarkers,
   WIND_DIRECTION_PARAMETER,
+  WIND_LOOKBACK_HOURS,
+  WIND_SPEED_PARAMETER,
   type BusStopMarker,
   type LayerDefinition,
   type LayerId,
@@ -164,7 +166,7 @@ function MapSurface({
   selectedStationId: string | null;
   onSelect: (stationId: string) => void;
 }) {
-  const { resolved } = useWindowState();
+  const { anchor } = useWindowState();
   const { resolved: theme } = useTheme();
   const [layers, setLayers] = useState<Record<LayerId, boolean>>(DEFAULT_LAYERS);
   const { containerRef, project, basemapAvailable, tilesPresent, isIdle } = useMapEngine(
@@ -172,18 +174,39 @@ function MapSurface({
     theme,
   );
 
-  // Wind is a network-level readout, taken across the stations that carry a wind
-  // sensor rather than from a nominated one. Stations without one contribute
-  // nothing, and a network-wide absence reads as "no data", never as a calm.
-  const windReadings = useReadings({
-    stationId: markers[0]?.stationId,
+  // Wind is a network-level readout, taken across every station that carries a wind
+  // sensor rather than from one nominated station - stations without one simply
+  // don't appear in either fetch, and a network-wide absence reads as "no data",
+  // never as a calm. Direction and speed are two separate parameters, so they need
+  // two requests (the API filters by exactly one `parameter` per call); currentWind
+  // merges them back into one reading per station by matching timestamps.
+  const windStart = useMemo(
+    () => (anchor ? new Date(anchor.getTime() - WIND_LOOKBACK_HOURS * 3600_000).toISOString() : null),
+    [anchor],
+  );
+  const windEnd = anchor ? anchor.toISOString() : null;
+  const windDirectionReadings = useReadings({
+    stationId: undefined,
+    networkWide: true,
     parameter: WIND_DIRECTION_PARAMETER,
-    start: resolved.start,
-    end: resolved.end,
+    start: windStart,
+    end: windEnd,
     limit: 200,
     enabled: markers.length > 0,
   });
-  const wind = useMemo(() => currentWind(windReadings.data ?? []), [windReadings.data]);
+  const windSpeedReadings = useReadings({
+    stationId: undefined,
+    networkWide: true,
+    parameter: WIND_SPEED_PARAMETER,
+    start: windStart,
+    end: windEnd,
+    limit: 200,
+    enabled: markers.length > 0,
+  });
+  const wind = useMemo(
+    () => currentWind([...(windDirectionReadings.data ?? []), ...(windSpeedReadings.data ?? [])]),
+    [windDirectionReadings.data, windSpeedReadings.data],
+  );
   const counts = useMemo(() => summariseMarkers(markers), [markers]);
   const windEdges = useMemo(
     () => (layers.windEdges ? computeWindEdges(markers, wind) : []),

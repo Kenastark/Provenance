@@ -545,6 +545,16 @@ def models_train_hstgat(
         "--baseline/--no-baseline",
         help="Also train the GCN baseline for the card comparison.",
     ),
+    skip_if_cached: bool = typer.Option(
+        False,
+        "--skip-if-cached/--no-skip-if-cached",
+        help=(
+            "Reuse an already-trained, card-verified artefact for this exact data drop "
+            "(by content checksum) instead of retraining. `make demo-real` uses this so "
+            "re-running it doesn't pay the ~4min training cost again for the same drop; "
+            "`demo-real-hstgat` run directly still always retrains."
+        ),
+    ),
 ) -> None:
     """Train the HST-GAT (§6.4), calibrate a conformal interval, and save it with a card.
 
@@ -559,7 +569,8 @@ def models_train_hstgat(
     from provenance.models.hstgat import store
     from provenance.models.hstgat.conformalize import calibrate_and_coverage
     from provenance.models.hstgat.data import build_batch
-    from provenance.models.hstgat.train import train_model
+    from provenance.models.hstgat.train import NAME_FOR_KIND, train_model
+    from provenance.models.registry import ModelCardMissingError
     from provenance.schema.observe import observe
 
     frame = loaders.load_data(source)
@@ -571,10 +582,26 @@ def models_train_hstgat(
         )
         raise typer.Exit(code=1)
 
+    checksum = observe(frame).checksum
+
+    if skip_if_cached:
+        # Same stem format as `TrainedModel.stem` (train.py) - built here rather than
+        # from an instance, since there is no trained model yet to build one from.
+        expected_stem = f"{NAME_FOR_KIND['hstgat']}-v1-{checksum[:8]}"
+        try:
+            store.load_artefact(expected_stem)
+        except ModelCardMissingError:
+            pass  # No valid cached artefact for this exact drop; train below.
+        else:
+            console.print(
+                f"[green]HST-GAT already cached[/green] for this data drop ({expected_stem}); "
+                "skipping training. Run with --no-skip-if-cached to force a retrain."
+            )
+            return
+
     gcfg = load_graph_config()
     mcfg = load_models_config()
     wind = WindField.from_frame(frame)
-    checksum = observe(frame).checksum
     try:
         batch = build_batch(frame, points, wind, gcfg, target_parameter=target)
     except ValueError as exc:

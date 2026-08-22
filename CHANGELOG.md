@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`prov models train-hstgat --skip-if-cached`, and `make demo-real` uses it.**
+  The flag computes the current data drop's content checksum and reuses an
+  already-trained, card-verified artefact for that exact checksum instead of
+  retraining, falling through to a normal train on any mismatch (different
+  drop, corrupted artefact, missing card). `demo-real-hstgat` is unchanged
+  (always retrains, for a deliberate refresh); `demo-real` now runs
+  `train-hstgat --skip-if-cached` automatically after its other model-training
+  steps, so a first-time run against a drop trains the HST-GAT once and every
+  later re-run against the same drop reuses it - the Attention overlay no
+  longer needs a separate, easy-to-forget `make demo-real-hstgat` step to
+  become live. New `tests/unit/test_models_cli.py` integration test. Details:
+  `docs/updates/u19-network-map-review-fixes.md`.
 - **A "Network-wide findings" section on the Audit report**, closing the first of
   update-17's two open items. The audit engine now computes, generically (never a
   hardcoded code or parameter), which (reason_code, parameter) pairs fire on
@@ -38,6 +50,53 @@ Format: Keep a Changelog. Versioning: SemVer.
   not a hypothetical.
 
 ### Fixed
+- **Seven issues found in a user review of eight Network-map-tab screenshots,
+  plus the API's `OMP_NUM_THREADS` crash mitigation hardened beyond the two
+  Makefile targets it was previously scoped to.**
+  - The per-parameter sparklines in the station drawer (`StationDetailPanel.tsx`)
+    didn't resize when the drawer was dragged wider, unlike the trust
+    trajectory chart right above them - both use the same `Sparkline`
+    component, but only the trajectory chart's call site passed its existing
+    `fluid` prop. Added it to the parameter sparklines too, with a `flex-1`
+    wrapper so they have a flex-basis to grow into.
+  - **The wind overlay's speed always read "0"**: `WIND_SPEED_PARAMETER` was
+    exported but never fetched, only `WIND_DIRECTION_PARAMETER` was requested,
+    so the speed array was structurally always empty and fell back to its `0`
+    default - not a calm reading, a silent missing fetch, masked by the test
+    stub mocking `/v1/readings` by path only.
+  - **The wind reading was capped at "1 station" by construction**: the fetch
+    was scoped to one hardcoded station (`markers[0]?.stationId`) despite an
+    adjacent comment claiming network-wide aggregation. `useReadings` gained
+    an opt-in `networkWide` flag (existing call sites unaffected); the wind
+    overlay now fetches direction and speed network-wide, in a narrow window
+    anchored on the dataset's own anchor rather than the operator's selected
+    macro time window, to stay well under the API's 200-row page cap.
+  - **The wind arrow pointed backwards.** It was drawn at
+    `rotate(directionDegrees + 180)` - the reported bearing is the direction
+    the wind comes *from* (the same number the adjacent "W"/"278°" text
+    shows), and the vane convention points the arrow at that bearing
+    directly, not 180° away from it. Removed the inversion.
+  - **"Last reading N days ago" drifted further every day the demo sat
+    unopened**, comparing the corpus's frozen synthetic timestamps against the
+    real wall clock. Both call sites (`StationDetailPanel`, `QualityMonitor`)
+    now use `useWindowState().anchor` - the same dataset-anchored "now" the
+    time-window selector already uses - instead of `Date.now()`.
+  - **The station drawer's Acknowledge/Dispatch buttons wired into the real,
+    already-shipped sign-off flow** instead of a browser-local queue with no
+    transport and a caption claiming the capability "lands in phase 7" (it
+    already had, in the Alert Centre, just never connected here). Resolves an
+    `event_id` for the station via `useEvents`, picks the most notable event
+    when more than one exists, and renders the same `SignoffPanel` component
+    the Alert Centre uses, linking out to it for the full picture. A station
+    with no adjudicated event yet says so and links to the Alert Centre rather
+    than showing dead buttons. `lib/queue.ts` had no other caller; deleted.
+  - The `OMP_NUM_THREADS=1` macOS/arm64 crash mitigation (update-17) covered
+    only the `make api`/`api-bg` Makefile targets, leaving the plain `uvicorn`
+    command in `docs/api/README.md`, the Docker image, and any IDE run
+    config unprotected. `provenance/api/app.py` now sets it itself, as the
+    first statement in the module before any router import can pull torch in
+    - every way of starting the API is covered now, not just the two targets.
+  - Full detail: `docs/updates/u19-network-map-review-fixes.md`.
 - **Ten Evidence-tab issues found in a user review of the real `DEB-KER03 · CO2`
   defect, plus one crash the review's own verification surfaced.**
   - `explain_defect` (`explain/service.py`) no longer runs the weather-SHAP

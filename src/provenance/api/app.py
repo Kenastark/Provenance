@@ -9,6 +9,22 @@ disposes the engine on shutdown.
 
 from __future__ import annotations
 
+import os
+
+# macOS/Homebrew/arm64 only: torch and scikit-learn each load their own copy of
+# LLVM's libomp.dylib, and the two colliding inside a real OS thread (exactly what
+# run_in_threadpool spawns for /v1/graph/attention's HST-GAT forward pass) SIGSEGVs
+# the whole process (docs/updates/u14-train-hstgat-real.md, u17-evidence-review-
+# fixes.md). `KMP_DUPLICATE_LIB_OK=TRUE` does not help - that variable is for
+# Intel's iomp5, not LLVM's libomp; forcing single-threaded OpenMP does. Set here,
+# before any router import below can pull torch in transitively, so every way of
+# starting the API is protected - not just `make api`/`api-bg`, which used to be
+# the only guarded path (their `OMP_NUM_THREADS=1` prefix is now a harmless second
+# layer). Deliberately scoped to this module rather than provenance/__init__.py:
+# CLI training commands and the pytest suite still want their threads, and only
+# importing the API app needs this.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path

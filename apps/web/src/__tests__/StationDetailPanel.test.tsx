@@ -2,9 +2,39 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { StationDetailPanel } from "../features/station/StationDetailPanel";
-import { clearQueue, listQueuedActions, resetQueueCache } from "../lib/queue";
+import { resetSignoffCache } from "../lib/signoffs";
 import * as fixtures from "../test/fixtures";
 import { page, renderWithProviders } from "../test/harness";
+
+const signoffRoute = (body: unknown) => {
+  const input = body as { event_id: number; channel: string; operator: string };
+  // Real, not fixed, timestamps: `isSignoffUsable` checks `expires_at` against the
+  // real clock, and this suite has to keep passing after the fixed date below it.
+  return {
+    signoff_id: "so_test1",
+    event_id: input.event_id,
+    channel: input.channel,
+    operator: input.operator,
+    evidence_hash: "hash0123456789",
+    model_version: "trust_score=v1",
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+  };
+};
+
+const dispatchRoute = (body: unknown) => {
+  const input = body as { event_id: number; channel: string; signoff_id: string };
+  return {
+    dispatch_id: "dsp_test1",
+    event_id: input.event_id,
+    channel: input.channel,
+    signoff_id: input.signoff_id,
+    idempotency_key: `${input.event_id}:${input.channel}:${input.signoff_id}`,
+    status: "sent",
+    idempotent: false,
+    receipt: null,
+  };
+};
 
 const station = fixtures.station();
 const qualityRow = fixtures.qualityStation();
@@ -23,8 +53,7 @@ function renderPanel(overrides: Parameters<typeof renderWithProviders>[1] = {}) 
 
 describe("StationDetailPanel", () => {
   beforeEach(() => {
-    resetQueueCache();
-    clearQueue();
+    resetSignoffCache();
   });
 
   it("renders the score together with its breakdown and its reason codes", async () => {
@@ -85,27 +114,61 @@ describe("StationDetailPanel", () => {
     expect(sparklines.some((node) => Number(node.dataset.flagged) > 0)).toBe(true);
   });
 
-  it("queues an acknowledgement locally and says nothing was sent", async () => {
-    const user = userEvent.setup();
-    renderPanel();
+  it("says no adjudicated alert exists yet when the station has no event", async () => {
+    renderPanel({ routes: { "/v1/events": page([]) } });
 
-    await user.click(await screen.findByRole("button", { name: "Acknowledge" }));
-
-    await waitFor(() => expect(screen.getByTestId("queued-actions")).toBeInTheDocument());
-    expect(listQueuedActions()).toHaveLength(1);
-    expect(listQueuedActions()[0]).toMatchObject({ kind: "acknowledge", stationId: "STA-01" });
-    expect(screen.getByText(/Nothing has been sent/i)).toBeInTheDocument();
+    const notice = await screen.findByTestId("no-active-event");
+    expect(notice).toHaveTextContent(/No adjudicated alert exists yet/i);
+    expect(within(notice).getByRole("link", { name: /Alert Centre/i })).toHaveAttribute(
+      "href",
+      "/alerts",
+    );
+    expect(screen.queryByTestId("station-signoff")).not.toBeInTheDocument();
   });
 
-  it("records the reason codes that were on screen when the operator acted", async () => {
+  it("wires Acknowledge/Dispatch to the station's adjudicated event through the real sign-off gate", async () => {
     const user = userEvent.setup();
-    renderPanel();
-    await screen.findByTestId("trust-chip");
+    const event = fixtures.provEvent({
+      id: 42,
+      station_id: "STA-01",
+      headline: "PM10 at STA-01, above the physical maximum",
+    });
+    renderPanel({
+      routes: { "/v1/events": page([event]) },
+      postRoutes: { "/v1/decision/signoff": signoffRoute, "/v1/decision/dispatch": dispatchRoute },
+    });
 
-    await user.click(screen.getByRole("button", { name: "Dispatch" }));
+    const panel = await screen.findByTestId("station-signoff");
+    expect(within(panel).getByText(/PM10 at STA-01, above the physical maximum/)).toBeInTheDocument();
+    expect(within(panel).getByTestId("dispatch-button")).toBeDisabled();
 
-    await waitFor(() => expect(listQueuedActions()).toHaveLength(1));
-    expect(listQueuedActions()[0]?.reasonCodes).toContain("T04");
+    await user.click(within(panel).getByRole("button", { name: /record sign-off/i }));
+    await waitFor(() => expect(within(panel).getByTestId("dispatch-button")).not.toBeDisabled());
+
+    await user.click(within(panel).getByTestId("dispatch-button"));
+
+    const success = await screen.findByTestId("dispatch-success");
+    expect(success).toHaveTextContent(/Status sent/);
+  });
+
+  it("picks the most notable of several events and links to the Alert Centre for the rest", async () => {
+    renderPanel({
+      routes: {
+        "/v1/events": page([
+          fixtures.provEvent({ id: 1, rank: 2, station_id: "STA-01", headline: "Lower-ranked event" }),
+          fixtures.provEvent({ id: 2, rank: 1, station_id: "STA-01", headline: "Top-ranked event" }),
+        ]),
+      },
+    });
+
+    const panel = await screen.findByTestId("station-signoff");
+    expect(within(panel).getByText(/Top-ranked event/)).toBeInTheDocument();
+    expect(within(panel).queryByText(/Lower-ranked event/)).not.toBeInTheDocument();
+    expect(within(panel).getByText(/2 adjudicated events/)).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: /Open in Alert Centre/i })).toHaveAttribute(
+      "href",
+      "/alerts?event=2",
+    );
   });
 
   it("shows an actionable error when the score cannot be loaded", async () => {

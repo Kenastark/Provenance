@@ -266,6 +266,14 @@ export function buildTrafficCounterMarkers(counters: readonly TrafficCounter[]):
 // -------------------------------------------------------------------- wind
 export const WIND_SPEED_PARAMETER = "Wind_Speed";
 export const WIND_DIRECTION_PARAMETER = "Wind_Direction";
+/** How far back from the anchor to look for a wind reading. "Current wind" is a
+ * latest-sample readout, not a windowed series, so this is independent of whatever
+ * macro time window (24h/7d/corpus) the operator has selected elsewhere - a few
+ * cadence periods of slack is enough to survive a missed hour without pulling in
+ * enough history, across every wind-carrying station, to risk the 200-row page cap
+ * silently truncating before it reaches the newest readings (list_readings orders
+ * ascending, oldest first). */
+export const WIND_LOOKBACK_HOURS = 6;
 
 export interface WindVector {
   /** Metorological bearing the wind blows *from*, in degrees. */

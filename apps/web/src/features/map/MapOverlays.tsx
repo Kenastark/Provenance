@@ -335,9 +335,11 @@ export function WindOverlay({ wind }: { wind: WindVector | null }) {
     >
       <svg width={32} height={32} viewBox="0 0 32 32" role="img" aria-label={summary}>
         <title>{summary}</title>
-        {/* The barb points the way the air is going: bearings are reported as the
-            direction the wind comes *from*, so the arrow is rotated 180 from it. */}
-        <g transform={`rotate(${wind.directionDegrees + 180} 16 16)`}>
+        {/* The barb points into the wind, the way a vane's arrow does: bearings are
+            reported as the direction the wind comes *from* (the same number the
+            "W"/"278°" text beside it shows), so the arrow is drawn at that bearing
+            directly rather than the direction the air is travelling toward. */}
+        <g transform={`rotate(${wind.directionDegrees} 16 16)`} data-testid="wind-arrow">
           <line x1="16" y1="26" x2="16" y2="6" stroke="var(--prov-interactive)" strokeWidth="2" />
           <path d="M16 4 L11 12 L16 9.5 L21 12 Z" fill="var(--prov-interactive)" />
         </g>

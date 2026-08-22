@@ -11,8 +11,7 @@ import { toDate } from "./format";
  * only make the dispatch button *more* cautious than the server, never less: the
  * worst this cache can do wrong is ask an operator to sign off again when a valid
  * record already exists. What it buys is continuity - the sign-off panel still
- * shows "who, when, which channel" after a reload during a demo, the same reason
- * `lib/queue.ts` persists the local action queue.
+ * shows "who, when, which channel" after a reload during a demo.
  */
 
 const STORAGE_KEY = "provenance.signoffs";

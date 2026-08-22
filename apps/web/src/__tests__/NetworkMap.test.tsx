@@ -395,13 +395,26 @@ describe("NetworkMap", () => {
     expect(await screen.findByTestId("wind-overlay-empty")).toHaveTextContent(/No wind readings/i);
   });
 
-  it("shows the current wind when the network measured it", async () => {
+  it("shows the current wind, aggregated across every wind-carrying station", async () => {
+    // Direction and speed are two separate requests against the same path (the API
+    // filters by exactly one `parameter` per call), so the fixture is split by the
+    // query the component actually sent - a single fixed fixture can't tell the two
+    // requests apart and would double-count every station.
     renderWithProviders(<NetworkMap />, {
-      routes: { "/v1/readings": page(fixtures.windReadings) },
+      routes: {
+        "/v1/readings": (query: Record<string, unknown> | undefined) =>
+          page(fixtures.windReadings.filter((r) => r.parameter === query?.parameter)),
+      },
     });
     const overlay = await screen.findByTestId("wind-overlay");
     expect(overlay).toHaveAttribute("data-direction", "0");
     expect(within(overlay).getByText(/N 12.5 km\/h/)).toBeInTheDocument();
+    // Two stations (STA-01, STA-02) report direction in the fixture; the widget must
+    // aggregate across both rather than reading from one hardcoded station.
+    expect(within(overlay).getByText(/2 stations/)).toBeInTheDocument();
+    // The barb points into the wind - the vane convention, matching the "N"/"0°"
+    // text beside it - rather than 180° away from it.
+    expect(within(overlay).getByTestId("wind-arrow")).toHaveAttribute("transform", "rotate(0 16 16)");
   });
 
   it("explains an empty network instead of showing a blank map", async () => {
