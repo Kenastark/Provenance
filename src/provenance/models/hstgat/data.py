@@ -166,6 +166,17 @@ def _reverse_relation(
     )
 
 
+def imputable_parameters(frame: pd.DataFrame, *, min_carrier_stations: int = 2) -> list[str]:
+    """Parameters with enough carrying stations for a graph-conditioned reconstruction.
+
+    A single-carrier parameter has no peer to reconstruct it from, so it is excluded
+    here rather than handed to :func:`build_batch` to fail on — discovered from the
+    data actually loaded, never a hardcoded pollutant list (standing rule 1/2).
+    """
+    counts = frame.groupby(C.PARAMETER)[C.STATION_ID].nunique()
+    return sorted(str(p) for p, n in counts.items() if int(n) >= min_carrier_stations)
+
+
 def build_batch(
     frame: pd.DataFrame,
     points: list[StationPoint],

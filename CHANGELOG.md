@@ -5,6 +5,31 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **A real graph-conditioned imputation model (§7.2), replacing the raw
+  absent-fraction placeholder in the Trust Score's `ImputationUncertainty` term
+  wherever it is trained.** `prov models train-imputation --source <path>` trains
+  one HST-GAT-architecture model per parameter with 2+ carrying stations
+  (`imputation-<PARAMETER>`, same masked-autoencoder Gaussian-NLL mechanism and
+  graph-building code as `train-hstgat`, a separate artefact from the
+  fault-adjudication PM10 model), evaluated by held-out RMSE/MAE and split-conformal
+  coverage. The trust engine now threads a live per-station/window model inference
+  (`provenance.trust.imputation.ImputationLookup`, one graph batch per parameter per
+  load, not per station) into `ImputationCertainty`'s value where a model is
+  available; the raw absent-fraction figure is kept alongside it (`evidence.pct` vs.
+  `evidence.modelled_pct`), never replaced silently. Model selection is scoped to
+  the currently-loaded drop's content checksum (`available_imputation_models`,
+  a real bug caught during verification: without it, a model trained on one
+  corpus silently ran inference against a different one sharing a parameter
+  name). New reason code **T06**
+  (`TRUST_IMPUTATION_MODELLED`); T02's placeholder path is unchanged for any
+  station/parameter without a model. `demo-real` now pre-flights and
+  auto-trains-or-skips both HST-GAT and the imputation models (reversing part of
+  update 14's "kept as a separate manual step" call, now that a cheap
+  checksum/card-existence check removes that trade-off); `demo-real-hstgat` and the
+  new `demo-real-imputation` remain as explicit forced-retrain targets. Synthetic
+  `make demo`/`demo-data`/`demo-models` still never train anything. Components
+  sidebar and station-detail panel show both figures, separately labelled. Details:
+  `docs/updates/u21-imputation-uncertainty.md`.
 - **A whole-network "Data as of" freshness indicator in the top bar**, measured
   against the real wall clock (`formatTimestamp`/`formatRelative` over
   `useWindowState().anchor`, deliberately not anchor-overridden here). Answers

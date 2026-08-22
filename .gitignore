@@ -32,6 +32,8 @@ docs/model-cards/fault-*.md
 # match.
 docs/model-cards/hst-gat-v1-*.md
 docs/model-cards/gcn-*.md
+# Same story, one auto-generated card per trained parameter (imputation-<PARAMETER>-v1-<checksum>.md).
+docs/model-cards/imputation-*.md
 
 # ---- python ----
 .venv/
