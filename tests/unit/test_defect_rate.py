@@ -30,3 +30,15 @@ def test_definition_travels_with_the_number() -> None:
     dr = DefectRate(1, 10)
     assert dr.definition == DEFINITION
     assert "structural" in dr.definition.lower()
+
+
+def test_definition_does_not_claim_every_cell_is_an_hour() -> None:
+    """The grid reindexes each series at its own inferred cadence - air and groundwater
+    hourly, noise daily (``grid.coverage``). The definition string renders verbatim into
+    audit.md, audit.html and the regulatory export, so wording it as "(station, parameter,
+    hour)" misdescribes every daily cell to the person most likely to check. Pinned here
+    because the arithmetic and the sentence describing it must not drift apart."""
+    lowered = DEFINITION.lower()
+    assert "hour)" not in lowered
+    assert "tick" in lowered
+    assert "cadence" in lowered

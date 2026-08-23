@@ -5,7 +5,7 @@ import { evidenceFor, reasonCode, severityTone } from "../../api/reason-codes";
 import { ReasonCodeBadge } from "../../components/ReasonCodeBadge";
 import { useEvents } from "../../api/queries";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
-import { parseAdjudication } from "../../lib/adjudication";
+import { parseAdjudication, parseNotApplicable } from "../../lib/adjudication";
 import { formatTimestamp, toDate } from "../../lib/format";
 import { withinWindow } from "../../lib/timeWindow";
 import { verdictMeta } from "../../lib/verdict";
@@ -117,9 +117,19 @@ function Mark({ mark, size = 12 }: { mark: string; size?: number }) {
 }
 
 /** Exported so the Alert Centre renders the same verdict chip rather than a
- * parallel one - an alert's verdict is the same enum, read off the same event. */
-export function VerdictChip({ verdict }: { verdict: string | null | undefined }) {
-  const meta = verdictMeta(verdict);
+ * parallel one - an alert's verdict is the same enum, read off the same event.
+ *
+ * `evidence` is optional and only consulted when the verdict is null: it carries the
+ * backend's record of *why* the plume test did not apply, which is what separates
+ * "considered, not applicable" from "not adjudicated yet". */
+export function VerdictChip({
+  verdict,
+  evidence,
+}: {
+  verdict: string | null | undefined;
+  evidence?: unknown;
+}) {
+  const meta = verdictMeta(verdict, parseNotApplicable(evidence));
   return (
     <span
       className={`rounded-sm border border-current px-2 text-caption ${VERDICT_TONE_CLASS[meta.tone]}`}
@@ -163,6 +173,10 @@ export function EventTimeline() {
     () => (selectedEvent ? parseAdjudication(selectedEvent.evidence) : null),
     [selectedEvent],
   );
+  const selectedNotApplicable = useMemo(
+    () => (selectedEvent ? parseNotApplicable(selectedEvent.evidence) : null),
+    [selectedEvent],
+  );
 
   if (events.isLoading) return <LoadingState label="Loading events" />;
   if (events.error) {
@@ -204,7 +218,7 @@ export function EventTimeline() {
                   data-event-id={event.id}
                   data-tone={tone}
                   data-mark={mark}
-                  aria-label={`${event.headline} at ${formatTimestamp(event.timestamp_utc)}, ${verdictMeta(event.verdict).label}`}
+                  aria-label={`${event.headline} at ${formatTimestamp(event.timestamp_utc)}, ${verdictMeta(event.verdict, parseNotApplicable(event.evidence)).label}`}
                   title={`${event.headline} — ${formatTimestamp(event.timestamp_utc)}`}
                   onClick={() =>
                     setSearchParams((previous) => {
@@ -234,7 +248,7 @@ export function EventTimeline() {
                   </span>
                   <span className="font-mono text-caption text-text-tertiary">#{event.rank}</span>
                   <h3 className="text-subhead">{event.headline}</h3>
-                  <VerdictChip verdict={event.verdict} />
+                  <VerdictChip verdict={event.verdict} evidence={event.evidence} />
                   {String(event.id) === selectedEventId && (
                     <span className="text-micro text-interactive">selected</span>
                   )}
@@ -290,6 +304,18 @@ export function EventTimeline() {
           {selectedEvent &&
             (selectedAdjudication ? (
               <AdjudicationDetail event={selectedEvent} adjudication={selectedAdjudication} />
+            ) : selectedNotApplicable ? (
+              /* Considered and settled, not unfinished. Telling the operator to run a
+                 command they have already run would be wrong, so this states the
+                 backend's own recorded reason instead. */
+              <p
+                className="prov-panel p-3 text-caption text-text-tertiary"
+                data-testid="adjudication-not-applicable"
+                data-basis={selectedNotApplicable.basis}
+              >
+                No plume test applies to this event. {selectedNotApplicable.reason} An outage is not
+                an unsettled call, so it is not routed to review as ambiguous.
+              </p>
             ) : (
               <p
                 className="prov-panel p-3 text-caption text-text-tertiary"

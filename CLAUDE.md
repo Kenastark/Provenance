@@ -13,10 +13,20 @@ Product descriptor: *AI Trust Layer for Environmental Data.*
 Spoken demo hook, used on stage and on the title card only: *"Is This Real?"*
 
 The thesis in one sentence: **a number on a screen looks exactly the same whether
-it is true or broken.** 149,683 readings over 30 days at roughly 99.95%
-completeness — by every conventional measure this network is perfectly healthy,
-and it isn't. Provenance finds the readings that are present, well-formed,
-plausible, and wrong, and explains why.
+it is true or broken.** 149,683 readings over 30 days at **100.00% conventional
+completeness** — every row the network delivered carries a value — by every
+conventional measure this network is perfectly healthy, and it isn't. Provenance
+finds the readings that are present, well-formed, plausible, and wrong, and
+explains why.
+
+Two completeness figures exist and they answer different questions. **Conventional
+completeness** (non-null values / delivered rows) is 100.0000%. **Grid
+completeness** (observed cells / covered cells, after reindexing each series at its
+own cadence) is 85.7374% — 24,900 of the 174,583 readings the network owed never
+arrived. Both are measured outputs of `prov audit run`; neither is ~99.95%, which
+was the *synthetic* corpus's grid completeness and is no longer quoted anywhere.
+See `docs/updates/u22-headline-reconciliation.md` for the derivation and
+`docs/demo/demo-script-v1.1-real-data.md` for which one goes on stage.
 
 This is not a replacement for Green Sentinel's public dashboard. It is the
 operator-facing second screen that scores every reading for genuineness.

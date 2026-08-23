@@ -394,17 +394,20 @@ def graph_adjudicate_db(
 
     Run after ``prov db load``: it fills the ``verdict`` the audit left null, so the
     dashboard timeline shows a plume/fault/ambiguous label per event.
+
+    Events with no rise to propagate (an outage has no reading to carry downwind) keep a
+    null verdict and are counted separately - they were considered, not skipped over.
     """
     import asyncio
 
-    from provenance.graph.persist import adjudicate_stored_events
+    from provenance.graph.persist import SweepResult, adjudicate_stored_events
     from provenance.io import loaders
     from provenance.io.db.engine import make_engine, make_sessionmaker
 
     frame = loaders.load_data(source)
     station_meta = loaders.load_station_metadata(source)
 
-    async def _run() -> int:
+    async def _run() -> SweepResult:
         from provenance.config.settings import get_settings
 
         engine = make_engine(get_settings().database_url)
@@ -415,8 +418,16 @@ def graph_adjudicate_db(
         finally:
             await engine.dispose()
 
-    updated = asyncio.run(_run())
-    console.print(f"[green]Adjudicated[/green] {updated} stored event(s); verdicts written.")
+    result = asyncio.run(_run())
+    console.print(
+        f"[green]Adjudicated[/green] {result.adjudicated} stored event(s); verdicts written."
+    )
+    if result.not_applicable:
+        console.print(
+            f"[yellow]{result.not_applicable}[/yellow] event(s) had no rise to propagate "
+            "(no reading at the event time); the plume test does not apply and each carries "
+            "a recorded reason rather than a verdict."
+        )
 
 
 @graph_app.command("snapshot")

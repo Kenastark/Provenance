@@ -5,6 +5,52 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **An event with no plume question to answer now says so, instead of reading as
+  "pending adjudication" forever.** A stored event whose own cell has no reading
+  (a communication outage has no rise for the wind to carry) keeps a null verdict
+  but now records **why**, under
+  `Event.evidence["adjudication_not_applicable"]`, so the dashboard can tell
+  "adjudicated over, does not apply" from "not adjudicated yet" - previously it
+  told the operator to run a command they had already run. The reason is derived
+  from the frame (is the parameter carried? is there a reading at that
+  timestamp?), mirroring `graph/replay.py::build_candidate`'s own two `None`
+  paths, never keyed off a reason code. `adjudicate_stored_events` now returns
+  `SweepResult(adjudicated, not_applicable)` instead of a bare int, and
+  `prov graph adjudicate-db` reports both counts. AMBIGUOUS was deliberately
+  **not** reused: it means "we are unsure, route to a human", and an outage is not
+  an unsettled call. Frontend: `parseNotApplicable()`, a `not_applicable` verdict
+  kind, and a detail pane that states the recorded reason. No API contract change
+  (`evidence` was already a free-form map). Known gap: the Alert Centre still
+  shows "pending" for such an event, since `AlertItem` carries no `evidence`.
+
+### Changed
+- **The defect-rate definition string no longer calls every cell an "hour".** 300
+  of the 174,583 covered cells in the real drop are daily (the two LAEQ noise
+  series); the grid always reindexed each series at its own inferred cadence, but
+  `DEFINITION` said "(station, parameter, hour)" and rendered that verbatim into
+  `audit.md`, `audit.html` and the `/v1/export` payload. Now "(station, parameter,
+  tick) ... that series' own measured cadence, hourly or daily, never assumed",
+  pinned by a regression test. The golden `audit.md` snapshot was regenerated:
+  exactly one line changed, and no computed number moved (`config_hash` hashes
+  YAML, not Python source).
+- **The pitch material now uses measured completeness, and the KER11 verdict it
+  actually returns.** `CLAUDE.md`'s thesis paragraph drops "roughly 99.95%
+  completeness" - which was the *synthetic* corpus's grid completeness - for the
+  measured **100.00% conventional** figure, and states both completeness measures
+  with their denominators. Four demo documents are revised as new versions per
+  standing rule 10 (`demo-script-v1.1-real-data.md`,
+  `judge-questions-v1.1-real-data.md`, `one-page-description-v1.1-real-data.md`,
+  `video-storyboard-v1.1-real-data.md`; the v1.0 files are untouched). Beyond the
+  completeness figure this corrects two real errors found while editing them: the
+  script and storyboard stated the **wrong verdict** for the KER11 event
+  (AMBIGUOUS/routed to review; it is LIKELY_FAULT and does not route to review),
+  and quoted synthetic trust figures (0.577 -> 0.275) where the real stored series
+  is 0.7347 -> 0.4308 with T04 appearing. The B1 block now volunteers the R01
+  split (48.97% of the headline is data that never arrived) and presents the CO2
+  unit finding as one network-wide fact rather than 10,627 independent ones;
+  `judge-questions-v1.1` rewrites its Q2 (whose v1.0 answer was factually wrong
+  about the rate's own numerator) and adds Q14-Q17. Details:
+  `docs/updates/u23-headline-decisions.md`.
 - **Headline reconciliation: the defect rate, pinned down to what it is a rate
   *of*, and the KER11 verdict restated as evidence.** Documentation only - no
   detector, threshold, configuration value, or audited number changed. Traces

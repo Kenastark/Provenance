@@ -112,4 +112,57 @@ describe("EventTimeline", () => {
       expect(mark.getAttribute("aria-label")).toMatch(/pending adjudication/);
     }
   });
+
+  it("says 'not applicable' — not 'pending' — for an event with no rise to propagate", async () => {
+    // An outage was adjudicated over and found to have no plume question. Telling the
+    // operator to run `prov graph adjudicate-db` here would be advice they have already
+    // taken, about an event that is settled.
+    renderWithProviders(<EventTimeline />, {
+      route: "/timeline",
+      routes: {
+        "/v1/events": page([
+          fixtures.provEvent({
+            id: 42,
+            timestamp_utc: "2026-05-12T00:00:00",
+            verdict: null,
+            evidence: {
+              missing_ticks: 3,
+              adjudication_not_applicable: {
+                basis: "no_reading_at_event_time",
+                reason: "There is no reading here, so there is no rise for the wind to carry.",
+              },
+            },
+          }),
+        ]),
+      },
+    });
+    const chip = await screen.findByTestId("event-verdict");
+    expect(chip).toHaveTextContent(/not applicable/i);
+    expect(chip).not.toHaveTextContent(/pending/i);
+    expect(chip).toHaveAttribute("data-verdict-kind", "not_applicable");
+  });
+
+  it("explains the non-applicability in the detail pane instead of the pending message", async () => {
+    renderWithProviders(<EventTimeline />, {
+      route: "/timeline?event=42",
+      routes: {
+        "/v1/events": page([
+          fixtures.provEvent({
+            id: 42,
+            timestamp_utc: "2026-05-12T00:00:00",
+            verdict: null,
+            evidence: {
+              adjudication_not_applicable: {
+                basis: "no_reading_at_event_time",
+                reason: "There is no reading here, so there is no rise for the wind to carry.",
+              },
+            },
+          }),
+        ]),
+      },
+    });
+    const pane = await screen.findByTestId("adjudication-not-applicable");
+    expect(pane).toHaveTextContent(/no rise for the wind to carry/i);
+    expect(screen.queryByTestId("adjudication-pending")).not.toBeInTheDocument();
+  });
 });

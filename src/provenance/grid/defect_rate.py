@@ -8,6 +8,11 @@ the number.
     defect rate = defective covered cells / covered cells
 
 A *cell* is one (station, parameter, timestamp) position in the expected grid.
+The timestamp step is each series' own inferred cadence, not a fixed hour: air and
+groundwater tick hourly, noise ticks daily, and the coverage model reindexes each
+series against its own cadence (see ``grid.coverage``). Calling the step an "hour"
+would be wrong for the daily series and is deliberately avoided here and in
+``DEFINITION`` - the arithmetic was always per-cadence, only the wording was loose.
 A cell is *covered* when the station actually carries that parameter (so a sensor
 the station never had is neither numerator nor denominator - standing rule 3).
 A cell is *defective* when at least one reason code that counts toward the rate
@@ -21,7 +26,8 @@ from typing import Final
 
 DEFINITION: Final[str] = (
     "defect rate = defective covered cells / covered cells, where a covered cell "
-    "is one (station, parameter, hour) the station actually measures, and a "
+    "is one (station, parameter, tick) the station actually measures - the tick being "
+    "that series' own measured cadence, hourly or daily, never assumed - and a "
     "defective cell is one on which at least one defect-counting reason code fired. "
     "Structural absences (sensors a station never carried) are excluded from both "
     "the numerator and the denominator."

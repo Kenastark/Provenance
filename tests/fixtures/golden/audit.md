@@ -13,7 +13,7 @@
 - Defective cells: **1,045** of 7,056 covered
 - **Defect rate: 14.8101%**
 
-> defect rate = defective covered cells / covered cells, where a covered cell is one (station, parameter, hour) the station actually measures, and a defective cell is one on which at least one defect-counting reason code fired. Structural absences (sensors a station never carried) are excluded from both the numerator and the denominator.
+> defect rate = defective covered cells / covered cells, where a covered cell is one (station, parameter, tick) the station actually measures - the tick being that series' own measured cadence, hourly or daily, never assumed - and a defective cell is one on which at least one defect-counting reason code fired. Structural absences (sensors a station never carried) are excluded from both the numerator and the denominator.
 
 ## Defects by reason code
 

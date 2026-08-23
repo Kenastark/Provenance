@@ -133,3 +133,28 @@ export function parseAdjudication(evidence: unknown): AdjudicationView | null {
     notes: Array.isArray(bundle.notes) ? bundle.notes.map((n) => str(n)) : [],
   };
 }
+
+/**
+ * The record the backend writes when the plume test does not apply to an event.
+ *
+ * A null verdict means two very different things, and the dashboard must not conflate
+ * them: with no record it means "not adjudicated yet"; with one it means "adjudicated
+ * over, and there was no rise for the wind to carry" — an outage has nothing to
+ * propagate, so there is nothing for downwind neighbours to corroborate. The backend
+ * derives that from the data (`graph/persist.py`), never from a reason code, and this
+ * only reads what it wrote.
+ */
+export interface NotApplicableView {
+  basis: string;
+  reason: string;
+}
+
+/** Parse `event.evidence.adjudication_not_applicable`, or `null` if there is none. */
+export function parseNotApplicable(evidence: unknown): NotApplicableView | null {
+  if (!isRecord(evidence)) return null;
+  const root = evidence.adjudication_not_applicable;
+  if (!isRecord(root)) return null;
+  const reason = str(root.reason);
+  if (!reason) return null;
+  return { basis: str(root.basis, "unspecified"), reason };
+}
