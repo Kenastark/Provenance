@@ -5,6 +5,35 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Headline reconciliation: the defect rate, pinned down to what it is a rate
+  *of*, and the KER11 verdict restated as evidence.** Documentation only - no
+  detector, threshold, configuration value, or audited number changed. Traces
+  29.1225% to its exact code path (`grid/coverage.py::n_covered_cells` ->
+  `audit/orchestrator.py::run_audit` -> `grid/defect_rate.py::DefectRate.rate`),
+  states numerator (50,843 distinct defective cells) and denominator (174,583
+  covered cells = expected-cells-after-reindexing over the 261 covered
+  (station, parameter) pairs at each series' own inferred cadence), and answers
+  explicitly that the 24,900 R01 `ROW_ABSENT` cells sit on **both** sides of the
+  ratio - 48.97% of the headline is missing data, not wrong data. Re-run against
+  `data/raw` reproduces 29.1225% exactly. Recomputes completeness from the drop
+  (100.0000% conventional, 85.7374% grid) and reports **prominently** that
+  neither matches CLAUDE.md's "roughly 99.95%", which is the synthetic corpus's
+  grid completeness (99.9518%) - a contradiction first flagged in update 6 and
+  still open, escalated rather than resolved. Adds cell-level breakdowns by
+  reason code, station and parameter: defects are distributed across stations
+  (top three = 23.65%, every station 17.69%-39.96% defective) but concentrated by
+  parameter (top three = 54.11%, CO2 100% defective), with four single-parameter
+  codes flagged as "your headline is really about one channel" objections. The
+  KER11 4,100.7 ug/m3 PM10 `LIKELY_FAULT` verdict is reproduced from both
+  `adjudicate-db` and `adjudicate`, traced to the third branch of
+  `graph/adjudicate.py::_decide`, and shown to be far from its boundary
+  (match_score 0.0 against a 0.2 fault threshold; the closest of five downwind
+  neighbours falls 498x short of corroborating), with byte-identical output across
+  runs. Confirms the HST-GAT attention overlay describes the same station,
+  parameter, hour and data checksum as the verdict. Six decisions escalated,
+  including that the "Is This Real?" blueprint v1.0-v1.2 is not in this repo or
+  anywhere on this machine, so the requested v1.3 was **not** written rather than
+  fabricated. Details: `docs/updates/u22-headline-reconciliation.md`.
 - **A real graph-conditioned imputation model (§7.2), replacing the raw
   absent-fraction placeholder in the Trust Score's `ImputationUncertainty` term
   wherever it is trained.** `prov models train-imputation --source <path>` trains
