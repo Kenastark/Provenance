@@ -9,15 +9,17 @@ serve, with the evidence bundle attached.
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 from sqlalchemy import select
 
 from provenance.fixtures.generator import generate, station_locations
-from provenance.graph.persist import adjudicate_stored_events
+from provenance.graph.persist import NOT_APPLICABLE_KEY, adjudicate_stored_events
 from provenance.io.db import models as m
 from provenance.io.db.engine import create_all, make_engine, make_sessionmaker
 from provenance.io.db.loader import load_frame
 from provenance.io.loaders import StationLocation
+from provenance.schema import canonical as C
 
 pytestmark = pytest.mark.asyncio
 
@@ -47,7 +49,8 @@ async def test_verdicts_populate_on_stored_events(tmp_path) -> None:
             assert all(e.verdict is None for e in before)
 
             updated = await adjudicate_stored_events(session, frame, dict(meta))
-            assert updated >= 1
+            assert updated.adjudicated >= 1
+            assert updated.total == len(before)
 
         async with sm() as session:
             after = (await session.scalars(select(m.Event))).all()
@@ -73,5 +76,89 @@ async def test_adjudication_is_idempotent(tmp_path) -> None:
         async with sm() as session:
             second = await adjudicate_stored_events(session, frame, dict(meta))
         assert first == second
+    finally:
+        await engine.dispose()
+
+
+async def test_an_event_with_no_reading_records_why_rather_than_reading_as_pending(
+    tmp_path,
+) -> None:
+    """A null verdict must not be ambiguous about its own meaning.
+
+    An event whose own cell has no reading has no rise for the wind to carry, so the
+    plume test cannot apply. It keeps a null verdict - folding it into AMBIGUOUS would
+    claim we are unsure when we are not - but it gains a recorded reason, so the
+    dashboard can tell "considered, does not apply" from "not adjudicated yet".
+    """
+    engine, sm, frame, meta = await _loaded_session(tmp_path)
+    try:
+        async with sm() as session:
+            events = (await session.scalars(select(m.Event))).all()
+            assert events
+            # Store an event on a cell the frame has no reading for: same station and
+            # parameter as a real one, an hour outside the corpus window. Derived from
+            # the frame, so no station or code is named here.
+            template = events[0]
+            session.add(
+                m.Event(
+                    audit_run_id=template.audit_run_id,
+                    rank=len(events) + 1,
+                    category="communication_outage",
+                    reason_code=template.reason_code,
+                    station_id=template.station_id,
+                    parameter=template.parameter,
+                    timestamp_utc=pd.Timestamp(frame[C.TIMESTAMP].max()) + pd.Timedelta(days=400),
+                    headline="synthetic gap with no reading behind it",
+                    severity="high",
+                    evidence={"missing_ticks": 3},
+                )
+            )
+            await session.commit()
+
+        async with sm() as session:
+            result = await adjudicate_stored_events(session, frame, dict(meta))
+            assert result.not_applicable >= 1
+
+        async with sm() as session:
+            gap = (
+                await session.scalars(
+                    select(m.Event).where(
+                        m.Event.headline == "synthetic gap with no reading behind it"
+                    )
+                )
+            ).one()
+            assert gap.verdict is None, "an outage is not an AMBIGUOUS call"
+            record = gap.evidence[NOT_APPLICABLE_KEY]
+            assert record["basis"] == "no_reading_at_event_time"
+            assert "no rise" in record["reason"]
+            assert "adjudication" not in gap.evidence
+    finally:
+        await engine.dispose()
+
+
+async def test_a_recorded_non_applicability_clears_once_the_event_becomes_adjudicable(
+    tmp_path,
+) -> None:
+    """The record is state, not a label: it must not outlive the condition that set it."""
+    engine, sm, frame, meta = await _loaded_session(tmp_path)
+    try:
+        async with sm() as session:
+            event = (await session.scalars(select(m.Event))).first()
+            assert event is not None
+            stale = dict(event.evidence or {})
+            stale[NOT_APPLICABLE_KEY] = {"basis": "no_reading_at_event_time", "reason": "stale"}
+            event.evidence = stale
+            await session.commit()
+            target_id = event.id
+
+        async with sm() as session:
+            await adjudicate_stored_events(session, frame, dict(meta))
+
+        async with sm() as session:
+            refreshed = (
+                await session.scalars(select(m.Event).where(m.Event.id == target_id))
+            ).one()
+            assert refreshed.verdict is not None
+            assert NOT_APPLICABLE_KEY not in refreshed.evidence
     finally:
         await engine.dispose()

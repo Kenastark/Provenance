@@ -5,12 +5,24 @@ import type { TrustState } from "./trust";
  *
  * The three backend verdicts are GENUINE_EVENT / LIKELY_FAULT / AMBIGUOUS. AMBIGUOUS
  * is a first-class outcome, not a failure — it means the plume could not be settled
- * either way and a human should look. Any other (or missing) string is passed
- * through untouched: the dashboard never invents or normalises a verdict it did not
- * get from the backend, and a null one still reads as "pending adjudication".
+ * either way and a human should look. Any other string is passed through untouched:
+ * the dashboard never invents or normalises a verdict it did not get from the backend.
+ *
+ * A *null* verdict is two different states, and telling them apart matters. On its own
+ * it means "not adjudicated yet". Paired with a recorded non-applicability (see
+ * `parseNotApplicable`) it means the adjudicator did consider the event and found no
+ * plume question to answer — an outage has no rise for the wind to carry. Showing
+ * "pending adjudication" for the second case tells the operator to run a command they
+ * have already run, and describes a settled event as unfinished.
  */
 
-export type VerdictKind = "genuine" | "fault" | "ambiguous" | "pending" | "other";
+export type VerdictKind =
+  | "genuine"
+  | "fault"
+  | "ambiguous"
+  | "not_applicable"
+  | "pending"
+  | "other";
 
 export interface VerdictMeta {
   kind: VerdictKind;
@@ -23,8 +35,21 @@ export interface VerdictMeta {
   raw: string | null;
 }
 
-export function verdictMeta(verdict: string | null | undefined): VerdictMeta {
+export function verdictMeta(
+  verdict: string | null | undefined,
+  notApplicable?: { reason: string } | null,
+): VerdictMeta {
   if (!verdict) {
+    if (notApplicable) {
+      return {
+        kind: "not_applicable",
+        label: "No plume test — not applicable",
+        tone: "unknown",
+        present: false,
+        routesToReview: false,
+        raw: null,
+      };
+    }
     return {
       kind: "pending",
       label: "pending adjudication",
