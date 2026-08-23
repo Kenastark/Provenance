@@ -291,19 +291,34 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	@# only, never a mix of leftover synthetic markers and real ones. Local dev
 	@# data only; regenerate the synthetic side any time with `make demo-data`.
 	$(VENV)/bin/prov db reset --yes
+	@# Pre-flight for the two graph models that make the REAL demo real, run BEFORE
+	@# `db load` below: trust scores are precomputed and stored at load time (see
+	@# `_insert_trust_scores` in io/db/loader.py), so the imputation model has to
+	@# exist before that pass runs, or the ImputationUncertainty term would only
+	@# pick it up on a second load. Neither command touches the DB - both read
+	@# data/raw directly - so training first costs nothing else.
+	@# The check IS `--skip-if-cached`'s own file/card-existence + content-checksum
+	@# comparison (see train-hstgat/train-imputation in cli/main.py) - a cheap
+	@# glob/exists test, no model load - so a separate metadata-only check would
+	@# only duplicate it. `demo-real` can therefore be both correct by default
+	@# (nothing silently stale or missing) and fast on every run but the first on a
+	@# given machine: this is a deliberate reversal of U14's "kept as its own manual
+	@# step" reasoning, which held only when the choice was "always train" vs.
+	@# "never train automatically" - with a cheap existence check that trade-off no
+	@# longer exists. A calibration that doesn't pass prints loudly (yellow) but
+	@# never aborts this target or blocks the dashboard from starting (see
+	@# `calibrate_and_coverage`'s honest refusal).
+	@echo ""
+	@echo "  Pre-flight: HST-GAT and imputation models (cached, or trained now) -----"
+	@echo ""
+	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10 --skip-if-cached
+	$(VENV)/bin/prov models train-imputation --source data/raw --skip-if-cached
 	$(VENV)/bin/prov db load --source data/raw
 	$(VENV)/bin/prov audit run --data data/raw --out reports
 	$(VENV)/bin/prov graph adjudicate-db --source data/raw
 	$(VENV)/bin/prov graph adjudicate --data data/raw --out reports/adjudications
 	$(VENV)/bin/prov models train --source data/raw
 	$(VENV)/bin/prov models residuals --source data/raw
-	@# --skip-if-cached reuses an already-trained, card-verified artefact for this
-	@# exact data drop (matched by content checksum, not file mtime) instead of
-	@# retraining - so a judge re-running this target to reset state only pays the
-	@# ~4min HST-GAT training cost once per drop, not on every re-run. A drop that
-	@# has never been trained on trains here automatically; there is no separate
-	@# step to remember. Force a fresh model with `make demo-real-hstgat`.
-	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10 --skip-if-cached
 	$(MAKE) api-bg
 	cd apps/web && pnpm install --no-frozen-lockfile
 	@# The streets and their labels are a nice-to-have. If either fetch cannot reach
@@ -318,16 +333,18 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	@echo "  Stop with : make demo-stop"
 	@echo "  The Attention overlay map layer is already live for this drop above."
 	@echo "  Force a fresh HST-GAT: make demo-real-hstgat"
+	@echo "  Force fresh imputation models: make demo-real-imputation"
 	@echo ""
 	$(MAKE) web
 
 # A separate, always-retrains target for forcing a fresh HST-GAT (a config or code
 # change that `demo-real`'s checksum-based cache wouldn't detect, since that cache
 # key is the data drop's content, not the model config). `demo-real` above already
-# trains-or-reuses one automatically, so this is no longer required before the
-# Attention overlay works - only to retrain on purpose.
+# auto-trains this one if missing and skips it if cached (its own pre-flight, see
+# the comment above the `models train-hstgat`/`train-imputation` lines there) - this
+# target is ONLY for a deliberate retrain, never the only path to a working demo.
 .PHONY: demo-real-hstgat
-demo-real-hstgat: check-real-drop ## force-retrain the HST-GAT + conformal calibration on the REAL drop (slow; demo-real already trains one automatically, this is only for a deliberate retrain)
+demo-real-hstgat: check-real-drop ## force-retrain the HST-GAT + conformal calibration on the REAL drop (demo-real already auto-trains this if missing/skips it if cached; use this only to force a fresh retrain)
 	$(VENV)/bin/prov models train-hstgat --source data/raw --target PM10
 	@echo ""
 	@echo "  HST-GAT trained on the real Green Sentinel drop (data/raw)."
@@ -335,6 +352,19 @@ demo-real-hstgat: check-real-drop ## force-retrain the HST-GAT + conformal calib
 	@echo "  The dashboard's 'Attention overlay' map layer will enable itself next"
 	@echo "  time it is loaded - no restart needed, GET /v1/graph/attention checks"
 	@echo "  store.latest_stem() live."
+	@echo ""
+
+# Same discipline as demo-real-hstgat, above, for the per-parameter imputation
+# models: demo-real already auto-trains-or-skips these; this target is only for a
+# deliberate retrain (model-code change, or refreshing calibration).
+.PHONY: demo-real-imputation
+demo-real-imputation: check-real-drop ## force-retrain the imputation models + calibration on the REAL drop (demo-real already auto-trains this if missing/skips it if cached; use this only to force a fresh retrain)
+	$(VENV)/bin/prov models train-imputation --source data/raw
+	@echo ""
+	@echo "  Imputation models trained on the real Green Sentinel drop (data/raw)."
+	@echo "  Parameter count and conformal coverage per parameter are reported above."
+	@echo "  The trust score's ImputationUncertainty term picks these up on the next"
+	@echo "  'prov db load' (it is precomputed at load time, not served live)."
 	@echo ""
 
 .PHONY: demo-scenarios

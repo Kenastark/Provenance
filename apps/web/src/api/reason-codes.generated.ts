@@ -281,4 +281,13 @@ export const REASON_CODES: Readonly<Record<string, ReasonCodeDef>> = {
     countsTowardDefectRate: false,
     implementedInPhase: 2,
   },
+  T06: {
+    code: "T06",
+    name: "TRUST_IMPUTATION_MODELLED",
+    sentence: "Imputation uncertainty is modelled ({modelled_pct}%); absent in window {pct}% (see evidence).",
+    category: "trust",
+    severity: "info",
+    countsTowardDefectRate: false,
+    implementedInPhase: 6,
+  },
 };

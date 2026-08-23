@@ -99,7 +99,9 @@ async def load_frame(
     defects_inserted = _insert_defects(session, result, run_id)
     _insert_coverage_facts(session, result, run_id)
     _insert_events(session, result, run_id)
-    trust_inserted = _insert_trust_scores(session, frame, coverage, run_id, exposure=exposure)
+    trust_inserted = _insert_trust_scores(
+        session, frame, coverage, run_id, exposure=exposure, station_meta=station_meta or {}
+    )
 
     await session.commit()
     return LoadReport(
@@ -328,9 +330,11 @@ def _insert_trust_scores(
     run_id: str,
     *,
     exposure: ExposureLayer | None = None,
+    station_meta: dict[str, StationLocation] | None = None,
 ) -> int:
     from provenance.config.loading import load_thresholds
     from provenance.trust.engine import scoring_instants
+    from provenance.trust.imputation import ImputationLookup, stations_by_parameter
     from provenance.trust.weights import load_trust_weights
 
     thresholds = load_thresholds()
@@ -343,6 +347,8 @@ def _insert_trust_scores(
         cadence_hours=int(scfg.get("cadence_hours", 24)),
         max_points=int(scfg.get("max_points", 120)),
     )
+    by_parameter = stations_by_parameter(frame)
+    imputation = ImputationLookup.build(frame, station_meta or {})
     n = 0
     for station in coverage.stations:
         factor = (
@@ -350,7 +356,9 @@ def _insert_trust_scores(
             if exposure is not None and exposure.is_measured(station)
             else None
         )
+        station_params = [p for p, stations in by_parameter.items() if station in stations]
         for at in instants:
+            modelled = imputation.modelled_uncertainty(station, station_params, at)
             score = compute_trust(
                 frame,
                 defects,
@@ -360,6 +368,7 @@ def _insert_trust_scores(
                 thresholds=thresholds,
                 weights_cfg=weights_cfg,
                 exposure=factor,
+                imputation_modelled=modelled,
             )
             session.add(
                 m.TrustScore(

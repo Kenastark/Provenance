@@ -164,6 +164,21 @@ export const trustComponents = [
   },
 ];
 
+/** Same shape as `trustComponents`, but with the ImputationCertainty row modelled
+ * (a trained imputation model covers this station's parameters) rather than a
+ * placeholder - for the "both numbers render, separately labelled" test. */
+export const trustComponentsModelled = trustComponents.map((component) =>
+  component.name === "ImputationCertainty"
+    ? {
+        ...component,
+        value: 0.88,
+        is_placeholder: false,
+        detail: "absent in window 12.0% · imputation uncertainty (modelled) 12.0%",
+        evidence: { pct: 12.0, modelled_pct: 12.0 },
+      }
+    : component,
+);
+
 export const trustScore = (overrides: Partial<TrustScore> = {}): TrustScore => ({
   station_id: "STA-01",
   timestamp_utc: "2026-05-14T00:00:00",

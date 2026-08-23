@@ -99,6 +99,49 @@ def test_models_train_hstgat_skip_if_cached_reuses_matching_artefact(
         get_settings.cache_clear()
 
 
+def test_models_train_imputation_skip_if_cached_reuses_matching_artefacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Mirrors `test_models_train_hstgat_skip_if_cached_reuses_matching_artefact`: a
+    valid cached artefact per parameter is reused with `--skip-if-cached`, and the
+    default (no flag) always retrains."""
+    from provenance.fixtures.generator import write_corpus
+
+    art = _env(monkeypatch, tmp_path)
+    source = tmp_path / "drop"
+    write_corpus(source, seed=1, n_days=14, n_stations=4)
+    args = [
+        "models",
+        "train-imputation",
+        "--source",
+        str(source),
+        "--no-baseline",
+        "--epochs",
+        "1",
+    ]
+    try:
+        first = runner.invoke(app, args)
+        assert first.exit_code == 0, first.output
+        assert "Training imputation model on" in first.output
+        artefacts = sorted(art.glob("imputation-*.pt"))
+        assert len(artefacts) >= 1
+        trained_at = {p.name: p.stat().st_mtime for p in artefacts}
+
+        second = runner.invoke(app, [*args, "--skip-if-cached"])
+        assert second.exit_code == 0, second.output
+        assert "already cached" in second.output
+        assert "Training imputation model on" not in second.output
+        artefacts_after = sorted(art.glob("imputation-*.pt"))
+        assert len(artefacts_after) == len(artefacts)
+        assert {p.name: p.stat().st_mtime for p in artefacts_after} == trained_at
+
+        third = runner.invoke(app, args)  # default: no --skip-if-cached
+        assert third.exit_code == 0, third.output
+        assert "Training imputation model on" in third.output
+    finally:
+        get_settings.cache_clear()
+
+
 def test_models_residuals_persists_to_db(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _env(monkeypatch, tmp_path)
     db_url = f"sqlite+aiosqlite:///{tmp_path / 'models.db'}"

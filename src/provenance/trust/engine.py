@@ -37,6 +37,7 @@ def compute_trust(
     weights_cfg: dict[str, Any] | None = None,
     degraded: bool = False,
     exposure: float | None = None,
+    imputation_modelled: float | None = None,
 ) -> TrustScore:
     """Compute the trust score for ``station_id`` at ``at`` over a trailing window.
 
@@ -46,6 +47,12 @@ def compute_trust(
     back to the neutral 1.0 and the score reports ``population_exposure_stubbed=True``
     (graceful degradation, standing rule 6). When it is provided the flag is False:
     the exposure is measured, not stubbed.
+
+    ``imputation_modelled`` is the trained imputation model's calibrated uncertainty
+    (§7.2) for this station/window, already normalised to [0, 1)
+    (:mod:`provenance.models.hstgat.imputation_serving`), or ``None`` when no model
+    covers this station's parameters — then the term falls back to the raw
+    absent-fraction placeholder, exactly as before the model existed.
     """
     thresholds = thresholds or load_thresholds()
     weights_cfg = weights_cfg or load_trust_weights()
@@ -54,7 +61,9 @@ def compute_trust(
     w = weights_cfg["weights"]
 
     health, rc_h, notes_h = comp.health_conf(defects, coverage, station_id, at, weights_cfg)
-    imput, rc_i, notes_i = comp.imputation_uncertainty(coverage, station_id, at, weights_cfg)
+    imput, rc_i, notes_i = comp.imputation_uncertainty(
+        coverage, station_id, at, weights_cfg, modelled=imputation_modelled
+    )
     cross, rc_c, notes_c = comp.cross_sensor_consistency(
         frame, coverage, station_id, at, weights_cfg
     )
