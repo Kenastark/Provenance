@@ -5,11 +5,11 @@ Revises: 0002_residuals
 Create Date: 2026-08-09
 
 The phase-7 operational tables — ``maintenance_items``, ``maintenance_transitions``,
-``signoff_tokens`` and ``dispatches`` — are plain relational tables (small, mutable
-workflow state), not hypertables. On a fresh upgrade 0001's ``create_all`` already
-reflects the current ORM metadata and makes them; this migration exists so a database
-that predates phase 7 gains them too. Idempotent (``checkfirst``), and identical on
-SQLite and Postgres because none of these tables need a Timescale-specific step.
+``signoff_tokens`` and ``dispatches`` — hold small, mutable workflow state. On a
+fresh upgrade 0001's ``create_all`` already reflects the current ORM metadata and
+makes them; this migration exists so a database that predates phase 7 gains them
+too. Idempotent (``checkfirst``), and identical on SQLite and Postgres because none
+of these tables needs a backend-specific step.
 """
 
 from __future__ import annotations

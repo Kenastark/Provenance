@@ -11,7 +11,7 @@ returns a bare number — enforced by `tests/architecture/test_trust_serialisati
 ## Running it
 
 ```bash
-make up                       # TimescaleDB + Redis
+make up                       # Postgres + PostGIS
 prov db upgrade               # apply migrations (Alembic on Postgres)
 prov db load --source tests/fixtures   # load the seeded corpus (idempotent)
 uvicorn provenance.api.app:create_app --factory --port 8000

@@ -91,9 +91,9 @@ slide and no live query.
 
 ## Stack
 
-Python 3.12 · uv · pandas · pandera · Typer · FastAPI · TimescaleDB (Postgres 16
-+ PostGIS) · Redis · LightGBM · PyTorch + PyTorch Geometric · React 18 +
-TypeScript + MapLibre GL · Docker Compose · GitHub Actions.
+Python 3.12 · uv · pandas · pandera · Typer · FastAPI · PostgreSQL 16 + PostGIS ·
+LightGBM · PyTorch + PyTorch Geometric · React 18 + TypeScript + MapLibre GL ·
+Docker Compose · GitHub Actions.
 
 MapLibre rather than Mapbox, deliberately: a municipal buyer story is stronger on
 an open stack.

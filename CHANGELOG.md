@@ -5,6 +5,16 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Trained models are loaded once at startup instead of on every request.**
+  `registry.load_bundle_cached()` and `hstgat/store.load_latest_cached()` put a
+  module-level cache in front of the existing loaders, and the API's `lifespan`
+  warms both before serving traffic, so `/v1/explain` no longer pays a
+  `joblib.load` and `/v1/graph/attention` no longer pays a `torch.load` per call.
+  Deliberately not `functools.lru_cache`: only a successful load is remembered, so
+  a `None` (no artefact yet - a normal state under standing rule 6) is never
+  cached and a model trained after the process started is still picked up. The
+  warm-up is best-effort: a missing or corrupt artefact logs and degrades exactly
+  as before rather than blocking startup.
 - **An event with no plume question to answer now says so, instead of reading as
   "pending adjudication" forever.** A stored event whose own cell has no reading
   (a communication outage has no rise for the wind to carry) keeps a null verdict
@@ -22,6 +32,21 @@ Format: Keep a Changelog. Versioning: SemVer.
   kind, and a detail pane that states the recorded reason. No API contract change
   (`evidence` was already a free-form map). Known gap: the Alert Centre still
   shows "pending" for such an event, since `AlertItem` carries no `evidence`.
+
+### Removed
+- **TimescaleDB.** The `timescaledb` extension and the three `create_hypertable`
+  calls (`readings`, `trust_scores`, `residuals`) are gone from the migrations;
+  the schema is now plain PostgreSQL 16. Nothing used a hypertable feature - no
+  continuous aggregate, compression, retention policy or `time_bucket` - and
+  managed Postgres (Cloud SQL) does not offer the extension. PostGIS and the
+  `geom` generated column on `stations` are untouched. The local Compose `db`
+  image stays `timescale/timescaledb-ha:pg16`, a known-good multi-arch pg16 build
+  whose extension nothing now enables. See ADR 0012.
+- **Redis.** The `cache` service, the `api` service's `depends_on` entry for it,
+  the `redis_url` setting and `REDIS_URL` in `.env.example`. It was never wired
+  up: no client was imported, nothing read or wrote a cache, and `redis` was not
+  a dependency. The caching that was actually wanted is the in-process model
+  cache above.
 
 ### Changed
 - **The defect-rate definition string no longer calls every cell an "hour".** 300

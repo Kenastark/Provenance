@@ -5,11 +5,10 @@ Revises:
 Create Date: 2026-08-08
 
 The base tables are created from the ORM metadata so this migration cannot drift
-from the models. On PostgreSQL it then layers on the parts the ORM can't express:
-the TimescaleDB and PostGIS extensions, a ``geometry(Point, 4326)`` column on
-``stations``, and the two hypertables (``readings`` and ``trust_scores``, chunked
-by day). On SQLite those extras are skipped, which is what lets the fast test path
-build the same logical schema without Docker.
+from the models. On PostgreSQL it then layers on the parts the ORM can't
+express: the PostGIS extension and a ``geometry(Point, 4326)`` column on
+``stations``. On SQLite those extras are skipped, which is what lets the fast test
+path build the same logical schema without Docker.
 """
 
 from __future__ import annotations
@@ -33,7 +32,6 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
 
     # Station geometry: the PostGIS point the ORM carries only as lat/lon floats.
@@ -43,17 +41,6 @@ def upgrade() -> None:
     op.execute(
         "ALTER TABLE stations ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326) "
         "GENERATED ALWAYS AS (ST_SetSRID(ST_MakePoint(lon, lat), 4326)) STORED"
-    )
-
-    # Hypertables. The partition column is part of each table's primary key, so
-    # Timescale accepts them without dropping the key.
-    op.execute(
-        "SELECT create_hypertable('readings', 'timestamp_utc', "
-        "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE, migrate_data => TRUE)"
-    )
-    op.execute(
-        "SELECT create_hypertable('trust_scores', 'timestamp_utc', "
-        "chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE, migrate_data => TRUE)"
     )
 
 

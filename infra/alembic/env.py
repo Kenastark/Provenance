@@ -3,7 +3,7 @@
 The URL comes from settings (``DATABASE_URL``), coerced to a *sync* psycopg driver
 because Alembic runs migrations synchronously. ``target_metadata`` is the ORM's
 metadata so ``--autogenerate`` works, but the initial migration also carries the
-TimescaleDB/PostGIS DDL that the ORM can't express.
+PostGIS DDL that the ORM can't express.
 """
 
 from __future__ import annotations

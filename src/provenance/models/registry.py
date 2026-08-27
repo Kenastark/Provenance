@@ -156,3 +156,33 @@ def load_bundle(artefacts_dir: Path | None = None) -> ModelBundle | None:
     assert isinstance(deweather, DeweatherModel)
     assert isinstance(fault, FaultClassifier)
     return ModelBundle(deweather=deweather, fault=fault)
+
+
+_BUNDLE_CACHE: dict[Path, ModelBundle] = {}
+"""Process-local cache of loaded bundles, keyed by resolved artefacts directory.
+
+Deliberately not :func:`functools.lru_cache`: a *miss* here is a normal state, not an
+error (see the module docstring), and ``lru_cache`` cannot express "remember the model,
+forget the absence". Caching a ``None`` would pin a freshly-trained artefact out of the
+running process for its whole lifetime — the API would keep reporting "no model" long
+after one existed. Only a successful load is remembered.
+"""
+
+
+def load_bundle_cached(artefacts_dir: Path | None = None) -> ModelBundle | None:
+    """:func:`load_bundle`, reading each artefacts directory from disk at most once.
+
+    Same contract as the uncached call: returns ``None`` when the bundle is absent and
+    raises :class:`ModelCardMissingError` on a corrupt store. Absence is never cached, so
+    a later call still picks up an artefact that has since been trained.
+
+    The API warms this at startup (``api/app.py``), so request paths do not pay the load.
+    """
+    directory = _artefacts_dir(artefacts_dir)
+    cached = _BUNDLE_CACHE.get(directory)
+    if cached is not None:
+        return cached
+    bundle = load_bundle(directory)
+    if bundle is not None:
+        _BUNDLE_CACHE[directory] = bundle
+    return bundle

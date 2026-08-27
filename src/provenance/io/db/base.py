@@ -8,8 +8,8 @@ for every row it holds.
 
 The ORM stays deliberately portable. Station location lives here as ``lat``/``lon``
 floats so the whole model builds on SQLite for the fast test path; the PostGIS
-``geometry(Point, 4326)`` column and the TimescaleDB hypertables are added by the
-Alembic migration, which is exercised by the Dockerised round-trip test.
+``geometry(Point, 4326)`` column is added by the Alembic migration, which is
+exercised by the Dockerised round-trip test.
 """
 
 from __future__ import annotations

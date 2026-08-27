@@ -1,6 +1,6 @@
 """Full-stack integration: migrate → load → audit → serve → hit every endpoint.
 
-Marked ``needs_docker``: runs against the real TimescaleDB from the compose stack
+Marked ``needs_docker``: runs against the real Postgres from the compose stack
 (``DATABASE_URL`` points at Postgres). This is the "is it a product?" test — the
 same load and serve path the demo uses, end to end, on the real engine.
 """

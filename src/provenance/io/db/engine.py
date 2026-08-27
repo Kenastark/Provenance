@@ -2,7 +2,7 @@
 
 One factory builds an :class:`~sqlalchemy.ext.asyncio.AsyncEngine` from a URL; the
 API and the loader share a sessionmaker bound to it. The default URL comes from
-settings (TimescaleDB over psycopg); tests point it at ``sqlite+aiosqlite`` and
+settings (Postgres over psycopg); tests point it at ``sqlite+aiosqlite`` and
 call :func:`create_all` instead of running migrations, which keeps the fast test
 path free of Docker while the migration itself is proven separately.
 """
@@ -47,7 +47,7 @@ def make_engine(url: str | None = None) -> AsyncEngine:
       torch-heavy test is the root cause of the macOS OpenMP segfault noted in
       ``tests/conftest.py`` (ADR 0009); disposing connections eagerly removes it at source.
 
-    Production (psycopg/TimescaleDB) keeps the default pooled engine with pre-ping.
+    Production (psycopg/Postgres) keeps the default pooled engine with pre-ping.
     """
     resolved = _async_url(url or get_settings().database_url)
     if resolved.startswith("sqlite"):

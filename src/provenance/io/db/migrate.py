@@ -1,7 +1,6 @@
 """Schema management behind ``prov db``.
 
-On PostgreSQL this drives Alembic (the migration carries the TimescaleDB/PostGIS
-DDL). On SQLite — the fast test path — there are no migrations to run, so it builds
+On PostgreSQL this drives Alembic (the migration carries the PostGIS DDL). On SQLite — the fast test path — there are no migrations to run, so it builds
 the schema straight from the ORM metadata. Both paths converge on the same logical
 schema; only the Postgres-specific extras differ, and those are proven by the
 Dockerised round-trip test.
