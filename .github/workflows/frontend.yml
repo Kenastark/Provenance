@@ -45,14 +45,21 @@ jobs:
       - run: pnpm build
 
   e2e:
-    # The end-to-end suite runs against the real stack: TimescaleDB, the demo
-    # corpus, the audit, the API, and the built dashboard in a real browser. It is
-    # the only place MapLibre's WebGL, real focus order, and the axe-core scan of a
-    # composed page can be exercised.
+    # The end-to-end suite runs against the real stack: Postgres, the demo corpus,
+    # the audit, the API, and the built dashboard in a real browser. It is the only
+    # place MapLibre's WebGL, real focus order, and the axe-core scan of a composed
+    # page can be exercised.
     runs-on: ubuntu-latest
     services:
       db:
-        image: timescale/timescaledb-ha:pg16
+        # Deliberately the plain PostGIS image, NOT timescale/timescaledb-ha (which
+        # local Compose still uses for its multi-arch Apple Silicon build). ADR 0012
+        # dropped the Timescale dependency, but that claim is only worth anything if
+        # something runs the migrations, the loader and the audit against an engine
+        # where the extension does not exist. This service is that proof: on the
+        # timescaledb-ha image the extension is present whether or not we ask for it,
+        # so a hypertable creeping back in would go unnoticed. Here it cannot.
+        image: postgis/postgis:16-3.5
         env:
           POSTGRES_USER: provenance
           POSTGRES_PASSWORD: provenance
@@ -111,6 +118,23 @@ jobs:
           pnpm e2e --project=chromium e2e/demo-path.spec.ts e2e/accessibility.spec.ts
           pnpm e2e --project=mobile
         working-directory: apps/web
+
+      - name: Free disk space for the Playwright image
+        # The visual step pulls mcr.microsoft.com/playwright (~2GB uncompressed) on
+        # a runner that has already taken uv, the project venv with torch, pnpm's
+        # store, a Chromium install and the demo corpus. Twice in a row that pull
+        # died on `no space left on device` mid-layer (update 24, PR #38), which
+        # reads as a red e2e job caused by nothing in the diff. The hosted image
+        # ships toolchains this repo never uses; reclaiming them costs seconds and
+        # buys ~25GB. `|| true` throughout: this step must never itself fail the
+        # job, and a path that is missing on a future runner image is not an error.
+        run: |
+          echo "before:"; df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /usr/local/share/powershell \
+                      /usr/share/swift || true
+          docker system prune -af --volumes || true
+          echo "after:"; df -h /
 
       - name: Visual regression, in the pinned Playwright image
         # Not on the runner: a bare Ubuntu image and the official Playwright image

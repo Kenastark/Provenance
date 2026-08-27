@@ -5,6 +5,17 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The Timescale-independence claim is now actually tested.** ADR 0012 dropped
+  the dependency, but nothing proved the schema runs on an engine *lacking* the
+  extension: both local Compose and CI used `timescale/timescaledb-ha:pg16`,
+  where `CREATE EXTENSION timescaledb` and `create_hypertable` succeed whether or
+  not anyone asked. Two guards close that. CI's `e2e` service is now
+  `postgis/postgis:16-3.5`, so the migrations, the loader and the audit run on an
+  engine where the extension does not exist. And
+  `tests/architecture/test_no_timescale_dependency.py` fails the default gate if
+  any migration names `timescaledb`, `create_hypertable` or `time_bucket` - no
+  database needed, so it runs everywhere. The round-trip test additionally
+  asserts zero hypertables when the extension happens to be present.
 - **Trained models are loaded once at startup instead of on every request.**
   `registry.load_bundle_cached()` and `hstgat/store.load_latest_cached()` put a
   module-level cache in front of the existing loaders, and the API's `lifespan`
@@ -32,6 +43,14 @@ Format: Keep a Changelog. Versioning: SemVer.
   kind, and a detail pane that states the recorded reason. No API contract change
   (`evidence` was already a free-form map). Known gap: the Alert Centre still
   shows "pending" for such an event, since `AlertItem` carries no `evidence`.
+
+### Fixed
+- **The `e2e` job no longer runs out of disk pulling the Playwright image.** A
+  free-space step reclaims the hosted runner's unused Android/dotnet/GHC/Swift
+  toolchains and prunes Docker before the visual-regression step, which had
+  failed twice consecutively on `no space left on device` mid-layer (PR #38) -
+  a red job caused by nothing in the diff. Best-effort throughout: the step
+  cannot itself fail the job.
 
 ### Removed
 - **TimescaleDB.** The `timescaledb` extension and the three `create_hypertable`

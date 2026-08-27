@@ -2,7 +2,7 @@
 
 Marked ``needs_docker`` so it is excluded from the default gate; the stack must be
 up and ``DATABASE_URL`` must point at Postgres. Proves the migration creates the
-PostGIS geometry column and that it reverses cleanly.
+PostGIS geometry column, creates no hypertables, and reverses cleanly.
 """
 
 from __future__ import annotations
@@ -46,6 +46,26 @@ def test_up_down_up_round_trip() -> None:
 
     engine = create_engine(_DB_URL.replace("+aiosqlite", ""))
     with engine.connect() as conn:
+        # Nothing the migrations build may be a hypertable (ADR 0012). Which engine
+        # this runs against decides how that is checked: CI's `e2e` service is the
+        # plain PostGIS image, where the extension does not exist and the assertion
+        # is simply that the schema built at all; the local Compose image ships
+        # Timescale, so there the catalogue is queryable and must come back empty.
+        timescale_present = conn.execute(
+            text("SELECT count(*) FROM pg_extension WHERE extname = 'timescaledb'")
+        ).scalar_one()
+        if timescale_present:
+            hypertables = {
+                r[0]
+                for r in conn.execute(
+                    text("SELECT hypertable_name FROM timescaledb_information.hypertables")
+                )
+            }
+            assert hypertables == set(), (
+                f"The migrations created hypertables {sorted(hypertables)}; the schema is "
+                "plain PostgreSQL 16 + PostGIS (ADR 0012)."
+            )
+
         geom = conn.execute(
             text(
                 "SELECT column_name FROM information_schema.columns "
