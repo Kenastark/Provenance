@@ -62,5 +62,7 @@ def _explain(frame: pd.DataFrame, ref: DefectRef) -> dict[str, object]:
     from provenance.models import registry
 
     directory = get_settings().artefacts_dir
-    bundle = registry.load_bundle(directory) if registry.bundle_available(directory) else None
+    available = registry.bundle_available(directory)
+    # Warmed at startup (api/app.py lifespan); this is a cache hit on the request path.
+    bundle = registry.load_bundle_cached(directory) if available else None
     return explain_defect(frame, ref, bundle).to_dict()

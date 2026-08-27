@@ -1,8 +1,8 @@
 """The ORM: the tables Provenance persists.
 
-The two hypertables (``readings`` and ``trust_scores``) are plain tables here and
-become TimescaleDB hypertables in the migration; the ORM does not depend on any
-Timescale-specific feature so the same models build on SQLite for tests.
+These are plain relational tables on every backend: the ORM depends on nothing
+Postgres-specific, so the same models build on SQLite for the fast test path. The
+migration adds only the PostGIS geometry column on top (ADR 0012).
 
 Naming and provenance follow one rule: every row that was produced by a run
 carries the id of that run. Readings carry the ``ingest_batch_id`` that loaded
@@ -71,11 +71,11 @@ class Parameter(Base):
 
 
 class Reading(Base):
-    """One observed reading. Hypertable in Postgres, chunked by day on ``timestamp_utc``.
+    """One observed reading, keyed by ``(timestamp_utc, row_hash)``.
 
-    The primary key is ``(timestamp_utc, row_hash)``: ``row_hash`` uniquely
-    identifies a reading's content, and the partition column must take part in the
-    key for the Timescale hypertable. Two readings that share a timestamp but
+    ``row_hash`` uniquely identifies a reading's content, and ``timestamp_utc``
+    leads the key because every read path is time-ordered. Two readings that share
+    a timestamp but
     differ in value (the duplicate-timestamp defect) hash differently and both
     persist; two byte-identical loads collide on the same key and de-duplicate,
     which is what makes loading idempotent.
@@ -188,9 +188,9 @@ class Residual(Base):
 
     The residual, not the raw value, is what anomaly detection sees downstream (§7.6),
     so it is stored alongside the ``model_version`` that produced it — a residual is
-    meaningless without knowing which deweather model left it behind. Hypertable in
-    Postgres, chunked by day; the partition column ``timestamp_utc`` is part of the
-    primary key so Timescale accepts it.
+    meaningless without knowing which deweather model left it behind. The primary key
+    is ``(timestamp_utc, station_id, parameter, model_version)``: one residual per
+    series per model, and re-running a model overwrites rather than duplicates.
     """
 
     __tablename__ = "residuals"
@@ -319,7 +319,7 @@ class Dispatch(Base):
 
 
 class TrustScore(Base):
-    """A trust score at a point in time. Hypertable in Postgres, chunked by day.
+    """A trust score at a point in time.
 
     A score never persists without its component breakdown and reason codes: the
     ``components`` and ``reason_codes`` columns are not nullable, which is the

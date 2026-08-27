@@ -92,7 +92,7 @@ All three must be clean. If they are not, fix that **before** involving Claude
 Code — you want a known-good baseline so any later failure is unambiguously
 caused by new work.
 
-    make up             # TimescaleDB + Redis
+    make up             # Postgres + PostGIS
     make ps             # both healthy
     make down
 
@@ -195,7 +195,7 @@ work.
 ## 8. Before the first prompt — a checklist
 
 - [ ] `make check` passes
-- [ ] `make up` brings both services healthy, `make down` cleans up
+- [ ] `make up` brings the database up healthy, `make down` cleans up
 - [ ] `pnpm test -- --run` passes in `apps/web`
 - [ ] `prov codes list` prints the registry
 - [ ] `git log` shows the phase 0 commit, `git remote -v` shows origin

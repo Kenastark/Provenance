@@ -1,8 +1,8 @@
-"""Alembic up/down/up round trip on a real TimescaleDB container.
+"""Alembic up/down/up round trip on a real Postgres container.
 
 Marked ``needs_docker`` so it is excluded from the default gate; the stack must be
 up and ``DATABASE_URL`` must point at Postgres. Proves the migration creates the
-hypertables and the PostGIS geometry column, and that it reverses cleanly.
+PostGIS geometry column and that it reverses cleanly.
 """
 
 from __future__ import annotations
@@ -46,13 +46,6 @@ def test_up_down_up_round_trip() -> None:
 
     engine = create_engine(_DB_URL.replace("+aiosqlite", ""))
     with engine.connect() as conn:
-        hypertables = {
-            r[0]
-            for r in conn.execute(
-                text("SELECT hypertable_name FROM timescaledb_information.hypertables")
-            )
-        }
-        assert {"readings", "trust_scores"} <= hypertables
         geom = conn.execute(
             text(
                 "SELECT column_name FROM information_schema.columns "

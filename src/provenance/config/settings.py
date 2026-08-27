@@ -32,7 +32,6 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://provenance:provenance@localhost:5432/provenance",
         alias="DATABASE_URL",
     )
-    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     data_raw: Path = Field(default=REPO_ROOT / "data" / "raw", alias="PROVENANCE_DATA_RAW")
     reports_dir: Path = Field(default=REPO_ROOT / "reports", alias="PROVENANCE_REPORTS_DIR")

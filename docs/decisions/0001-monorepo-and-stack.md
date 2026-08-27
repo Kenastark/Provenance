@@ -2,6 +2,10 @@
 
 **Status:** Accepted (2026-08-07)
 
+> **Partially superseded by [0012](0012-drop-timescale-and-redis.md) (2026-08-27):**
+> the TimescaleDB choice and the "Redis caches features" sentence below no longer
+> describe the stack. The rest of this record stands.
+
 ## Context
 
 Provenance is a solo build against a hard competition deadline (demo entry

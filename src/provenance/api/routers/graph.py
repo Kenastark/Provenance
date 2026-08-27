@@ -73,7 +73,8 @@ def _compute_overlay(frame: pd.DataFrame, stations: Sequence[m.Station]) -> dict
     from provenance.models.hstgat.attention import attention_overlay
     from provenance.schema import canonical as C
 
-    loaded = store.load_latest()
+    # Warmed at startup (api/app.py lifespan); this is a cache hit on the request path.
+    loaded = store.load_latest_cached()
     if loaded is None:
         return None
     present = set(frame[C.PARAMETER].astype(str).unique()) if not frame.empty else set()

@@ -46,7 +46,7 @@ Full first-time setup, including Git, is in **[SETUP.md](SETUP.md)**.
     make install        # create .venv and install (uv)
     make hooks          # git pre-commit hooks
     make check          # lint + mypy strict + tests
-    make up             # local stack (TimescaleDB + Redis)
+    make up             # local stack (Postgres + PostGIS)
     prov codes list     # the reason-code registry
 
 ## Layout

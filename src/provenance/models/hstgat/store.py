@@ -187,3 +187,34 @@ def load_latest(name: str = "hst-gat", *, artefacts_dir: Path | None = None) -> 
     if stem is None:
         return None
     return load_artefact(stem, artefacts_dir=artefacts_dir)
+
+
+_LATEST_CACHE: dict[tuple[str, Path], LoadedModel] = {}
+"""Process-local cache of loaded HST-GAT artefacts, keyed by (name, resolved directory).
+
+Same reasoning as :data:`provenance.models.registry._BUNDLE_CACHE`, and deliberately not
+:func:`functools.lru_cache` for the same reason: absence is a normal state here, and a
+cached ``None`` would keep the adjudicator on the analytic prior for the life of the
+process even after a model was trained. Only a successful load is remembered.
+"""
+
+
+def load_latest_cached(
+    name: str = "hst-gat", *, artefacts_dir: Path | None = None
+) -> LoadedModel | None:
+    """:func:`load_latest`, deserialising each artefact from disk at most once.
+
+    Same contract as the uncached call: ``None`` when the artefact is absent, and
+    :class:`ModelCardMissingError` when it is present but its card is not. Absence is
+    never cached, so a later call still picks up a model that has since been trained.
+
+    The API warms this at startup (``api/app.py``), so request paths do not pay the load.
+    """
+    key = (name, _artefacts_dir(artefacts_dir))
+    cached = _LATEST_CACHE.get(key)
+    if cached is not None:
+        return cached
+    loaded = load_latest(name, artefacts_dir=artefacts_dir)
+    if loaded is not None:
+        _LATEST_CACHE[key] = loaded
+    return loaded

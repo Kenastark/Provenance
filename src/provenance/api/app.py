@@ -3,7 +3,7 @@
 ``create_app`` wires the engine, sessionmaker, middleware, error handlers, and
 every router. It takes an optional engine so a test can pass a SQLite engine and
 run the real routers unchanged; production calls it with no argument and gets the
-configured TimescaleDB engine. The app owns the sessionmaker on ``app.state`` and
+configured Postgres engine. The app owns the sessionmaker on ``app.state`` and
 disposes the engine on shutdown.
 """
 
@@ -25,6 +25,7 @@ import os
 # importing the API app needs this.
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -94,6 +95,7 @@ def create_app(engine: AsyncEngine | None = None, data_raw: Path | None = None) 
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        _warm_model_caches()
         yield
         if owns_engine:
             await engine.dispose()
@@ -137,3 +139,35 @@ def create_app(engine: AsyncEngine | None = None, data_raw: Path | None = None) 
     for router in _ROUTERS:
         app.include_router(router)
     return app
+
+
+def _warm_model_caches() -> None:
+    """Load the trained artefacts once at startup so no request pays the disk read.
+
+    Best-effort by construction. A missing artefact is a normal state (standing rule 6):
+    the cached loaders return ``None``, nothing is cached, and every caller degrades to
+    the statistics layer exactly as it does today — just cold instead of warm. A *corrupt*
+    store (an artefact whose card is missing or mismatched) raises inside the loader; it is
+    caught and logged here too, because refusing to start the API is a worse failure than
+    serving the statistics layer and saying so. The first request then retries the load and
+    surfaces the same error through its normal path.
+
+    Imported inside the function, like the routers do, so importing this module still does
+    not pull torch in (``models/hstgat/store.py`` docstring).
+    """
+    from provenance.models import registry
+    from provenance.models.hstgat import store as hstgat_store
+
+    logger = logging.getLogger(__name__)
+    try:
+        if registry.load_bundle_cached() is None:
+            logger.info(
+                "No deweather/fault artefact at startup; serving degraded until one exists."
+            )
+    except Exception:  # a model artefact must never stop the API starting
+        logger.warning("Could not warm the deweather/fault cache at startup.", exc_info=True)
+    try:
+        if hstgat_store.load_latest_cached() is None:
+            logger.info("No HST-GAT artefact at startup; the analytic prior serves the graph.")
+    except Exception:  # a model artefact must never stop the API starting
+        logger.warning("Could not warm the HST-GAT cache at startup.", exc_info=True)
