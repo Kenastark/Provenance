@@ -2,9 +2,18 @@ name: provenance
 
 services:
   db:
-    # A plain Postgres 16 with PostGIS is all the schema needs. This image still
-    # carries the Timescale extension, which nothing enables any more; it is kept
-    # because it is a known-good multi-arch pg16 build that works on Apple Silicon.
+    # A plain Postgres 16 with PostGIS is all the schema needs (ADR 0012). This
+    # image still *ships* the Timescale extension, which nothing enables any more;
+    # it is kept because it is a known-good multi-arch build and the official
+    # postgis/postgis image is amd64-only, which would put every Apple Silicon
+    # developer on emulation.
+    #
+    # The consequence is that local dev cannot prove the schema runs without
+    # Timescale - here the extension exists whether or not we ask for it. CI's e2e
+    # job deliberately uses postgis/postgis:16-3.5 instead (amd64 runner, so the
+    # arch objection does not apply there), and that is where the independence is
+    # actually proven. `tests/architecture/test_no_timescale_dependency.py` covers
+    # the same ground statically on every run, including here.
     image: timescale/timescaledb-ha:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-provenance}
