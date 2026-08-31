@@ -92,8 +92,10 @@ test.describe("sign-in screen", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("sign-in screen — dark", async ({ page }) => {
-    // No account menu exists yet to reach the theme switch from, so dark - the
-    // app's own default absent any preference - is exercised by doing nothing.
+    // Dark is the app's own default absent any stored preference, so it's
+    // exercised by doing nothing rather than driving the screen's own theme
+    // switch (`data-testid="theme-switch"`) - equivalent, and one fewer
+    // interaction before the screenshot.
     await page.goto("/");
     await expect(page.getByTestId("signin-screen")).toBeVisible();
     await settleForSnapshot(page);

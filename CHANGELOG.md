@@ -5,6 +5,20 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in hero visual's e2e/visual-regression gate, deferred through
+  eleven review passes, finally run.** Fresh 18-station demo corpus, both
+  darwin and the pinned-Linux-container visual baselines regenerated for
+  `signin-dark`/`signin-light` - the only four baseline files that changed,
+  confirmed by diff; all twelve pre-existing screens matched byte-for-byte
+  on both platforms. The full 78-test e2e suite (accessibility, demo path,
+  drawer resize, responsive, sign-in flow, sign-off flow, visual) passes,
+  as does the backend gate (713 tests, 90.23% coverage, contract check
+  clean). One real regression surfaced and was fixed: the new theme switch
+  is legitimately the first focusable element on the sign-in screen now
+  (top-right, visually first), so two keyboard-reachability tests
+  (`SignIn.test.tsx` and `e2e/accessibility.spec.ts`) needed an extra `Tab`
+  before their existing assertion - not a workaround, the tab order now
+  correctly matches the visual order.
 - **The sign-in screen has a theme switch.** Light mode already existed as a
   full implementation for the whole app (`styles/tokens.css`'s `[data-theme]`
   blocks), but the only control for it lived in `TopBar` - which never

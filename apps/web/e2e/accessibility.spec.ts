@@ -80,6 +80,11 @@ test.describe("sign-in screen", () => {
     await page.goto("/");
     await expect(page.getByTestId("signin-screen")).toBeVisible();
 
+    // The theme switch (top-right, visually first) is the first tab stop -
+    // tab order matches visual order, which is correct, not a regression.
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("theme-switch")).toBeFocused();
+
     await page.keyboard.press("Tab");
     const firstCard = page.getByTestId("signin-role-public_read");
     await expect(firstCard).toBeFocused();
