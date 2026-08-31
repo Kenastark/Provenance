@@ -5,6 +5,18 @@ design is reviewed and approved.
 
 ## What was built
 
+**Ninth pass, briefly** (full detail in `CHANGELOG.md`): new write-up copy;
+canvas widened again (`CONNECTOR_WIDTH` 140px -> 180px) specifically to hit
+"wrap to exactly 4 lines" for that copy - found the real wrap threshold by
+measuring the actual text at the page's font/size across a width sweep in a
+headless browser (broke at 1011-1020px) rather than guessing a round number
+and eyeballing it.
+
+**Eighth pass, briefly**: cards spaced further apart (`CONNECTOR_WIDTH`
+56px -> 140px, card 2 stays centred, card sizes untouched); the write-up's
+width came along for free since it's derived from the same
+`HERO_ROW_WIDTH` constant as the card row.
+
 **Seventh pass, briefly** (full detail in `CHANGELOG.md`): shrunk
 `DEB-KER18`, put "180 µg/m³" back to the default text colour, dropped the
 headline's trailing period and halved the gap above it. The one item worth
