@@ -68,6 +68,19 @@ Format: Keep a Changelog. Versioning: SemVer.
   cache above.
 
 ### Changed
+- **The sign-in screen now introduces the product instead of opening straight on
+  role cards.** The lockup grew from 96px to 152px tall (the wordmark stays the
+  fixed SVG asset per the token file's rule - never re-set "Provenance" in a live
+  face), and the tagline moved from a 16px secondary line to a 32px
+  `text-display-l` headline. A new eyebrow ("Green Sentinel Network · Layer 2")
+  and a two-sentence intro frame Provenance explicitly as the second layer over
+  Green Sentinel's physical sensor network - Layer 1 reports readings, Layer 2
+  audits and scores them - reusing the project's own standing thesis line ("a
+  number on a screen looks exactly the same whether it is true or broken")
+  rather than inventing new claims. No stats are hardcoded into the copy (rule 1):
+  the intro is qualitative only. A subtle radial glow behind the lockup uses a
+  single brand blue at low opacity via `color-mix`, not the brand gradient, which
+  the token file reserves for the logo mark only.
 - **The defect-rate definition string no longer calls every cell an "hour".** 300
   of the 174,583 covered cells in the real drop are daily (the two LAEQ noise
   series); the grid always reindexed each series at its own inferred cadence, but
