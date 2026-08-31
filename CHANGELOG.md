@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, ninth pass: new write-up copy, canvas widened to fit
+  it in exactly four lines.** Replaced the write-up paragraph with new copy
+  ("Across Debrecen, Green Sentinel's physical sensors (Layer 1) capture raw
+  environmental streams...", ending "...never broken hardware."). The
+  four-line target was hit by measurement, not guesswork: rendered the exact
+  copy in the page's own font/size in a headless browser across a range of
+  widths to find where it wraps from 5 lines to 4 (the break was at
+  1011-1020px), then set `CONNECTOR_WIDTH` to 180px (was 140px) so
+  `HERO_ROW_WIDTH` lands at 1080px - about 60px past the threshold, enough
+  margin that ordinary cross-browser font-metric variance won't tip it back
+  to 5. Cards unchanged at 240px, spaced further apart the same way as the
+  eighth pass.
 - **Sign-in hero visual, eighth pass: wider canvas.** The gap between cards
   (`CONNECTOR_WIDTH`) more than doubled, 56px -> 140px - cards are
   unchanged at 240px, only their spacing grew, so `HERO_ROW_WIDTH` (card

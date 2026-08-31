@@ -97,12 +97,13 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
               Data without trust is just noise.
             </p>
             <p className="text-subhead text-text-secondary" style={{ maxWidth: HERO_ROW_WIDTH }}>
-              Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
-              Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven
-              by a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
-              trends, and meteorology to audit every incoming data point. We deliver real-time,
-              explainable trust scores, ensuring every public health and policy decision is backed
-              by verified truth, not broken numbers.
+              Across Debrecen, Green Sentinel&rsquo;s physical sensors (Layer 1) capture raw
+              environmental streams. Sitting directly above it, Provenance (Layer 2) operates as an
+              AI verification engine to guarantee data authenticity. Powered by a custom HST-GAT
+              architecture, we evaluate cross-sensor spatial relationships, temporal trends, and
+              meteorology to audit every incoming reading. By converting raw telemetry into
+              real-time, explainable trust scores, we ensure every public health warning and
+              municipal policy is backed by verifiable truth, never broken hardware.
             </p>
           </div>
           <HeroFlowVisual />
