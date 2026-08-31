@@ -5,6 +5,17 @@ design is reviewed and approved.
 
 ## What was built
 
+**Sixth pass, briefly** (full detail in `CHANGELOG.md`'s entry, not
+duplicated here): headers reduced to just the layer label, the descriptive
+name demoted to the sub-header; card 1's id/reading moved to the card
+centre and enlarged; card 1 and card 3 each swapped their pill/caption
+order; card 2's pill gained the tinted background the other two already
+had; the top eyebrow line reworded; the gap under "Data without trust is
+just noise." tightened without touching the rest of the block's spacing.
+Same verification approach as every other pass in this update: typecheck,
+lint, the full unit suite, then a headless-Chromium screenshot in both
+themes to confirm the actual render, not just that the code compiles.
+
 The sign-in screen's intro block (added in [[u15-signin-screen]]) gets new
 copy and a new graphic, both requested directly against a design reference
 rather than derived from data:

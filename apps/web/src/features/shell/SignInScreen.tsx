@@ -74,7 +74,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
             }}
           />
           <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
-            Green Sentinel Network &middot; Layer 2
+            Green Sentinel&rsquo;s Layer 2 AI Verification Engine
           </span>
           <img
             src={lockup}
@@ -87,20 +87,22 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
             An AI trust layer for Environmental Sensor Networks.
           </p>
-          <p
-            className="text-subhead font-display font-semibold text-text"
-            style={{ maxWidth: HERO_ROW_WIDTH }}
-          >
-            Data without trust is just noise.
-          </p>
-          <p className="text-subhead text-text-secondary" style={{ maxWidth: HERO_ROW_WIDTH }}>
-            Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
-            Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven by
-            a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
-            trends, and meteorology to audit every incoming data point. We deliver real-time,
-            explainable trust scores, ensuring every public health and policy decision is backed
-            by verified truth, not broken numbers.
-          </p>
+          <div className="flex flex-col items-center gap-1">
+            <p
+              className="text-subhead font-display font-semibold text-text"
+              style={{ maxWidth: HERO_ROW_WIDTH }}
+            >
+              Data without trust is just noise.
+            </p>
+            <p className="text-subhead text-text-secondary" style={{ maxWidth: HERO_ROW_WIDTH }}>
+              Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
+              Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven
+              by a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
+              trends, and meteorology to audit every incoming data point. We deliver real-time,
+              explainable trust scores, ensuring every public health and policy decision is backed
+              by verified truth, not broken numbers.
+            </p>
+          </div>
           <HeroFlowVisual />
         </div>
 

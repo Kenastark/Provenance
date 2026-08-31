@@ -64,24 +64,27 @@ export function HeroFlowVisual() {
         className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-1 border-ambiguous p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
       >
-        <span className={`${headerClass} text-ambiguous`}>LAYER 1: Green Sentinel Network</span>
-        <span className={subheaderClass}>DEB-KER18</span>
-        <span className="flex items-center gap-2">
-          <span
-            className="hero-pulse-dot h-3 w-3 shrink-0 rounded-full"
-            style={{ background: "var(--prov-state-ambiguous)" }}
-          />
-          <span className="font-display text-heading font-semibold text-text">
-            180&nbsp;&micro;g/m&sup3;
+        <span className={`${headerClass} text-ambiguous`}>LAYER 1</span>
+        <span className={subheaderClass}>Green Sentinel Network</span>
+        <span className="flex flex-col items-center gap-1">
+          <span className="font-display text-display-l font-semibold text-text">DEB-KER18</span>
+          <span className="flex items-center gap-2">
+            <span
+              className="hero-pulse-dot h-3 w-3 shrink-0 rounded-full"
+              style={{ background: "var(--prov-state-ambiguous)" }}
+            />
+            <span className="font-display text-display-l font-semibold text-ambiguous">
+              180&nbsp;&micro;g/m&sup3;
+            </span>
           </span>
         </span>
+        <span className={captionClass}>Physical Sensor</span>
         <span
           className={`${pillClass} text-ambiguous`}
           style={{ background: "color-mix(in srgb, var(--prov-state-ambiguous) 18%, transparent)" }}
         >
           Unverified spike
         </span>
-        <span className={captionClass}>Physical Sensor</span>
       </div>
 
       <svg
@@ -111,7 +114,7 @@ export function HeroFlowVisual() {
           WebkitBackdropFilter: "blur(10px)",
         }}
       >
-        <span className={`${headerClass} text-interactive`}>LAYER 2: Provenance AI Engine</span>
+        <span className={`${headerClass} text-interactive`}>LAYER 2</span>
         <span className={subheaderClass}>Provenance AI Engine</span>
         <svg width="150" height="90" viewBox="0 0 150 90" className="hero-graph-glow">
           <g transform="rotate(16 75 41)">
@@ -135,7 +138,12 @@ export function HeroFlowVisual() {
           <span className={captionClass}>Spatial + Wind Adjudication</span>
           <span className={captionClass}>Anomalies detection</span>
         </span>
-        <span className={`${pillClass} text-interactive`}>HST-GAT model</span>
+        <span
+          className={`${pillClass} text-interactive`}
+          style={{ background: "color-mix(in srgb, var(--prov-interactive) 18%, transparent)" }}
+        >
+          HST-GAT model
+        </span>
       </div>
 
       <svg
@@ -192,13 +200,13 @@ export function HeroFlowVisual() {
             98.4%
           </span>
         </div>
+        <span className="font-mono text-micro text-text-tertiary">R22 &mdash; PLUME_CORROBORATED</span>
         <span
           className={`${pillClass} text-verified`}
           style={{ background: "color-mix(in srgb, var(--prov-state-verified) 18%, transparent)" }}
         >
           Human Sign-off
         </span>
-        <span className="font-mono text-micro text-text-tertiary">R22 &mdash; PLUME_CORROBORATED</span>
       </div>
     </div>
   );

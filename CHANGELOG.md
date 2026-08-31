@@ -5,6 +5,22 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, sixth pass.** Headers are now just the layer label
+  ("LAYER 1" / "LAYER 2" / "OUTPUT"); the descriptive name ("Green Sentinel
+  Network" / "Provenance AI Engine" / "Trust Score") moved to the
+  sub-header. Card 1's station id and reading moved out of the sub-header
+  into the card's centre, both bumped up to `text-display-l`, with the
+  reading now in the ambiguous/amber colour rather than the default text
+  colour; "Physical Sensor" and "Unverified spike" swapped order (caption
+  first, pill pinned to the bottom). Card 2's "HST-GAT model" pill gained
+  the same tinted-background treatment the other two cards' pills already
+  had. Card 3's reason code and "Human Sign-off" pill swapped order to
+  match card 1's new pattern. The eyebrow line above the lockup is now
+  "Green Sentinel's Layer 2 AI Verification Engine" (was "Green Sentinel
+  Network · Layer 2"). The gap between "Data without trust is just noise."
+  and the paragraph beneath it is now `gap-1`, down from the `gap-5` it
+  inherited from the rest of the intro block — the two lines are now
+  wrapped in their own flex column so only that one gap changed.
 - **Sign-in hero visual, fifth pass: header/sub-header hierarchy flipped, and
   the per-card status content restored.** Headers are now bold and larger
   (`text-caption`, up from `text-micro`); sub-headers are now smaller
