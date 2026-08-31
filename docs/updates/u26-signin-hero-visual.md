@@ -5,6 +5,17 @@ design is reviewed and approved.
 
 ## What was built
 
+**Twelfth pass, briefly** (full detail in `CHANGELOG.md`): added a theme
+switch to the sign-in screen - light mode already existed as a full
+implementation app-wide, but its only control lived in `TopBar`, which
+never renders pre-sign-in, so there was previously no in-UI way to reach
+light mode from this screen. Extracted the control into a shared
+`components/ThemeSwitch.tsx` rather than duplicating it. Also closed the
+last 2px gap in the footer-pill alignment (a cross-font line-height quirk,
+not a layout bug) and confirmed by direct measurement that headers,
+sub-headers, and footer pills are now pixel-identical across all three
+cards.
+
 **Ninth pass, briefly** (full detail in `CHANGELOG.md`): new write-up copy;
 canvas widened again (`CONNECTOR_WIDTH` 140px -> 180px) specifically to hit
 "wrap to exactly 4 lines" for that copy - found the real wrap threshold by
