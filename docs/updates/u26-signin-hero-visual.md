@@ -1,4 +1,4 @@
-# Update 26 — sign-in hero copy and flow visual
+# Update 26 — sign-in hero copy, flow visual, and the descriptor rebrand
 
 Branch: `signin-hero-visual`. Tag: pending — assigned at merge, once the
 design is reviewed and approved.
@@ -66,6 +66,13 @@ rather than derived from data:
 - Updated the two tests asserting the exact headline text
   (`SignIn.test.tsx`, `App.test.tsx`) and the `TopBar.tsx` comment that
   quotes it, so nothing is left pointing at the retired string.
+- **The descriptor rebrand, everywhere it's quoted** (user's explicit choice
+  — see Deviations below for why this needed asking rather than assuming):
+  `CLAUDE.md`, `README.md`, `ops/demo.py`'s title-card tagline updated in
+  place; three new `docs/demo/*-v1.2-descriptor-rename.md` files supersede
+  the `*-v1.1-real-data.md` versions that quoted the old phrase, each
+  carrying only that one wording change; `docs/demo/README.md` and
+  `CLAUDE.md`'s own citation repointed at the new files.
 
 ## Test gate
 
@@ -91,16 +98,29 @@ approved, before merge.
 
 ## Deviations from the prompt
 
-- **Scope kept to the sign-in screen.** The exact phrase "AI Trust Layer for
-  Environmental Data" is also the canonical "Product descriptor" defined in
-  `CLAUDE.md`/`README.md` and reused verbatim across `docs/demo/*`,
-  `ops/demo.py`'s title-card tagline, and (per [[u15-signin-screen]]) was
-  originally copied from those sources on purpose. The request read as
-  scoped to this screen's UI, not a rebrand of the canonical descriptor
-  everywhere it's quoted, so those files were left untouched. Flagging this
-  divergence explicitly since a prior update tied them together
-  deliberately — worth a call on whether the canonical descriptor should
-  follow suit.
+- **Third pass: the descriptor rebrand, asked about rather than assumed, then
+  carried out fully.** The exact phrase "AI Trust Layer for Environmental
+  Data" is also the canonical "Product descriptor" in `CLAUDE.md`/`README.md`,
+  reused verbatim across `docs/demo/*` and `ops/demo.py`'s title-card tagline
+  — and (per [[u15-signin-screen]]) was originally copied from those sources
+  on purpose, so silently rebranding only the sign-in screen would have left
+  the pitch materials internally inconsistent. Asked the user via
+  `AskUserQuestion` rather than guessing, because the two readings differ a
+  lot in blast radius: one is a two-file edit, the other is three new
+  versioned pitch documents. Answer: everywhere, including the pitch docs.
+  Updated `CLAUDE.md`, `README.md` (two spots — the logo alt text and the
+  bold subhead, though the subhead already independently said almost this
+  exact sentence, just lower-cased, and was left alone), and
+  `ops/demo.py`'s title-card tagline in place (none are versioned documents
+  under rule 10). For the three `docs/demo/*-v1.1-real-data.md` files that
+  quote it, wrote `*-v1.2-descriptor-rename.md` versions instead of editing
+  in place, each with a header noting it's a wording-only revision — no
+  figure or verdict changed, v1.1-real-data's numbers are still correct — and
+  updated `docs/demo/README.md`'s "current versions" pointer and
+  `CLAUDE.md`'s own citation of the demo script to match. Left `CHANGELOG.md`
+  and `docs/updates/u23-headline-decisions.md` alone as historical record of
+  what was true when they were written, same treatment as the `v1.0`/
+  `v1.1-real-data` files they themselves describe.
 - **Amber, not red, for the "unverified spike" indicator.** The reference
   image mixed red and amber for that badge; `tokens.css` defines amber
   specifically as "anomaly, ambiguity" and red as "faults only, never a

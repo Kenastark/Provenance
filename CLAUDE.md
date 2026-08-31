@@ -9,7 +9,7 @@ short pointer back here — this file stays the one authoritative rulebook.
 Sentinel environmental sensor network (16 land monitoring stations + 2
 surface-water points), built for the DEIK.AI Challenge 2026, entry track 2B.
 
-Product descriptor: *AI Trust Layer for Environmental Data.*
+Product descriptor: *An AI trust layer for Environmental Sensor Networks.*
 Spoken demo hook, used on stage and on the title card only: *"Is This Real?"*
 
 The thesis in one sentence: **a number on a screen looks exactly the same whether
@@ -26,7 +26,7 @@ own cadence) is 85.7374% — 24,900 of the 174,583 readings the network owed nev
 arrived. Both are measured outputs of `prov audit run`; neither is ~99.95%, which
 was the *synthetic* corpus's grid completeness and is no longer quoted anywhere.
 See `docs/updates/u22-headline-reconciliation.md` for the derivation and
-`docs/demo/demo-script-v1.1-real-data.md` for which one goes on stage.
+`docs/demo/demo-script-v1.2-descriptor-rename.md` for which one goes on stage.
 
 This is not a replacement for Green Sentinel's public dashboard. It is the
 operator-facing second screen that scores every reading for genuineness.

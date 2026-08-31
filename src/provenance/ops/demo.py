@@ -141,7 +141,12 @@ def _audit_headline(frame: pd.DataFrame, _meta: dict[str, Any]) -> tuple[list[_S
     cov = result.coverage
     top = sorted(result.defects_by_code.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
     specs: list[_Spec] = [
-        ("title", "Is This Real?", {"tagline": "AI Trust Layer for Environmental Data"}, []),
+        (
+            "title",
+            "Is This Real?",
+            {"tagline": "An AI trust layer for Environmental Sensor Networks."},
+            [],
+        ),
         (
             "network-overview",
             "A network that looks perfectly healthy",

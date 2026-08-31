@@ -25,6 +25,13 @@ Format: Keep a Changelog. Versioning: SemVer.
   eyebrow line and lockup were silently clipped off. Switched to `margin:
   auto` centring, which degrades to fully-scrollable top-aligned flow the
   moment content doesn't fit.
+- **The product descriptor is renamed everywhere it's quoted**, from "AI
+  Trust Layer for Environmental Data" to "An AI trust layer for Environmental
+  Sensor Networks." — `CLAUDE.md`, `README.md`, and `ops/demo.py`'s
+  title-card tagline updated in place; the three `docs/demo/*-v1.1-real-data.md`
+  files that quoted it are superseded by new `*-v1.2-descriptor-rename.md`
+  versions (wording only — no figure or verdict changed) per standing rule
+  10's "never edit a versioned doc in place."
 - **The Timescale-independence claim is now actually tested.** ADR 0012 dropped
   the dependency, but nothing proved the schema runs on an engine *lacking* the
   extension: both local Compose and CI used `timescale/timescaledb-ha:pg16`,
