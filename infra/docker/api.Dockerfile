@@ -11,8 +11,9 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md alembic.ini ./
+COPY pyproject.toml README.md alembic.ini LICENSE ./
 COPY src ./src
+COPY design ./design
 COPY infra/alembic ./infra/alembic
 RUN pip install --upgrade pip && pip install -e .
 
