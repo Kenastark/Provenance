@@ -25,7 +25,11 @@ import { useEffect, useState } from "react";
  */
 
 export const CARD_SIZE = 240;
-const CONNECTOR_WIDTH = 56;
+/** The gap between cards - card size is untouched; only the spacing (and so
+ * the connector lines' own length) changes here. Each connector `<svg>` is
+ * sized to exactly this width with zero extra margin on either side (the row
+ * uses `gap-0`), so its line always spans border-to-border with no gap. */
+const CONNECTOR_WIDTH = 140;
 /** Exported so the sign-in screen's write-up can be widened to the same edges
  * as this row, rather than the two blocks drifting to different margins. */
 export const HERO_ROW_WIDTH = CARD_SIZE * 3 + CONNECTOR_WIDTH * 2;

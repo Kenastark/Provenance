@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, eighth pass: wider canvas.** The gap between cards
+  (`CONNECTOR_WIDTH`) more than doubled, 56px -> 140px - cards are
+  unchanged at 240px, only their spacing grew, so `HERO_ROW_WIDTH` (card
+  size and connector width were already the only two inputs to it) went
+  from 832px to 1000px automatically. Both connector `<svg>` elements
+  already sized themselves and their `<line>` off that one constant, so
+  they still span border-to-border at the new width with no separate
+  change. The write-up paragraph's `max-width` is derived from the same
+  `HERO_ROW_WIDTH` (since the seventh pass), so it widened too and now
+  wraps to 5 lines instead of 6 - no code change needed there at all, a
+  side effect of building the constant-sharing the first time rather than
+  duplicating the width.
 - **Sign-in hero visual, seventh pass.** `DEB-KER18` sized down to
   `text-subhead` (half of its previous `text-display-l`); "180 µg/m³" moved
   from amber to the default text colour. Fixed a real misalignment rather
