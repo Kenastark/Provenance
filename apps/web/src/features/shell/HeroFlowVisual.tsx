@@ -7,21 +7,34 @@ import { useEffect, useState } from "react";
  * "Layer 1 reports, Layer 2 audits" sentence visible at a glance, the same way
  * a product screenshot would. The station reading and the trust score are a
  * worked example for the graphic, not a claim about any real reading —
- * nothing here is wired to `/v1/*`. The station id (DEB-KER18) and the reason
- * code (R22 — PLUME_CORROBORATED, the registry's GENUINE_EVENT verdict, see
- * `src/provenance/config/reason_codes.py`) are both real identifiers from the
- * live system; the reading and score attached to them here are illustrative.
- * Colour follows the state semantics in `design/tokens/tokens.css`: amber for
- * an unverified reading, Trust Blue for the engine's own chrome, Sentinel
- * Green for what it verifies — each card's border picks up its own theme
- * colour instead of the neutral `prov-panel` default.
+ * nothing here is wired to `/v1/*`. The station id (DEB-KER18) is a real
+ * identifier from the live system (`station_zones.yaml`); the reading and
+ * score attached to it here are illustrative. Colour follows the state
+ * semantics in `design/tokens/tokens.css`: amber for an unverified reading,
+ * Trust Blue for the engine's own chrome, Sentinel Green for what it
+ * verifies — each card's border picks up its own theme colour instead of the
+ * neutral `prov-panel` default.
+ *
+ * Each card is header (eyebrow) + sub-header (identity) at a fixed top
+ * position, then the graphic, then a status pill pinned to the card's bottom
+ * edge via `mt-auto` — so the three headers land on the same line and the
+ * three status pills land on the same line, regardless of how tall each
+ * card's own graphic is.
  */
 
-const CARD_SIZE = 320;
+export const CARD_SIZE = 240;
+const CONNECTOR_WIDTH = 56;
+/** Exported so the sign-in screen's write-up can be widened to the same edges
+ * as this row, rather than the two blocks drifting to different margins. */
+export const HERO_ROW_WIDTH = CARD_SIZE * 3 + CONNECTOR_WIDTH * 2;
+
 const TRUST_SCORE = 0.984;
-const DIAL_RADIUS = 58;
+const DIAL_SIZE = 112;
+const DIAL_RADIUS = 44;
+const DIAL_STROKE = 8;
 const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
-const DIAL_TARGET_OFFSET = DIAL_CIRCUMFERENCE * (1 - TRUST_SCORE);
+const DIAL_EMPTY_OFFSET = DIAL_CIRCUMFERENCE;
+const DIAL_FULL_OFFSET = DIAL_CIRCUMFERENCE * (1 - TRUST_SCORE);
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -35,19 +48,21 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
+const headerClass = "font-display text-micro font-semibold whitespace-nowrap";
+const subheaderClass = "font-display text-subhead font-semibold text-text whitespace-nowrap";
+const pillClass = "mt-auto rounded-sm px-2 py-1 text-micro font-semibold uppercase tracking-wide";
+
 export function HeroFlowVisual() {
   const reducedMotion = usePrefersReducedMotion();
 
   return (
-    <div aria-hidden="true" className="flex w-full max-w-6xl items-center justify-center gap-0 py-2">
+    <div aria-hidden="true" className="flex items-center justify-center gap-0 py-2">
       <div
-        className="prov-panel relative z-10 flex shrink-0 flex-col items-center justify-center gap-3 border-ambiguous p-6 text-center"
+        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-2 border-ambiguous p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
       >
-        <span className="font-display text-micro font-semibold uppercase tracking-[0.2em] text-ambiguous">
-          Layer 1 &middot; Physical
-        </span>
-        <span className="font-display text-subhead font-semibold text-text">DEB-KER18</span>
+        <span className={`${headerClass} text-ambiguous`}>LAYER 1: Green Sentinel Network</span>
+        <span className={subheaderClass}>DEB-KER18</span>
         <span className="flex items-center gap-2">
           <span
             className="hero-pulse-dot h-3 w-3 shrink-0 rounded-full"
@@ -58,18 +73,23 @@ export function HeroFlowVisual() {
           </span>
         </span>
         <span
-          className="rounded-sm px-2 py-1 text-micro font-semibold uppercase tracking-wide text-ambiguous"
+          className={`${pillClass} text-ambiguous`}
           style={{ background: "color-mix(in srgb, var(--prov-state-ambiguous) 18%, transparent)" }}
         >
-          Unverified spike
+          Physical Sensor
         </span>
       </div>
 
-      <svg width="56" height="8" className="hero-connector-flow shrink-0" viewBox="0 0 56 8">
+      <svg
+        width={CONNECTOR_WIDTH}
+        height="8"
+        className="hero-connector-flow shrink-0 self-center"
+        viewBox={`0 0 ${CONNECTOR_WIDTH} 8`}
+      >
         <line
           x1="0"
           y1="4"
-          x2="56"
+          x2={CONNECTOR_WIDTH}
           y2="4"
           stroke="var(--prov-interactive)"
           strokeWidth="2"
@@ -78,7 +98,7 @@ export function HeroFlowVisual() {
       </svg>
 
       <div
-        className="prov-panel relative z-20 flex shrink-0 flex-col items-center justify-center gap-3 border-interactive p-6 text-center"
+        className="prov-panel relative z-20 flex shrink-0 flex-col items-center gap-2 border-interactive p-4 text-center"
         style={{
           width: CARD_SIZE,
           height: CARD_SIZE,
@@ -87,82 +107,89 @@ export function HeroFlowVisual() {
           WebkitBackdropFilter: "blur(10px)",
         }}
       >
-        <span className="font-display text-micro font-semibold uppercase tracking-[0.2em] text-interactive">
-          Layer 2 &middot; Engine
-        </span>
-        <span className="font-display text-subhead font-semibold text-text">HST-GAT model</span>
-        <svg width="200" height="120" viewBox="0 0 200 120" className="hero-graph-glow">
-          <g transform="rotate(16 100 55)">
-            <line x1="34" y1="90" x2="100" y2="26" stroke="var(--prov-interactive)" strokeWidth="2" />
-            <line x1="100" y1="26" x2="166" y2="84" stroke="var(--prov-interactive)" strokeWidth="2" />
+        <span className={`${headerClass} text-interactive`}>LAYER 2: Provenance AI Engine</span>
+        <span className={subheaderClass}>Provenance AI Engine</span>
+        <svg width="150" height="90" viewBox="0 0 150 90" className="hero-graph-glow">
+          <g transform="rotate(16 75 41)">
+            <line x1="26" y1="68" x2="75" y2="20" stroke="var(--prov-interactive)" strokeWidth="2" />
+            <line x1="75" y1="20" x2="125" y2="63" stroke="var(--prov-interactive)" strokeWidth="2" />
             <line
-              x1="34"
-              y1="90"
-              x2="166"
-              y2="84"
+              x1="26"
+              y1="68"
+              x2="125"
+              y2="63"
               stroke="var(--prov-interactive)"
               strokeWidth="2"
               strokeDasharray="3 3"
             />
-            <circle cx="34" cy="90" r="7" fill="var(--prov-state-verified)" />
-            <circle cx="100" cy="26" r="11" fill="var(--prov-interactive)" />
-            <circle cx="166" cy="84" r="7" fill="var(--prov-state-verified)" />
+            <circle cx="26" cy="68" r="5" fill="var(--prov-state-verified)" />
+            <circle cx="75" cy="20" r="8" fill="var(--prov-interactive)" />
+            <circle cx="125" cy="63" r="5" fill="var(--prov-state-verified)" />
           </g>
         </svg>
-        <span className="text-micro text-text-tertiary">Spatial + wind adjudication</span>
+        <span className={`${pillClass} text-interactive`}>HST-GAT model</span>
       </div>
 
-      <svg width="56" height="8" className="shrink-0" viewBox="0 0 56 8">
-        <line x1="0" y1="4" x2="56" y2="4" stroke="var(--prov-state-verified)" strokeWidth="2" />
+      <svg
+        width={CONNECTOR_WIDTH}
+        height="8"
+        className="shrink-0 self-center"
+        viewBox={`0 0 ${CONNECTOR_WIDTH} 8`}
+      >
+        <line x1="0" y1="4" x2={CONNECTOR_WIDTH} y2="4" stroke="var(--prov-state-verified)" strokeWidth="2" />
       </svg>
 
       <div
-        className="prov-panel relative z-10 flex shrink-0 flex-col items-center justify-center gap-3 border-verified p-6 text-center"
+        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-2 border-verified p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
       >
-        <span className="font-display text-micro font-semibold uppercase tracking-[0.2em] text-verified">
-          Trust score
-        </span>
-        <div className="relative grid place-items-center" style={{ width: 148, height: 148 }}>
-          <svg width="148" height="148" viewBox="0 0 148 148" className="-rotate-90">
-            <circle cx="74" cy="74" r={DIAL_RADIUS} fill="none" stroke="var(--prov-border)" strokeWidth="10" />
+        <span className={`${headerClass} text-verified`}>OUTPUT</span>
+        <span className={subheaderClass}>Trust Score</span>
+        <div className="relative grid place-items-center" style={{ width: DIAL_SIZE, height: DIAL_SIZE }}>
+          <svg width={DIAL_SIZE} height={DIAL_SIZE} viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`} className="-rotate-90">
             <circle
-              cx="74"
-              cy="74"
+              cx={DIAL_SIZE / 2}
+              cy={DIAL_SIZE / 2}
+              r={DIAL_RADIUS}
+              fill="none"
+              stroke="var(--prov-border)"
+              strokeWidth={DIAL_STROKE}
+            />
+            <circle
+              cx={DIAL_SIZE / 2}
+              cy={DIAL_SIZE / 2}
               r={DIAL_RADIUS}
               fill="none"
               stroke="var(--prov-state-verified)"
-              strokeWidth="10"
+              strokeWidth={DIAL_STROKE}
               strokeLinecap="round"
               strokeDasharray={DIAL_CIRCUMFERENCE}
-              strokeDashoffset={reducedMotion ? DIAL_TARGET_OFFSET : DIAL_CIRCUMFERENCE}
+              strokeDashoffset={reducedMotion ? DIAL_FULL_OFFSET : DIAL_EMPTY_OFFSET}
             >
               {!reducedMotion && (
                 <animate
                   attributeName="stroke-dashoffset"
-                  from={DIAL_CIRCUMFERENCE}
-                  to={DIAL_TARGET_OFFSET}
-                  dur="1.4s"
+                  values={`${DIAL_EMPTY_OFFSET};${DIAL_FULL_OFFSET};${DIAL_FULL_OFFSET};${DIAL_EMPTY_OFFSET}`}
+                  keyTimes="0;0.45;0.75;1"
+                  dur="3.4s"
                   begin="0.2s"
-                  fill="freeze"
+                  repeatCount="indefinite"
                   calcMode="spline"
-                  keySplines="0.2 0 0 1"
-                  keyTimes="0;1"
+                  keySplines="0.2 0 0 1;0 0 1 1;0.2 0 0 1"
                 />
               )}
             </circle>
           </svg>
-          <span className="prov-numeric absolute font-display text-display-l font-bold text-verified">
+          <span className="prov-numeric absolute font-display text-heading font-bold text-verified">
             98.4%
           </span>
         </div>
         <span
-          className="rounded-sm px-2 py-1 text-micro font-semibold uppercase tracking-wide text-verified"
+          className={`${pillClass} text-verified`}
           style={{ background: "color-mix(in srgb, var(--prov-state-verified) 18%, transparent)" }}
         >
-          Verified plume
+          Human Sign-off
         </span>
-        <span className="font-mono text-micro text-text-tertiary">R22 &mdash; PLUME_CORROBORATED</span>
       </div>
     </div>
   );

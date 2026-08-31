@@ -5,6 +5,21 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, fourth pass: restructured card text, shrunk the
+  cards, aligned the write-up.** Each card now reads header ("LAYER 1: Green
+  Sentinel Network" / "LAYER 2: Provenance AI Engine" / "OUTPUT") then
+  sub-header (identity: "DEB-KER18" / "Provenance AI Engine" / "Trust Score")
+  then its graphic, then a status pill pinned to the card's bottom edge via
+  `mt-auto` — so all three headers land on the same line and all three pills
+  land on the same line regardless of how tall each card's own graphic is.
+  Cards shrank from 320px to 240px square. The write-up paragraph's
+  `max-width` now equals the card row's own rendered width
+  (`HERO_ROW_WIDTH`, exported from `HeroFlowVisual.tsx`) so both blocks share
+  the same left/right edges instead of drifting to different margins. The
+  Trust Score dial's fill animation now loops continuously (fill, hold,
+  drain, repeat) rather than running once on mount and freezing. Fixed a
+  stray em dash in the write-up ("trust scores—ensuring" -> "trust scores,
+  ensuring").
 - **The sign-in screen now illustrates the Layer 1 -> Layer 2 -> trust score
   flow instead of only describing it in prose.** The headline is now "An AI
   trust layer for Environmental Sensor Networks." (was "AI Trust Layer for

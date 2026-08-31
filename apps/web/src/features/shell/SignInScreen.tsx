@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { keyToRole, ROLE_HIERARCHY, ROLE_LABELS, roleGrants, type Role } from "../../lib/role";
 import { useTheme } from "../../lib/theme";
-import { HeroFlowVisual } from "./HeroFlowVisual";
+import { HERO_ROW_WIDTH, HeroFlowVisual } from "./HeroFlowVisual";
 
 /**
  * The screen in front of the dashboard.
@@ -87,16 +87,19 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
             An AI trust layer for Environmental Sensor Networks.
           </p>
-          <p className="max-w-2xl text-subhead font-display font-semibold text-text">
+          <p
+            className="text-subhead font-display font-semibold text-text"
+            style={{ maxWidth: HERO_ROW_WIDTH }}
+          >
             Data without trust is just noise.
           </p>
-          <p className="max-w-2xl text-subhead text-text-secondary">
+          <p className="text-subhead text-text-secondary" style={{ maxWidth: HERO_ROW_WIDTH }}>
             Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
             Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven by
             a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
             trends, and meteorology to audit every incoming data point. We deliver real-time,
-            explainable trust scores&mdash;ensuring every public health and policy decision is
-            backed by verified truth, not broken numbers.
+            explainable trust scores, ensuring every public health and policy decision is backed
+            by verified truth, not broken numbers.
           </p>
           <HeroFlowVisual />
         </div>
