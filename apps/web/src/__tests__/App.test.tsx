@@ -13,7 +13,9 @@ describe("application shell", () => {
     // The descriptor belongs on the login screen and marketing surfaces; the hook
     // belongs on the demo title card. Neither belongs in a toolbar an operator
     // looks at all shift.
-    expect(screen.queryByText(/AI Trust Layer for Environmental Data/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/An AI trust layer for Environmental Sensor Networks/i),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Is This Real/i)).not.toBeInTheDocument();
   });
 

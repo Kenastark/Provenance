@@ -5,6 +5,164 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in hero visual's e2e/visual-regression gate, deferred through
+  eleven review passes, finally run.** Fresh 18-station demo corpus, both
+  darwin and the pinned-Linux-container visual baselines regenerated for
+  `signin-dark`/`signin-light` - the only four baseline files that changed,
+  confirmed by diff; all twelve pre-existing screens matched byte-for-byte
+  on both platforms. The full 78-test e2e suite (accessibility, demo path,
+  drawer resize, responsive, sign-in flow, sign-off flow, visual) passes,
+  as does the backend gate (713 tests, 90.23% coverage, contract check
+  clean). One real regression surfaced and was fixed: the new theme switch
+  is legitimately the first focusable element on the sign-in screen now
+  (top-right, visually first), so two keyboard-reachability tests
+  (`SignIn.test.tsx` and `e2e/accessibility.spec.ts`) needed an extra `Tab`
+  before their existing assertion - not a workaround, the tab order now
+  correctly matches the visual order.
+- **The sign-in screen has a theme switch.** Light mode already existed as a
+  full implementation for the whole app (`styles/tokens.css`'s `[data-theme]`
+  blocks), but the only control for it lived in `TopBar` - which never
+  renders until *after* sign-in, so there was previously no way to reach
+  light mode from the sign-in screen itself except by editing
+  `localStorage` directly. Extracted the dark/light/system `<select>`
+  (previously inlined in `TopBar.tsx`) into a shared `components/
+  ThemeSwitch.tsx`, used by both `TopBar` and the new fixed top-right
+  corner of `SignInScreen` - one control, one `data-testid`, no drift
+  between the two surfaces. `SignInGate` never renders both at once, so the
+  shared `data-testid="theme-switch"` never collides. Updated
+  `SignIn.test.tsx`'s keyboard-reachability test: the theme switch is now
+  legitimately the first focusable element (top-right, before the role
+  cards), so the first `Tab` lands there rather than on the first role card
+  - the DOM/tab order matches the visual order, which is the correct
+  behaviour, not a regression to route around.
+- **Sign-in hero visual: card 1/2/3 footers now pixel-exact, not just
+  visually close.** The reason code line above card 3's "Human Sign-off"
+  pill rendered 2px lower than card 1 and card 2's equivalent captions
+  despite an identical CSS `line-height` (measured: 18px on all three) -
+  JetBrains Mono's intrinsic font metrics differ from Inter's even at the
+  same declared line-height. A `-mt-[2px]` on just that one span, safe
+  because the pill below it is independently pinned to the card's bottom
+  edge via `mt-auto` and unaffected by anything above it. Headers,
+  sub-headers, and footer pills are now confirmed pixel-identical across
+  all three cards by direct measurement, not eyeballing.
+- **Sign-in hero visual, eleventh pass.** `CONNECTOR_WIDTH` 180px -> 200px
+  (`HERO_ROW_WIDTH` 1080px -> 1120px) - cards moved a little further apart
+  again, sizes untouched. Confirmed the write-up still wraps to 4 lines at
+  the new width (it does, with more margin than before).
+- **Sign-in hero visual, tenth pass.** Card 2's two-line caption ("Spatial +
+  Wind Adjudication" / "Anomalies detection") tightened from `gap-1` to
+  `gap-0` - the two lines now read as one caption rather than two loosely
+  related ones.
+- **Sign-in hero visual, ninth pass: new write-up copy, canvas widened to fit
+  it in exactly four lines.** Replaced the write-up paragraph with new copy
+  ("Across Debrecen, Green Sentinel's physical sensors (Layer 1) capture raw
+  environmental streams...", ending "...never broken hardware."). The
+  four-line target was hit by measurement, not guesswork: rendered the exact
+  copy in the page's own font/size in a headless browser across a range of
+  widths to find where it wraps from 5 lines to 4 (the break was at
+  1011-1020px), then set `CONNECTOR_WIDTH` to 180px (was 140px) so
+  `HERO_ROW_WIDTH` lands at 1080px - about 60px past the threshold, enough
+  margin that ordinary cross-browser font-metric variance won't tip it back
+  to 5. Cards unchanged at 240px, spaced further apart the same way as the
+  eighth pass.
+- **Sign-in hero visual, eighth pass: wider canvas.** The gap between cards
+  (`CONNECTOR_WIDTH`) more than doubled, 56px -> 140px - cards are
+  unchanged at 240px, only their spacing grew, so `HERO_ROW_WIDTH` (card
+  size and connector width were already the only two inputs to it) went
+  from 832px to 1000px automatically. Both connector `<svg>` elements
+  already sized themselves and their `<line>` off that one constant, so
+  they still span border-to-border at the new width with no separate
+  change. The write-up paragraph's `max-width` is derived from the same
+  `HERO_ROW_WIDTH` (since the seventh pass), so it widened too and now
+  wraps to 5 lines instead of 6 - no code change needed there at all, a
+  side effect of building the constant-sharing the first time rather than
+  duplicating the width.
+- **Sign-in hero visual, seventh pass.** `DEB-KER18` sized down to
+  `text-subhead` (half of its previous `text-display-l`); "180 µg/m³" moved
+  from amber to the default text colour. Fixed a real misalignment rather
+  than the one requested literally: card 1's "Physical Sensor" caption and
+  card 2's "Anomalies detection" line looked unrelated but sat 47px apart,
+  because the free space every card accumulates (from `mt-auto` pinning its
+  pill to the bottom) lands entirely *between the caption and the pill*, not
+  distributed above - so pills aligned but captions never did, on any pass
+  that touched card content. Fixed at the root: each card's graphic now sits
+  in a shared fixed-height zone (`GRAPHIC_ZONE_HEIGHT`, 112px, matching the
+  dial) before its caption, so the caption row lines up across all three
+  cards regardless of graphic size, with no further per-card tuning needed
+  if content changes again. Headline: dropped the trailing period, and
+  wrapped the lockup + headline in their own `gap-3` flex column (half of
+  the block's `gap-5`) so only the space between them tightened.
+- **Sign-in hero visual, sixth pass.** Headers are now just the layer label
+  ("LAYER 1" / "LAYER 2" / "OUTPUT"); the descriptive name ("Green Sentinel
+  Network" / "Provenance AI Engine" / "Trust Score") moved to the
+  sub-header. Card 1's station id and reading moved out of the sub-header
+  into the card's centre, both bumped up to `text-display-l`, with the
+  reading now in the ambiguous/amber colour rather than the default text
+  colour; "Physical Sensor" and "Unverified spike" swapped order (caption
+  first, pill pinned to the bottom). Card 2's "HST-GAT model" pill gained
+  the same tinted-background treatment the other two cards' pills already
+  had. Card 3's reason code and "Human Sign-off" pill swapped order to
+  match card 1's new pattern. The eyebrow line above the lockup is now
+  "Green Sentinel's Layer 2 AI Verification Engine" (was "Green Sentinel
+  Network · Layer 2"). The gap between "Data without trust is just noise."
+  and the paragraph beneath it is now `gap-1`, down from the `gap-5` it
+  inherited from the rest of the intro block — the two lines are now
+  wrapped in their own flex column so only that one gap changed.
+- **Sign-in hero visual, fifth pass: header/sub-header hierarchy flipped, and
+  the per-card status content restored.** Headers are now bold and larger
+  (`text-caption`, up from `text-micro`); sub-headers are now smaller
+  (`text-micro`, down from `text-subhead`) — reversing which line reads as
+  the more prominent one. Card 1 gets its "Unverified spike" pill back above
+  a plain-text (no background) "Physical Sensor" caption. Card 2 gains a
+  two-line caption ("Spatial + Wind Adjudication" / "Anomalies detection")
+  between the graph and its pill, and its two green nodes are a touch bigger
+  (still smaller than the blue centre node). Card 3 gets its `R22 —
+  PLUME_CORROBORATED` reason code back below the "Human Sign-off" pill.
+  Tightened each card's internal gap to keep all three comfortably within
+  their fixed 240px height with the extra content (measured, not eyeballed:
+  15-17px of spare room per card).
+- **Sign-in hero visual, fourth pass: restructured card text, shrunk the
+  cards, aligned the write-up.** Each card now reads header ("LAYER 1: Green
+  Sentinel Network" / "LAYER 2: Provenance AI Engine" / "OUTPUT") then
+  sub-header (identity: "DEB-KER18" / "Provenance AI Engine" / "Trust Score")
+  then its graphic, then a status pill pinned to the card's bottom edge via
+  `mt-auto` — so all three headers land on the same line and all three pills
+  land on the same line regardless of how tall each card's own graphic is.
+  Cards shrank from 320px to 240px square. The write-up paragraph's
+  `max-width` now equals the card row's own rendered width
+  (`HERO_ROW_WIDTH`, exported from `HeroFlowVisual.tsx`) so both blocks share
+  the same left/right edges instead of drifting to different margins. The
+  Trust Score dial's fill animation now loops continuously (fill, hold,
+  drain, repeat) rather than running once on mount and freezing. Fixed a
+  stray em dash in the write-up ("trust scores—ensuring" -> "trust scores,
+  ensuring").
+- **The sign-in screen now illustrates the Layer 1 -> Layer 2 -> trust score
+  flow instead of only describing it in prose.** The headline is now "An AI
+  trust layer for Environmental Sensor Networks." (was "AI Trust Layer for
+  Environmental Data") on a single line, and the intro copy is a wider,
+  shorter-in-height write-up ("Data without trust is just noise." plus one
+  paragraph on the HST-GAT model) rather than the previous narrower two-sentence
+  block. Below it, a new `HeroFlowVisual.tsx` renders three same-size cards —
+  a DEB-KER18 reading flagged unverified (amber), the Layer 2 engine's
+  rotated mini graph (a Trust-Blue node among two Sentinel-Green ones), and a
+  Trust Score dial that animates its ring from empty up to 98.4% on mount,
+  tagged with the registry's real R22 (`PLUME_CORROBORATED`) reason code —
+  connected by animated connector lines, entirely in `var(--prov-*)` tokens
+  per the brand guardrail. It is `aria-hidden` and decorative: the reading
+  and score are a worked example for the graphic, not live data. Also fixed a
+  layout bug the first pass introduced: `justify-center` on an overflowing,
+  `overflow-y-auto` flex container makes the content *above* centre
+  permanently unreachable (a scrollbar can't reach negative offsets) — the
+  eyebrow line and lockup were silently clipped off. Switched to `margin:
+  auto` centring, which degrades to fully-scrollable top-aligned flow the
+  moment content doesn't fit.
+- **The product descriptor is renamed everywhere it's quoted**, from "AI
+  Trust Layer for Environmental Data" to "An AI trust layer for Environmental
+  Sensor Networks." — `CLAUDE.md`, `README.md`, and `ops/demo.py`'s
+  title-card tagline updated in place; the three `docs/demo/*-v1.1-real-data.md`
+  files that quoted it are superseded by new `*-v1.2-descriptor-rename.md`
+  versions (wording only — no figure or verdict changed) per standing rule
+  10's "never edit a versioned doc in place."
 - **The Timescale-independence claim is now actually tested.** ADR 0012 dropped
   the dependency, but nothing proved the schema runs on an engine *lacking* the
   extension: both local Compose and CI used `timescale/timescaledb-ha:pg16`,

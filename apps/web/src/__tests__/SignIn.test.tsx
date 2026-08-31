@@ -39,7 +39,9 @@ describe("SignInGate", () => {
 
   it("carries the descriptor and the four dev role cards when switching is allowed", () => {
     renderGated();
-    expect(screen.getByText(/AI Trust Layer for Environmental Data/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/An AI trust layer for Environmental Sensor Networks/i),
+    ).toBeInTheDocument();
     for (const role of ["public_read", "researcher", "operator", "admin"]) {
       expect(screen.getByTestId(`signin-role-${role}`)).toBeInTheDocument();
     }
@@ -100,7 +102,10 @@ describe("SignInGate", () => {
     const user = userEvent.setup();
     renderGated();
 
-    await user.tab(); // -> Public read card, the first focusable element on the screen
+    await user.tab(); // -> the theme switch, top-right and first in visual and tab order
+    expect(screen.getByTestId("theme-switch")).toHaveFocus();
+
+    await user.tab(); // -> Public read card, the first role card
     expect(screen.getByTestId("signin-role-public_read")).toHaveFocus();
 
     await user.keyboard("{Enter}");

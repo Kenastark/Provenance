@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="design/logo/provenance-lockup-stacked.svg" alt="Provenance — AI Trust Layer for Environmental Data" width="360">
+  <img src="design/logo/provenance-lockup-stacked.svg" alt="Provenance — An AI trust layer for Environmental Sensor Networks." width="360">
 </p>
 
 # Provenance
