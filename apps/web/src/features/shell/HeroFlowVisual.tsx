@@ -7,9 +7,11 @@ import { useEffect, useState } from "react";
  * "Layer 1 reports, Layer 2 audits" sentence visible at a glance, the same way
  * a product screenshot would. The station reading and the trust score are a
  * worked example for the graphic, not a claim about any real reading —
- * nothing here is wired to `/v1/*`. The station id (DEB-KER18) is a real
- * identifier from the live system (`station_zones.yaml`); the reading and
- * score attached to it here are illustrative. Colour follows the state
+ * nothing here is wired to `/v1/*`. The station id (DEB-KER18) and the
+ * reason code (R22 — PLUME_CORROBORATED, the registry's GENUINE_EVENT
+ * verdict, see `src/provenance/config/reason_codes.py`) are both real
+ * identifiers from the live system; the reading and score attached to them
+ * here are illustrative. Colour follows the state
  * semantics in `design/tokens/tokens.css`: amber for an unverified reading,
  * Trust Blue for the engine's own chrome, Sentinel Green for what it
  * verifies — each card's border picks up its own theme colour instead of the
@@ -48,9 +50,10 @@ function usePrefersReducedMotion() {
   return reduced;
 }
 
-const headerClass = "font-display text-micro font-semibold whitespace-nowrap";
-const subheaderClass = "font-display text-subhead font-semibold text-text whitespace-nowrap";
+const headerClass = "font-display text-caption font-bold whitespace-nowrap";
+const subheaderClass = "font-display text-micro font-semibold text-text whitespace-nowrap";
 const pillClass = "mt-auto rounded-sm px-2 py-1 text-micro font-semibold uppercase tracking-wide";
+const captionClass = "text-micro text-text-tertiary";
 
 export function HeroFlowVisual() {
   const reducedMotion = usePrefersReducedMotion();
@@ -58,7 +61,7 @@ export function HeroFlowVisual() {
   return (
     <div aria-hidden="true" className="flex items-center justify-center gap-0 py-2">
       <div
-        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-2 border-ambiguous p-4 text-center"
+        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-1 border-ambiguous p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
       >
         <span className={`${headerClass} text-ambiguous`}>LAYER 1: Green Sentinel Network</span>
@@ -76,8 +79,9 @@ export function HeroFlowVisual() {
           className={`${pillClass} text-ambiguous`}
           style={{ background: "color-mix(in srgb, var(--prov-state-ambiguous) 18%, transparent)" }}
         >
-          Physical Sensor
+          Unverified spike
         </span>
+        <span className={captionClass}>Physical Sensor</span>
       </div>
 
       <svg
@@ -98,7 +102,7 @@ export function HeroFlowVisual() {
       </svg>
 
       <div
-        className="prov-panel relative z-20 flex shrink-0 flex-col items-center gap-2 border-interactive p-4 text-center"
+        className="prov-panel relative z-20 flex shrink-0 flex-col items-center gap-1 border-interactive p-4 text-center"
         style={{
           width: CARD_SIZE,
           height: CARD_SIZE,
@@ -122,11 +126,15 @@ export function HeroFlowVisual() {
               strokeWidth="2"
               strokeDasharray="3 3"
             />
-            <circle cx="26" cy="68" r="5" fill="var(--prov-state-verified)" />
+            <circle cx="26" cy="68" r="6" fill="var(--prov-state-verified)" />
             <circle cx="75" cy="20" r="8" fill="var(--prov-interactive)" />
-            <circle cx="125" cy="63" r="5" fill="var(--prov-state-verified)" />
+            <circle cx="125" cy="63" r="6" fill="var(--prov-state-verified)" />
           </g>
         </svg>
+        <span className="flex flex-col gap-1">
+          <span className={captionClass}>Spatial + Wind Adjudication</span>
+          <span className={captionClass}>Anomalies detection</span>
+        </span>
         <span className={`${pillClass} text-interactive`}>HST-GAT model</span>
       </div>
 
@@ -140,7 +148,7 @@ export function HeroFlowVisual() {
       </svg>
 
       <div
-        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-2 border-verified p-4 text-center"
+        className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-1 border-verified p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
       >
         <span className={`${headerClass} text-verified`}>OUTPUT</span>
@@ -190,6 +198,7 @@ export function HeroFlowVisual() {
         >
           Human Sign-off
         </span>
+        <span className="font-mono text-micro text-text-tertiary">R22 &mdash; PLUME_CORROBORATED</span>
       </div>
     </div>
   );

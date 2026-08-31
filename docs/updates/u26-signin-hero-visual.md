@@ -127,17 +127,15 @@ approved, before merge.
   large field" — an unconfirmed reading is definitionally the ambiguous
   case, not yet a confirmed fault, so `--prov-state-ambiguous` was used
   throughout rather than red.
-- **Fourth pass: dropped "UNVERIFIED SPIKE" / "VERIFIED PLUME" / the R22
-  reason code.** The user's explicit new text for each card is header,
-  sub-header, and one bottom pill — three named slots, not four — and the
-  new bottom pills ("Physical Sensor" / "HST-GAT model" / "Human Sign-off")
-  read as replacing the old badge/caption row rather than sitting alongside
-  it, so the old badge text and the R22 code line were removed rather than
-  kept as a fifth line. This does undo the earlier "use a real code from the
-  live system" work from the second pass — flagging it because it was a
-  deliberate choice under real ambiguity (the prompt didn't say "keep the old
-  ones too"), not an oversight. Easy to reinstate as a fifth line if the
-  reviewed design wants both.
+- **Fourth pass dropped "UNVERIFIED SPIKE" / "VERIFIED PLUME" / the R22
+  reason code; fifth pass put them back**, per explicit review feedback that
+  the guess in the fourth pass read wrong. Current state: card 1 carries
+  both the "Unverified spike" pill *and* a plain-text "Physical Sensor"
+  caption below it (no background box on the latter, by request); card 3
+  carries both the "Human Sign-off" pill *and* the `R22` code line below it.
+  Only card 2 has just the one pill ("HST-GAT model") with no trailing line,
+  now alongside a new two-line caption ("Spatial + Wind Adjudication" /
+  "Anomalies detection") between its graph and that pill.
 
 ## Flag for review
 

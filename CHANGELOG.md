@@ -5,6 +5,19 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, fifth pass: header/sub-header hierarchy flipped, and
+  the per-card status content restored.** Headers are now bold and larger
+  (`text-caption`, up from `text-micro`); sub-headers are now smaller
+  (`text-micro`, down from `text-subhead`) — reversing which line reads as
+  the more prominent one. Card 1 gets its "Unverified spike" pill back above
+  a plain-text (no background) "Physical Sensor" caption. Card 2 gains a
+  two-line caption ("Spatial + Wind Adjudication" / "Anomalies detection")
+  between the graph and its pill, and its two green nodes are a touch bigger
+  (still smaller than the blue centre node). Card 3 gets its `R22 —
+  PLUME_CORROBORATED` reason code back below the "Human Sign-off" pill.
+  Tightened each card's internal gap to keep all three comfortably within
+  their fixed 240px height with the extra content (measured, not eyeballed:
+  15-17px of spare room per card).
 - **Sign-in hero visual, fourth pass: restructured card text, shrunk the
   cards, aligned the write-up.** Each card now reads header ("LAYER 1: Green
   Sentinel Network" / "LAYER 2: Provenance AI Engine" / "OUTPUT") then
