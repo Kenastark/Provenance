@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { keyToRole, ROLE_HIERARCHY, ROLE_LABELS, roleGrants, type Role } from "../../lib/role";
 import { useTheme } from "../../lib/theme";
 import { HERO_ROW_WIDTH, HeroFlowVisual } from "./HeroFlowVisual";
@@ -56,6 +57,8 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
       className="flex h-full flex-col items-center overflow-y-auto bg-bg p-4 text-center outline-none"
       data-testid="signin-screen"
     >
+      <ThemeSwitch className="fixed right-4 top-4 z-drawer" />
+
       {/* `m-auto` rather than `justify-center` on the parent: when this block is
           taller than the viewport, `justify-center` on an overflow-auto flex
           parent centers by pushing half the overflow above the scrollable area,

@@ -102,7 +102,10 @@ describe("SignInGate", () => {
     const user = userEvent.setup();
     renderGated();
 
-    await user.tab(); // -> Public read card, the first focusable element on the screen
+    await user.tab(); // -> the theme switch, top-right and first in visual and tab order
+    expect(screen.getByTestId("theme-switch")).toHaveFocus();
+
+    await user.tab(); // -> Public read card, the first role card
     expect(screen.getByTestId("signin-role-public_read")).toHaveFocus();
 
     await user.keyboard("{Enter}");

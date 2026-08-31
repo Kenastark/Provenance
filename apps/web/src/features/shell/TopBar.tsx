@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
 import { useVersion } from "../../api/queries";
+import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { formatRelative, formatTimestamp } from "../../lib/format";
 import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
-import { useTheme, type ThemePreference } from "../../lib/theme";
+import { useTheme } from "../../lib/theme";
 import { TIME_WINDOWS, type TimeWindowKey } from "../../lib/timeWindow";
 import { useWindowState } from "../../lib/windowContext";
 
@@ -33,12 +34,6 @@ const NAV: { to: string; label: string; end: boolean; role?: Role }[] = [
   { to: "/admin", label: "Admin", end: false, role: "admin" },
 ];
 
-const THEMES: { value: ThemePreference; label: string }[] = [
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
-  { value: "system", label: "System" },
-];
-
 const ROLES: Role[] = ["public_read", "researcher", "operator", "admin"];
 
 export interface TopBarProps {
@@ -47,7 +42,7 @@ export interface TopBarProps {
 }
 
 export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
-  const { preference, resolved, setPreference } = useTheme();
+  const { resolved } = useTheme();
   const { role, setRole, canSwitch, signOut } = useRole();
   const { anchor } = useWindowState();
   const version = useVersion();
@@ -129,22 +124,7 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
         </select>
       </label>
 
-      <label className="flex shrink-0 items-center gap-2 text-caption text-text-tertiary">
-        <span>Theme</span>
-        <select
-          className="prov-input"
-          value={preference}
-          onChange={(event) => setPreference(event.target.value as ThemePreference)}
-          data-testid="theme-switch"
-        >
-          {THEMES.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
+      <ThemeSwitch />
       <details className="relative shrink-0">
         <summary
           className="prov-button list-none"

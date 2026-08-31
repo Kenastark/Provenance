@@ -5,6 +5,32 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in screen has a theme switch.** Light mode already existed as a
+  full implementation for the whole app (`styles/tokens.css`'s `[data-theme]`
+  blocks), but the only control for it lived in `TopBar` - which never
+  renders until *after* sign-in, so there was previously no way to reach
+  light mode from the sign-in screen itself except by editing
+  `localStorage` directly. Extracted the dark/light/system `<select>`
+  (previously inlined in `TopBar.tsx`) into a shared `components/
+  ThemeSwitch.tsx`, used by both `TopBar` and the new fixed top-right
+  corner of `SignInScreen` - one control, one `data-testid`, no drift
+  between the two surfaces. `SignInGate` never renders both at once, so the
+  shared `data-testid="theme-switch"` never collides. Updated
+  `SignIn.test.tsx`'s keyboard-reachability test: the theme switch is now
+  legitimately the first focusable element (top-right, before the role
+  cards), so the first `Tab` lands there rather than on the first role card
+  - the DOM/tab order matches the visual order, which is the correct
+  behaviour, not a regression to route around.
+- **Sign-in hero visual: card 1/2/3 footers now pixel-exact, not just
+  visually close.** The reason code line above card 3's "Human Sign-off"
+  pill rendered 2px lower than card 1 and card 2's equivalent captions
+  despite an identical CSS `line-height` (measured: 18px on all three) -
+  JetBrains Mono's intrinsic font metrics differ from Inter's even at the
+  same declared line-height. A `-mt-[2px]` on just that one span, safe
+  because the pill below it is independently pinned to the card's bottom
+  edge via `mt-auto` and unaffected by anything above it. Headers,
+  sub-headers, and footer pills are now confirmed pixel-identical across
+  all three cards by direct measurement, not eyeballing.
 - **Sign-in hero visual, eleventh pass.** `CONNECTOR_WIDTH` 180px -> 200px
   (`HERO_ROW_WIDTH` 1080px -> 1120px) - cards moved a little further apart
   again, sizes untouched. Confirmed the write-up still wraps to 4 lines at

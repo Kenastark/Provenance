@@ -221,7 +221,15 @@ export function HeroFlowVisual() {
             98.4%
           </span>
         </div>
-        <span className="font-mono text-micro text-text-tertiary">R22 &mdash; PLUME_CORROBORATED</span>
+        {/* -mt-[2px]: JetBrains Mono's intrinsic ascent/descent differs from
+            Inter's even at an identical CSS line-height, so this renders 2px
+            lower than the other cards' captions despite sharing text-micro's
+            18px line-height exactly (measured, not assumed). The pill below
+            is independently pinned to the card's bottom edge via mt-auto, so
+            nudging only this span up doesn't move anything else. */}
+        <span className="font-mono text-micro text-text-tertiary -mt-[2px]">
+          R22 &mdash; PLUME_CORROBORATED
+        </span>
         <span
           className={`${pillClass} text-verified`}
           style={{ background: "color-mix(in srgb, var(--prov-state-verified) 18%, transparent)" }}
