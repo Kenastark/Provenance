@@ -155,7 +155,7 @@ export function HeroFlowVisual() {
             </g>
           </svg>
         </span>
-        <span className="flex flex-col gap-1">
+        <span className="flex flex-col gap-0">
           <span className={captionClass}>Spatial + Wind Adjudication</span>
           <span className={captionClass}>Anomalies detection</span>
         </span>

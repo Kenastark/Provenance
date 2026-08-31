@@ -5,6 +5,10 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, tenth pass.** Card 2's two-line caption ("Spatial +
+  Wind Adjudication" / "Anomalies detection") tightened from `gap-1` to
+  `gap-0` - the two lines now read as one caption rather than two loosely
+  related ones.
 - **Sign-in hero visual, ninth pass: new write-up copy, canvas widened to fit
   it in exactly four lines.** Replaced the write-up paragraph with new copy
   ("Across Debrecen, Green Sentinel's physical sensors (Layer 1) capture raw
