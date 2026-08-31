@@ -5,6 +5,18 @@ design is reviewed and approved.
 
 ## What was built
 
+**Seventh pass, briefly** (full detail in `CHANGELOG.md`): shrunk
+`DEB-KER18`, put "180 µg/m³" back to the default text colour, dropped the
+headline's trailing period and halved the gap above it. The one item worth
+a real note: "align two captions across two cards" surfaced a genuine bug
+in the alignment approach every prior pass had been using (`mt-auto` only
+guarantees the *pill* aligns, not whatever sits directly above it, since the
+absorbed free space lands in that one gap) - fixed by giving every card's
+graphic a shared fixed-height zone instead of chasing it per-card. Worth
+remembering for any future pass on this component: measure actual rendered
+positions in the browser before trusting a flexbox alignment claim, even
+the third time touching the same layout.
+
 **Sixth pass, briefly** (full detail in `CHANGELOG.md`'s entry, not
 duplicated here): headers reduced to just the layer label, the descriptive
 name demoted to the sub-header; card 1's id/reading moved to the card

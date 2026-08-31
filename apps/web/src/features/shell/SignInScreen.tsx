@@ -76,17 +76,19 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
             Green Sentinel&rsquo;s Layer 2 AI Verification Engine
           </span>
-          <img
-            src={lockup}
-            alt="Provenance"
-            height={152}
-            className="w-auto"
-            style={{ height: 152 }}
-            data-testid="signin-lockup"
-          />
-          <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
-            An AI trust layer for Environmental Sensor Networks.
-          </p>
+          <div className="flex flex-col items-center gap-3">
+            <img
+              src={lockup}
+              alt="Provenance"
+              height={152}
+              className="w-auto"
+              style={{ height: 152 }}
+              data-testid="signin-lockup"
+            />
+            <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
+              An AI trust layer for Environmental Sensor Networks
+            </p>
+          </div>
           <div className="flex flex-col items-center gap-1">
             <p
               className="text-subhead font-display font-semibold text-text"

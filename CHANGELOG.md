@@ -5,6 +5,21 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, seventh pass.** `DEB-KER18` sized down to
+  `text-subhead` (half of its previous `text-display-l`); "180 µg/m³" moved
+  from amber to the default text colour. Fixed a real misalignment rather
+  than the one requested literally: card 1's "Physical Sensor" caption and
+  card 2's "Anomalies detection" line looked unrelated but sat 47px apart,
+  because the free space every card accumulates (from `mt-auto` pinning its
+  pill to the bottom) lands entirely *between the caption and the pill*, not
+  distributed above - so pills aligned but captions never did, on any pass
+  that touched card content. Fixed at the root: each card's graphic now sits
+  in a shared fixed-height zone (`GRAPHIC_ZONE_HEIGHT`, 112px, matching the
+  dial) before its caption, so the caption row lines up across all three
+  cards regardless of graphic size, with no further per-card tuning needed
+  if content changes again. Headline: dropped the trailing period, and
+  wrapped the lockup + headline in their own `gap-3` flex column (half of
+  the block's `gap-5`) so only the space between them tightened.
 - **Sign-in hero visual, sixth pass.** Headers are now just the layer label
   ("LAYER 1" / "LAYER 2" / "OUTPUT"); the descriptive name ("Green Sentinel
   Network" / "Provenance AI Engine" / "Trust Score") moved to the

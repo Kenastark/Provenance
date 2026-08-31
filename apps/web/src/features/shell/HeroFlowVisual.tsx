@@ -30,8 +30,17 @@ const CONNECTOR_WIDTH = 56;
  * as this row, rather than the two blocks drifting to different margins. */
 export const HERO_ROW_WIDTH = CARD_SIZE * 3 + CONNECTOR_WIDTH * 2;
 
+/** Each card's graphic sits in a zone this tall, centred, before the caption
+ * and pill that follow it - the dial is the tallest graphic, so every card
+ * uses its height. Without this, a card whose own graphic is short (card 1's
+ * reading, card 2's graph) ends up with all its slack absorbed as extra space
+ * right before its pill (that's what `mt-auto` does), which pins every pill to
+ * the same line but leaves the caption *above* each pill at a different
+ * height per card. Fixing the zone height first means the caption row lines
+ * up too, with no per-card tuning. */
+const GRAPHIC_ZONE_HEIGHT = 112;
 const TRUST_SCORE = 0.984;
-const DIAL_SIZE = 112;
+const DIAL_SIZE = GRAPHIC_ZONE_HEIGHT;
 const DIAL_RADIUS = 44;
 const DIAL_STROKE = 8;
 const DIAL_CIRCUMFERENCE = 2 * Math.PI * DIAL_RADIUS;
@@ -66,14 +75,17 @@ export function HeroFlowVisual() {
       >
         <span className={`${headerClass} text-ambiguous`}>LAYER 1</span>
         <span className={subheaderClass}>Green Sentinel Network</span>
-        <span className="flex flex-col items-center gap-1">
-          <span className="font-display text-display-l font-semibold text-text">DEB-KER18</span>
+        <span
+          className="flex flex-col items-center justify-center gap-1"
+          style={{ height: GRAPHIC_ZONE_HEIGHT }}
+        >
+          <span className="font-display text-subhead font-semibold text-text">DEB-KER18</span>
           <span className="flex items-center gap-2">
             <span
               className="hero-pulse-dot h-3 w-3 shrink-0 rounded-full"
               style={{ background: "var(--prov-state-ambiguous)" }}
             />
-            <span className="font-display text-display-l font-semibold text-ambiguous">
+            <span className="font-display text-display-l font-semibold text-text">
               180&nbsp;&micro;g/m&sup3;
             </span>
           </span>
@@ -116,24 +128,29 @@ export function HeroFlowVisual() {
       >
         <span className={`${headerClass} text-interactive`}>LAYER 2</span>
         <span className={subheaderClass}>Provenance AI Engine</span>
-        <svg width="150" height="90" viewBox="0 0 150 90" className="hero-graph-glow">
-          <g transform="rotate(16 75 41)">
-            <line x1="26" y1="68" x2="75" y2="20" stroke="var(--prov-interactive)" strokeWidth="2" />
-            <line x1="75" y1="20" x2="125" y2="63" stroke="var(--prov-interactive)" strokeWidth="2" />
-            <line
-              x1="26"
-              y1="68"
-              x2="125"
-              y2="63"
-              stroke="var(--prov-interactive)"
-              strokeWidth="2"
-              strokeDasharray="3 3"
-            />
-            <circle cx="26" cy="68" r="6" fill="var(--prov-state-verified)" />
-            <circle cx="75" cy="20" r="8" fill="var(--prov-interactive)" />
-            <circle cx="125" cy="63" r="6" fill="var(--prov-state-verified)" />
-          </g>
-        </svg>
+        <span
+          className="flex items-center justify-center"
+          style={{ height: GRAPHIC_ZONE_HEIGHT }}
+        >
+          <svg width="150" height="90" viewBox="0 0 150 90" className="hero-graph-glow">
+            <g transform="rotate(16 75 41)">
+              <line x1="26" y1="68" x2="75" y2="20" stroke="var(--prov-interactive)" strokeWidth="2" />
+              <line x1="75" y1="20" x2="125" y2="63" stroke="var(--prov-interactive)" strokeWidth="2" />
+              <line
+                x1="26"
+                y1="68"
+                x2="125"
+                y2="63"
+                stroke="var(--prov-interactive)"
+                strokeWidth="2"
+                strokeDasharray="3 3"
+              />
+              <circle cx="26" cy="68" r="6" fill="var(--prov-state-verified)" />
+              <circle cx="75" cy="20" r="8" fill="var(--prov-interactive)" />
+              <circle cx="125" cy="63" r="6" fill="var(--prov-state-verified)" />
+            </g>
+          </svg>
+        </span>
         <span className="flex flex-col gap-1">
           <span className={captionClass}>Spatial + Wind Adjudication</span>
           <span className={captionClass}>Anomalies detection</span>
