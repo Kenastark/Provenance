@@ -55,17 +55,35 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
       className="flex h-full flex-col items-center justify-center gap-8 bg-bg p-8 text-center outline-none"
       data-testid="signin-screen"
     >
-      <div className="flex flex-col items-center gap-4">
+      <div className="relative flex flex-col items-center gap-5 px-4">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-16 rounded-full"
+          style={{
+            background:
+              "radial-gradient(circle, color-mix(in srgb, var(--prov-blue-500) 16%, transparent) 0%, transparent 70%)",
+          }}
+        />
+        <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
+          Green Sentinel Network &middot; Layer 2
+        </span>
         <img
           src={lockup}
           alt="Provenance"
-          height={96}
+          height={152}
           className="w-auto"
-          style={{ height: 96 }}
+          style={{ height: 152 }}
           data-testid="signin-lockup"
         />
-        <p className="max-w-md text-subhead text-text-secondary">
+        <p className="max-w-lg text-display-l font-display font-semibold text-text">
           AI Trust Layer for Environmental Data
+        </p>
+        <p className="max-w-lg text-subhead text-text-secondary">
+          Green Sentinel&rsquo;s stations are Layer 1 &mdash; the physical network reporting
+          readings across Debrecen. Provenance is Layer 2, sitting above it: auditing every
+          reading Layer 1 delivers, scoring how much it can be trusted, and explaining why
+          &mdash; because a number on a screen looks exactly the same whether it is true or
+          broken.
         </p>
       </div>
 
