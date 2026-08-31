@@ -5,6 +5,10 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **Sign-in hero visual, eleventh pass.** `CONNECTOR_WIDTH` 180px -> 200px
+  (`HERO_ROW_WIDTH` 1080px -> 1120px) - cards moved a little further apart
+  again, sizes untouched. Confirmed the write-up still wraps to 4 lines at
+  the new width (it does, with more margin than before).
 - **Sign-in hero visual, tenth pass.** Card 2's two-line caption ("Spatial +
   Wind Adjudication" / "Anomalies detection") tightened from `gap-1` to
   `gap-0` - the two lines now read as one caption rather than two loosely
