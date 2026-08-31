@@ -211,6 +211,55 @@
     box-shadow: inset 2px 0 0 0 var(--prov-interactive);
   }
 
+  /* Hero flow graphic on the sign-in screen (HeroFlowVisual.tsx). Respects
+     prefers-reduced-motion via the global override above - no extra guard
+     needed here. */
+  @keyframes prov-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  .hero-pulse-dot {
+    animation: prov-pulse 1.8s var(--prov-ease) infinite;
+  }
+
+  @keyframes prov-edge-glow {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .hero-graph-glow line {
+    animation: prov-edge-glow 2.4s var(--prov-ease) infinite;
+  }
+
+  .hero-graph-glow line:nth-child(2) {
+    animation-delay: 0.4s;
+  }
+
+  .hero-graph-glow line:nth-child(3) {
+    animation-delay: 0.8s;
+  }
+
+  @keyframes prov-connector-flow {
+    to {
+      stroke-dashoffset: -18;
+    }
+  }
+
+  .hero-connector-flow line {
+    animation: prov-connector-flow 1.2s linear infinite;
+  }
+
   /* MapLibre's own chrome, restyled onto the tokens. */
   .maplibregl-ctrl-group {
     background: var(--prov-surface) !important;

@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in screen now illustrates the Layer 1 -> Layer 2 -> trust score
+  flow instead of only describing it in prose.** The headline is now "An AI
+  trust layer for Environmental Sensor Networks." (was "AI Trust Layer for
+  Environmental Data") on a single line, and the intro copy is a wider,
+  shorter-in-height write-up ("Data without trust is just noise." plus one
+  paragraph on the HST-GAT model) rather than the previous narrower two-sentence
+  block. Below it, a new `HeroFlowVisual.tsx` renders three cards — an
+  unverified Layer 1 reading, the Layer 2 engine's mini graph, and a Trust
+  Score dial — connected by animated connector lines, entirely in
+  `var(--prov-*)` tokens per the brand guardrail. It is `aria-hidden` and
+  decorative: the station reading and score are a worked example for the
+  graphic, not live data.
 - **The Timescale-independence claim is now actually tested.** ADR 0012 dropped
   the dependency, but nothing proved the schema runs on an engine *lacking* the
   extension: both local Compose and CI used `timescale/timescaledb-ha:pg16`,

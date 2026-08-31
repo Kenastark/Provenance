@@ -39,7 +39,9 @@ describe("SignInGate", () => {
 
   it("carries the descriptor and the four dev role cards when switching is allowed", () => {
     renderGated();
-    expect(screen.getByText(/AI Trust Layer for Environmental Data/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/An AI trust layer for Environmental Sensor Networks\./i),
+    ).toBeInTheDocument();
     for (const role of ["public_read", "researcher", "operator", "admin"]) {
       expect(screen.getByTestId(`signin-role-${role}`)).toBeInTheDocument();
     }

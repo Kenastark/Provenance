@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { keyToRole, ROLE_HIERARCHY, ROLE_LABELS, roleGrants, type Role } from "../../lib/role";
 import { useTheme } from "../../lib/theme";
+import { HeroFlowVisual } from "./HeroFlowVisual";
 
 /**
  * The screen in front of the dashboard.
@@ -75,16 +76,21 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           style={{ height: 152 }}
           data-testid="signin-lockup"
         />
-        <p className="max-w-lg text-display-l font-display font-semibold text-text">
-          AI Trust Layer for Environmental Data
+        <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
+          An AI trust layer for Environmental Sensor Networks.
         </p>
-        <p className="max-w-lg text-subhead text-text-secondary">
-          Green Sentinel&rsquo;s stations are Layer 1 &mdash; the physical network reporting
-          readings across Debrecen. Provenance is Layer 2, sitting above it: auditing every
-          reading Layer 1 delivers, scoring how much it can be trusted, and explaining why
-          &mdash; because a number on a screen looks exactly the same whether it is true or
-          broken.
+        <p className="max-w-2xl text-subhead font-display font-semibold text-text">
+          Data without trust is just noise.
         </p>
+        <p className="max-w-2xl text-subhead text-text-secondary">
+          Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
+          Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven by
+          a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
+          trends, and meteorology to audit every incoming data point. We deliver real-time,
+          explainable trust scores&mdash;ensuring every public health and policy decision is
+          backed by verified truth, not broken numbers.
+        </p>
+        <HeroFlowVisual />
       </div>
 
       {canSwitch ? (

@@ -9,11 +9,11 @@ import { useWindowState } from "../../lib/windowContext";
 /**
  * The operator chrome.
  *
- * It says "Provenance" and nothing else. The product descriptor ("AI Trust Layer
- * for Environmental Data") belongs on the login screen and the marketing surfaces;
- * the "Is This Real?" hook belongs on the demo title card. Someone who sits in
- * front of this for a shift does not need to be asked a rhetorical question every
- * time they look at the toolbar.
+ * It says "Provenance" and nothing else. The product descriptor ("An AI trust
+ * layer for Environmental Sensor Networks.") belongs on the login screen and the
+ * marketing surfaces; the "Is This Real?" hook belongs on the demo title card.
+ * Someone who sits in front of this for a shift does not need to be asked a
+ * rhetorical question every time they look at the toolbar.
  *
  * The lockup is the fixed SVG asset at 56px. The wordmark is never re-set in the
  * display face - that is what the asset is for.
