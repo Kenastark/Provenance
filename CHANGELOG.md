@@ -5,6 +5,12 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in screen's theme switch now sits in the same slot `TopBar`
+  puts it in post-sign-in**, rather than a floating corner button.
+  Wrapped in a fixed, full-width bar matching `TopBar`'s own height
+  (`--prov-topbar-height`), background, and border, right-aligned the same
+  way. The screen's scrollable content gained matching top padding so
+  nothing renders underneath the now-fixed bar.
 - **The sign-in hero visual's e2e/visual-regression gate, deferred through
   eleven review passes, finally run.** Fresh 18-station demo corpus, both
   darwin and the pinned-Linux-container visual baselines regenerated for
