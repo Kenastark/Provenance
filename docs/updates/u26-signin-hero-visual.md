@@ -1,7 +1,7 @@
 # Update 26 — sign-in hero copy, flow visual, and the descriptor rebrand
 
-Branch: `signin-hero-visual`. Tag: pending — assigned at merge, once the
-design is reviewed and approved.
+Branch: `signin-hero-visual`. Tag: `v1.0.27-update`. Design reviewed and
+approved after twelve iterative passes; merged to `main`.
 
 ## What was built
 
@@ -134,13 +134,30 @@ environment), sign-in screen screenshotted in both themes with
 errors either theme; headline on one line, write-up visibly shorter, all
 three hero-visual cards legible in both palettes.
 
-**Not run yet, deliberately**: the Playwright e2e/visual-baseline suite.
-Per [[e2e-visual-baselines-gotcha]] that regeneration is expensive (fresh
-`docker compose down -v`, model artefacts moved aside, both darwin and
-Linux runs) and the user explicitly asked to review the design before this
-goes anywhere near a PR — regenerating baselines now would be wasted work
-if the visual changes further. It's the next step once the design is
-approved, before merge.
+**E2E/visual, run once the design was actually approved** (twelfth pass,
+per [[e2e-visual-baselines-gotcha]]'s process — model artefacts moved
+aside, `make up` → `make demo-data` → `make api-bg`): darwin and the
+pinned-Linux-container visual baselines regenerated for
+`signin-dark`/`signin-light` — the only four baseline files that changed,
+confirmed by `git status` diff; all twelve pre-existing screens matched
+byte-for-byte on both platforms, so nothing else regressed. Full 78-test
+e2e suite green (accessibility, demo path, drawer resize, responsive,
+sign-in flow, sign-off flow, visual — both `chromium` and `mobile`
+projects). Backend gate also rerun for the record: 713 passed, 90.23%
+coverage (gate 88%), `make web-contract-check` clean. Model artefacts
+restored and the stack torn down afterward.
+
+One real regression surfaced and was fixed rather than routed around: the
+new theme switch (this update's twelfth pass) is legitimately the first
+focusable element on the sign-in screen now, so `SignIn.test.tsx` and
+`e2e/accessibility.spec.ts` each needed an extra `Tab` before their
+existing role-card-focus assertion. The Trust Score dial's looping SMIL
+animation (ninth pass) turned out to need no special handling for
+screenshot determinism at all — `settleForSnapshot`'s existing
+`prefers-reduced-motion: reduce` emulation is exactly what
+`usePrefersReducedMotion()` was built to detect, so the dial renders its
+static final state for every capture, by the same accessibility guard
+that was already there for a different reason.
 
 ## Deviations from the prompt
 
@@ -207,6 +224,12 @@ approved, before merge.
   role-picker buttons still use `w-52`, `prov-input` still uses `w-64`,
   neither touched by this update) — worth its own audit and fix, out of
   scope here since this update only had to fix its own three cards.
-- E2E/visual baselines genuinely not run — see Test gate above. Do not treat
-  this update as merge-ready until that gate runs and passes, in addition to
-  design approval.
+- **The `w-52`/`w-64` Tailwind gap noted above is still unfixed** — the
+  role-picker buttons and the API-key input still silently ignore their
+  width classes. Confirmed still present as of the final e2e run (nothing
+  in this update touched either), and still out of scope: worth its own
+  follow-up update rather than folding into this one after the fact.
+- **User confirmed the reason-code font (JetBrains Mono on card 3, Inter on
+  cards 1/2) should stay as-is** — it matches the live app's own convention
+  of setting reason codes in monospace (`EvidencePanel.tsx`), so the
+  visible font difference there is intentional, not something to unify.
