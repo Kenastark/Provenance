@@ -11,12 +11,20 @@ Format: Keep a Changelog. Versioning: SemVer.
   Environmental Data") on a single line, and the intro copy is a wider,
   shorter-in-height write-up ("Data without trust is just noise." plus one
   paragraph on the HST-GAT model) rather than the previous narrower two-sentence
-  block. Below it, a new `HeroFlowVisual.tsx` renders three cards — an
-  unverified Layer 1 reading, the Layer 2 engine's mini graph, and a Trust
-  Score dial — connected by animated connector lines, entirely in
-  `var(--prov-*)` tokens per the brand guardrail. It is `aria-hidden` and
-  decorative: the station reading and score are a worked example for the
-  graphic, not live data.
+  block. Below it, a new `HeroFlowVisual.tsx` renders three same-size cards —
+  a DEB-KER18 reading flagged unverified (amber), the Layer 2 engine's
+  rotated mini graph (a Trust-Blue node among two Sentinel-Green ones), and a
+  Trust Score dial that animates its ring from empty up to 98.4% on mount,
+  tagged with the registry's real R22 (`PLUME_CORROBORATED`) reason code —
+  connected by animated connector lines, entirely in `var(--prov-*)` tokens
+  per the brand guardrail. It is `aria-hidden` and decorative: the reading
+  and score are a worked example for the graphic, not live data. Also fixed a
+  layout bug the first pass introduced: `justify-center` on an overflowing,
+  `overflow-y-auto` flex container makes the content *above* centre
+  permanently unreachable (a scrollbar can't reach negative offsets) — the
+  eyebrow line and lockup were silently clipped off. Switched to `margin:
+  auto` centring, which degrades to fully-scrollable top-aligned flow the
+  moment content doesn't fit.
 - **The Timescale-independence claim is now actually tested.** ADR 0012 dropped
   the dependency, but nothing proved the schema runs on an engine *lacking* the
   extension: both local Compose and CI used `timescale/timescaledb-ha:pg16`,

@@ -53,108 +53,117 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
     <div
       ref={containerRef}
       tabIndex={-1}
-      className="flex h-full flex-col items-center justify-center gap-8 bg-bg p-8 text-center outline-none"
+      className="flex h-full flex-col items-center overflow-y-auto bg-bg p-4 text-center outline-none"
       data-testid="signin-screen"
     >
-      <div className="relative flex flex-col items-center gap-5 px-4">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-16 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, color-mix(in srgb, var(--prov-blue-500) 16%, transparent) 0%, transparent 70%)",
-          }}
-        />
-        <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
-          Green Sentinel Network &middot; Layer 2
-        </span>
-        <img
-          src={lockup}
-          alt="Provenance"
-          height={152}
-          className="w-auto"
-          style={{ height: 152 }}
-          data-testid="signin-lockup"
-        />
-        <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
-          An AI trust layer for Environmental Sensor Networks.
-        </p>
-        <p className="max-w-2xl text-subhead font-display font-semibold text-text">
-          Data without trust is just noise.
-        </p>
-        <p className="max-w-2xl text-subhead text-text-secondary">
-          Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
-          Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven by
-          a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
-          trends, and meteorology to audit every incoming data point. We deliver real-time,
-          explainable trust scores&mdash;ensuring every public health and policy decision is
-          backed by verified truth, not broken numbers.
-        </p>
-        <HeroFlowVisual />
-      </div>
-
-      {canSwitch ? (
-        <div className="flex flex-col items-center gap-6">
+      {/* `m-auto` rather than `justify-center` on the parent: when this block is
+          taller than the viewport, `justify-center` on an overflow-auto flex
+          parent centers by pushing half the overflow above the scrollable area,
+          where a scrollbar can never reach negative offsets - the eyebrow line
+          and lockup would silently become unreachable. `margin: auto` collapses
+          to top-aligned, fully-scrollable flow the moment there's no free space
+          left to distribute, so nothing above the fold is ever unreachable. */}
+      <div className="flex w-full flex-col items-center gap-8 m-auto">
+        <div className="relative flex flex-col items-center gap-5 px-4">
           <div
-            role="group"
-            aria-label="Choose a role"
-            className="grid grid-cols-2 gap-3"
-            data-testid="signin-role-picker"
-          >
-            {ROLE_HIERARCHY.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="prov-panel flex w-52 flex-col items-start gap-1 p-4 text-left hover:border-interactive"
-                onClick={() => onSelectRole(option)}
-                data-testid={`signin-role-${option}`}
-              >
-                <span className="font-display text-subhead text-text">{ROLE_LABELS[option]}</span>
-                <span className="text-caption text-text-tertiary">Grants: {roleGrants(option)}</span>
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={handleKeySubmit} className="flex flex-col items-center gap-2">
-            <label htmlFor="signin-api-key" className="text-caption text-text-tertiary">
-              Or paste an API key
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="signin-api-key"
-                type="text"
-                autoComplete="off"
-                spellCheck={false}
-                className="prov-input w-64"
-                value={rawKey}
-                onChange={(event) => {
-                  setRawKey(event.target.value);
-                  setError(null);
-                }}
-                placeholder="prov-operator-key"
-                data-testid="signin-api-key-input"
-              />
-              <button type="submit" className="prov-button" data-testid="signin-api-key-submit">
-                Sign in
-              </button>
-            </div>
-            {error && (
-              <p role="alert" className="text-caption prov-state-fault" data-testid="signin-api-key-error">
-                {error}
-              </p>
-            )}
-          </form>
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-16 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, color-mix(in srgb, var(--prov-blue-500) 16%, transparent) 0%, transparent 70%)",
+            }}
+          />
+          <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
+            Green Sentinel Network &middot; Layer 2
+          </span>
+          <img
+            src={lockup}
+            alt="Provenance"
+            height={152}
+            className="w-auto"
+            style={{ height: 152 }}
+            data-testid="signin-lockup"
+          />
+          <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
+            An AI trust layer for Environmental Sensor Networks.
+          </p>
+          <p className="max-w-2xl text-subhead font-display font-semibold text-text">
+            Data without trust is just noise.
+          </p>
+          <p className="max-w-2xl text-subhead text-text-secondary">
+            Green Sentinel&rsquo;s physical nodes (Layer 1) capture environmental readings across
+            Debrecen. Provenance (Layer 2) provides the AI verification engine above it. Driven by
+            a custom HST-GAT model, we evaluate cross-sensor spatial relationships, temporal
+            trends, and meteorology to audit every incoming data point. We deliver real-time,
+            explainable trust scores&mdash;ensuring every public health and policy decision is
+            backed by verified truth, not broken numbers.
+          </p>
+          <HeroFlowVisual />
         </div>
-      ) : (
-        <p role="status" className="text-body text-text-secondary" data-testid="signin-auto-message">
-          Signed in as {ROLE_LABELS[role]}…
-        </p>
-      )}
 
-      <p className="max-w-md text-caption text-text-tertiary" data-testid="signin-caption">
-        A role is resolved from the <code>X-API-Key</code> header sent with every request that
-        follows - there is no separate login or session.
-      </p>
+        {canSwitch ? (
+          <div className="flex flex-col items-center gap-6">
+            <div
+              role="group"
+              aria-label="Choose a role"
+              className="grid grid-cols-2 gap-3"
+              data-testid="signin-role-picker"
+            >
+              {ROLE_HIERARCHY.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="prov-panel flex w-52 flex-col items-start gap-1 p-4 text-left hover:border-interactive"
+                  onClick={() => onSelectRole(option)}
+                  data-testid={`signin-role-${option}`}
+                >
+                  <span className="font-display text-subhead text-text">{ROLE_LABELS[option]}</span>
+                  <span className="text-caption text-text-tertiary">Grants: {roleGrants(option)}</span>
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={handleKeySubmit} className="flex flex-col items-center gap-2">
+              <label htmlFor="signin-api-key" className="text-caption text-text-tertiary">
+                Or paste an API key
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="signin-api-key"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="prov-input w-64"
+                  value={rawKey}
+                  onChange={(event) => {
+                    setRawKey(event.target.value);
+                    setError(null);
+                  }}
+                  placeholder="prov-operator-key"
+                  data-testid="signin-api-key-input"
+                />
+                <button type="submit" className="prov-button" data-testid="signin-api-key-submit">
+                  Sign in
+                </button>
+              </div>
+              {error && (
+                <p role="alert" className="text-caption prov-state-fault" data-testid="signin-api-key-error">
+                  {error}
+                </p>
+              )}
+            </form>
+          </div>
+        ) : (
+          <p role="status" className="text-body text-text-secondary" data-testid="signin-auto-message">
+            Signed in as {ROLE_LABELS[role]}…
+          </p>
+        )}
+
+        <p className="max-w-md text-caption text-text-tertiary" data-testid="signin-caption">
+          A role is resolved from the <code>X-API-Key</code> header sent with every request that
+          follows - there is no separate login or session.
+        </p>
+      </div>
     </div>
   );
 }
