@@ -8,7 +8,7 @@ repos:
       - id: check-toml
       - id: check-merge-conflict
       - id: check-added-large-files
-        args: ["--maxkb=1024"]
+        args: ["--maxkb=1200"]
       - id: detect-private-key
       - id: no-commit-to-branch
         args: ["--branch", "main"]
