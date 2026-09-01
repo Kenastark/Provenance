@@ -33,6 +33,8 @@ jobs:
           service: provenance-api
           region: ${{ env.REGION }}
           image: ${{ env.REPO }}/api:${{ github.sha }}
+          env_vars: |
+            PROVENANCE_CORS_ORIGINS=https://www.provenancel2.com\,https://provenancel2.com
 
   deploy-web:
     runs-on: ubuntu-latest
