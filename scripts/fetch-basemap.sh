@@ -64,13 +64,29 @@ esac
 CLI="${CACHE_DIR}/pmtiles-${CLI_VERSION}"
 if [[ ! -x "${CLI}" ]]; then
   mkdir -p "${CACHE_DIR}"
-  asset="go-pmtiles-${CLI_VERSION}_${os}_${arch}.zip"
-  url="https://github.com/protomaps/go-pmtiles/releases/download/v${CLI_VERSION}/${asset}"
-  log "downloading the pmtiles CLI (${os}_${arch})"
+  # The release's own asset names disagree with each other across platforms:
+  # Darwin ships a hyphen before the version and a .zip
+  # (go-pmtiles-1.31.2_Darwin_arm64.zip); Linux ships an underscore and a
+  # .tar.gz (go-pmtiles_1.31.2_Linux_x86_64.tar.gz). Checked directly against
+  # the v1.31.2 release assets rather than assumed.
   tmp="$(mktemp -d)"
   trap 'rm -rf "${tmp}"' EXIT
-  curl -fsSL -o "${tmp}/cli.zip" "${url}" || die "could not download the pmtiles CLI from ${url}"
-  unzip -o -q "${tmp}/cli.zip" pmtiles -d "${tmp}" || die "could not unpack the pmtiles CLI"
+  case "${os}" in
+    Darwin)
+      asset="go-pmtiles-${CLI_VERSION}_${os}_${arch}.zip"
+      url="https://github.com/protomaps/go-pmtiles/releases/download/v${CLI_VERSION}/${asset}"
+      log "downloading the pmtiles CLI (${os}_${arch})"
+      curl -fsSL -o "${tmp}/cli.zip" "${url}" || die "could not download the pmtiles CLI from ${url}"
+      unzip -o -q "${tmp}/cli.zip" pmtiles -d "${tmp}" || die "could not unpack the pmtiles CLI"
+      ;;
+    Linux)
+      asset="go-pmtiles_${CLI_VERSION}_${os}_${arch}.tar.gz"
+      url="https://github.com/protomaps/go-pmtiles/releases/download/v${CLI_VERSION}/${asset}"
+      log "downloading the pmtiles CLI (${os}_${arch})"
+      curl -fsSL -o "${tmp}/cli.tar.gz" "${url}" || die "could not download the pmtiles CLI from ${url}"
+      tar -xzf "${tmp}/cli.tar.gz" -C "${tmp}" pmtiles || die "could not unpack the pmtiles CLI"
+      ;;
+  esac
   mv "${tmp}/pmtiles" "${CLI}"
   chmod +x "${CLI}"
 fi
