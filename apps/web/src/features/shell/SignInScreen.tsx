@@ -57,7 +57,11 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
       className="flex h-full flex-col items-center overflow-y-auto bg-bg p-4 text-center outline-none"
       data-testid="signin-screen"
     >
-      <ThemeSwitch className="fixed right-4 top-4 z-drawer" />
+      {/* Positioned to land where TopBar's own theme switch sits post-sign-in
+          (measured: ~116px from the right edge, ~20px from the top, at this
+          app's 1440px baseline viewport - TopBar puts the account menu to its
+          right, so it isn't flush with the edge). */}
+      <ThemeSwitch className="fixed right-[116px] top-[20px] z-drawer" />
 
       {/* `m-auto` rather than `justify-center` on the parent: when this block is
           taller than the viewport, `justify-center` on an overflow-auto flex

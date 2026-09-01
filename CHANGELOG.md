@@ -5,6 +5,16 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **The sign-in screen's floating theme switch now sits at the same
+  coordinates `TopBar`'s own theme switch renders at post-sign-in**
+  (`right-4 top-4` -> `right-[116px] top-[20px]`, matched by direct
+  measurement, not a guess: 0.2px/0.5px off at this app's 1440px baseline
+  viewport). A first attempt wrapped it in a full-width bar mimicking
+  `TopBar`'s chrome; reverted per feedback that only the position should
+  change, not the visual treatment - it's still a plain floating button,
+  just moved. Visual baselines regenerated for `signin-dark`/`signin-light`
+  on both darwin and the pinned Linux container - the only four files that
+  changed.
 - **The sign-in hero visual's e2e/visual-regression gate, deferred through
   eleven review passes, finally run.** Fresh 18-station demo corpus, both
   darwin and the pinned-Linux-container visual baselines regenerated for
@@ -203,6 +213,20 @@ Format: Keep a Changelog. Versioning: SemVer.
   shows "pending" for such an event, since `AlertItem` carries no `evidence`.
 
 ### Fixed
+- **`--update-snapshots` (bare) can silently leave a wrong Playwright
+  baseline in place.** Discovered while regenerating the sign-in screen's
+  baseline for the theme-switch move above: the bare flag's default mode
+  in this Playwright version (1.62) only rewrites a snapshot whose
+  comparison already failed. If a code change moves an element but the
+  pixel diff happens to land inside `maxDiffPixelRatio`/`threshold` - or a
+  same-run non-determinism masks it - the command exits 0, prints nothing
+  alarming, and the stale baseline stays committed. Reproduced directly:
+  moving the theme switch ~100px reported "1 passed" and left the file
+  untouched. `package.json`'s `e2e:update` script and the Makefile's
+  `web-visual-linux` target now both pass `--update-snapshots=all`, which
+  forces a real rewrite every time - documented in a Makefile comment so
+  the next person regenerating baselines doesn't hit the same silent
+  failure.
 - **The `e2e` job no longer runs out of disk pulling the Playwright image.** A
   free-space step reclaims the hosted runner's unused Android/dotnet/GHC/Swift
   toolchains and prunes Docker before the visual-regression step, which had

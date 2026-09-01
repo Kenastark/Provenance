@@ -13,7 +13,7 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "e2e:update": "playwright test --update-snapshots",
+    "e2e:update": "playwright test --update-snapshots=all",
     "gen:types": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {

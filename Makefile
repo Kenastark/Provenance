@@ -87,6 +87,17 @@ VISUAL_API_URL ?= http://host.docker.internal:8000
 # Apple Silicon host) keeps the baseline captured here identical to CI's,
 # rather than each Mac's native arm64 build of the image - which font-hints
 # text just differently enough to fail the gate on every push from one.
+#
+# `--update-snapshots=all`, not the bare flag: Playwright 1.62's default mode
+# for a bare `--update-snapshots` only rewrites a baseline whose *comparison*
+# already failed - if a code change moves an element but the pixel diff still
+# lands inside `maxDiffPixelRatio`/`threshold`, or some other run-to-run
+# non-determinism happens to mask it, the command exits 0, prints nothing
+# alarming, and silently leaves the wrong baseline committed. Confirmed by
+# reproduction while regenerating the sign-in screen's baseline after moving
+# an element ~100px: the bare flag reported "passed" without touching the
+# file. `=all` forces a real rewrite every time, which is what "regenerate
+# the baselines" is supposed to mean.
 
 define run_visual_in_container
 	docker run --rm \
@@ -116,7 +127,7 @@ endef
 
 .PHONY: web-visual-linux
 web-visual-linux: ## regenerate the Linux visual baselines in the pinned image (needs the API up)
-	$(call run_visual_in_container,--update-snapshots)
+	$(call run_visual_in_container,--update-snapshots=all)
 
 .PHONY: web-visual-check
 web-visual-check: ## verify the Linux visual baselines in the pinned image (needs the API up)
