@@ -5,6 +5,18 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Fixed
+- **The production dashboard's map showed the token-coloured ground instead of
+  real Debrecen streets.** `apps/web/public/basemap/` and `apps/web/public/fonts/`
+  are gitignored by design (ADR 0006, ADR 0011) and only ever fetched locally
+  via `make basemap`/`make fonts` — `deploy.yml`'s `deploy-web` job builds
+  straight from a fresh checkout and never ran either, so the deployed bundle
+  always shipped without them. Added a non-fatal step between `pnpm install`
+  and `pnpm build` that runs both targets, matching the same
+  `|| echo "skipped"` contract `make demo` already uses. Confirmed this has no
+  effect on the Playwright visual baselines: `deploy.yml` and the visual-gate
+  workflow are separate checkouts, and the visual container's own
+  `run_visual_in_container` macro (`Makefile`) unconditionally
+  `rm -rf`s `public/basemap`/`public/fonts` before every screenshot regardless.
 - **Network map tab rendered nothing on the live deploy (www.provenancel2.com)
   while working locally.** Root cause: `deploy.yml`'s `deploy-api` job never set
   `PROVENANCE_CORS_ORIGINS` on the Cloud Run service, so the API's CORS

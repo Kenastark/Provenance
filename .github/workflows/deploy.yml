@@ -50,6 +50,17 @@ jobs:
       - run: corepack enable
       - working-directory: apps/web
         run: pnpm install --no-frozen-lockfile
+      - name: Fetch the real-streets basemap and label fonts (best-effort, ADR 0006/0011)
+        # Both are gitignored and normally fetched once by a developer via `make
+        # basemap`/`make fonts` (never committed - rule 10). CI has never run either,
+        # so the deployed bundle has always shipped without them and the dashboard
+        # has silently used the token-ground fallback in production. Non-fatal, same
+        # as `make demo` treats these two targets: a transient failure to reach
+        # build.protomaps.com must never break the deploy, it only costs the streets
+        # (or their labels).
+        run: |
+          make basemap || echo "basemap: skipped — falling back to token ground"
+          make fonts || echo "fonts: skipped — streets will show without labels"
       - working-directory: apps/web
         env:
           VITE_API_BASE_URL: https://api.provenancel2.com
