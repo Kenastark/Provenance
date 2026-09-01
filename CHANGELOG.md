@@ -5,12 +5,14 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
-- **The sign-in screen's theme switch now sits in the same slot `TopBar`
-  puts it in post-sign-in**, rather than a floating corner button.
-  Wrapped in a fixed, full-width bar matching `TopBar`'s own height
-  (`--prov-topbar-height`), background, and border, right-aligned the same
-  way. The screen's scrollable content gained matching top padding so
-  nothing renders underneath the now-fixed bar.
+- **The sign-in screen's floating theme switch now sits at the same
+  coordinates `TopBar`'s own theme switch renders at post-sign-in**
+  (`right-4 top-4` -> `right-[116px] top-[20px]`, matched by direct
+  measurement, not a guess: 0.2px/0.5px off at this app's 1440px baseline
+  viewport). A first attempt wrapped it in a full-width bar mimicking
+  `TopBar`'s chrome; reverted per feedback that only the position should
+  change, not the visual treatment - it's still a plain floating button,
+  just moved.
 - **The sign-in hero visual's e2e/visual-regression gate, deferred through
   eleven review passes, finally run.** Fresh 18-station demo corpus, both
   darwin and the pinned-Linux-container visual baselines regenerated for

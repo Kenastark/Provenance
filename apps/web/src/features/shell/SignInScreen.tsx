@@ -55,19 +55,13 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
       ref={containerRef}
       tabIndex={-1}
       className="flex h-full flex-col items-center overflow-y-auto bg-bg p-4 text-center outline-none"
-      style={{ paddingTop: "calc(var(--prov-topbar-height) + var(--prov-space-4))" }}
       data-testid="signin-screen"
     >
-      {/* Same bar TopBar renders post-sign-in (height, background, border,
-          right-aligned content) - so the theme switch sits in the same slot
-          whether or not a role has been chosen yet, rather than jumping to a
-          different spot once the dashboard replaces this screen. */}
-      <div
-        className="fixed inset-x-0 top-0 z-drawer flex shrink-0 items-center justify-end border-b border-border bg-bg-raised px-4"
-        style={{ height: "var(--prov-topbar-height)" }}
-      >
-        <ThemeSwitch />
-      </div>
+      {/* Positioned to land where TopBar's own theme switch sits post-sign-in
+          (measured: ~116px from the right edge, ~20px from the top, at this
+          app's 1440px baseline viewport - TopBar puts the account menu to its
+          right, so it isn't flush with the edge). */}
+      <ThemeSwitch className="fixed right-[116px] top-[20px] z-drawer" />
 
       {/* `m-auto` rather than `justify-center` on the parent: when this block is
           taller than the viewport, `justify-center` on an overflow-auto flex
