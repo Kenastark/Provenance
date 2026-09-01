@@ -4,6 +4,20 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Fixed
+- **Network map tab rendered nothing on the live deploy (www.provenancel2.com)
+  while working locally.** Root cause: `deploy.yml`'s `deploy-api` job never set
+  `PROVENANCE_CORS_ORIGINS` on the Cloud Run service, so the API's CORS
+  allow-list stayed at its local-dev default (`localhost:5173`/`localhost:4173`
+  only, per `src/provenance/config/settings.py`). Every browser fetch for
+  station/quality data from `https://www.provenancel2.com` failed CORS
+  preflight, `NetworkMap.tsx` rendered its `ErrorState` instead of the map, and
+  no station - including `DEB-KER12` - ever appeared. Fixed by passing
+  `PROVENANCE_CORS_ORIGINS=https://www.provenancel2.com,https://provenancel2.com`
+  to the Cloud Run deploy step. The map's own basemap/tile fallback
+  (`mapStyle.ts`) and API-key handling were checked and are unaffected -
+  neither uses an external key or CDN that could be blocked in production.
+
 ### Added
 - **The sign-in screen's floating theme switch now sits at the same
   coordinates `TopBar`'s own theme switch renders at post-sign-in**
