@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from provenance.io.db import models as m
 from provenance.io.db.engine import create_all, make_engine, make_sessionmaker
-from provenance.io.db.loader import load_frame
+from provenance.io.db.loader import BatchNotLoadedError, load_frame, rescore_frame
 
 
 @pytest_asyncio.fixture
@@ -128,6 +129,42 @@ async def test_station_metadata_defaults_to_null_without_metadata(
     stations = (await session.scalars(select(m.Station))).all()
     assert stations
     assert all(s.lat is None and s.lon is None for s in stations)
+
+
+async def test_rescore_without_a_prior_load_raises(
+    session: AsyncSession, synthetic_corpus: tuple
+) -> None:
+    frame, _ = synthetic_corpus
+    with pytest.raises(BatchNotLoadedError):
+        await rescore_frame(session, frame)
+
+
+async def test_rescore_replaces_trust_scores_without_touching_readings_or_defects(
+    session: AsyncSession, synthetic_corpus: tuple
+) -> None:
+    """The gap `rescore_frame` closes: a model trained after `db load` ran should be
+    reflected by rescoring, never by silently drifting or by reloading the drop."""
+    frame, _ = synthetic_corpus
+    load_report = await load_frame(session, frame, source="fixtures", path="tests/fixtures")
+    readings_before = await _count(session, m.Reading)
+    defects_before = await _count(session, m.Defect)
+    trust_before = (await session.scalars(select(m.TrustScore))).all()
+    keys_before = {(t.timestamp_utc, t.station_id) for t in trust_before}
+    values_before = {(t.timestamp_utc, t.station_id): t.trust for t in trust_before}
+
+    rescore_report = await rescore_frame(session, frame)
+
+    assert rescore_report.ingest_batch_id == load_report.ingest_batch_id
+    assert rescore_report.audit_run_id == load_report.audit_run_id
+    assert rescore_report.trust_scores_replaced == len(trust_before)
+    assert await _count(session, m.Reading) == readings_before
+    assert await _count(session, m.Defect) == defects_before
+    # Same run, same inputs, same models available either time: a full delete+
+    # reinsert lands back on the same (timestamp, station) rows with the same
+    # values - the replacement is verified by row count and content, not identity.
+    trust_after = (await session.scalars(select(m.TrustScore))).all()
+    assert {(t.timestamp_utc, t.station_id) for t in trust_after} == keys_before
+    assert {(t.timestamp_utc, t.station_id): t.trust for t in trust_after} == values_before
 
 
 async def test_a_second_batch_sharing_stations_or_parameters_does_not_collide(

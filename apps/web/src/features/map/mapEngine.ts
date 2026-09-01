@@ -42,6 +42,23 @@ export interface MapEngine {
   fitStations(stations: readonly { lat?: number | null; lon?: number | null }[]): void;
   /** Swap the whole style — used to bring in the fetched basemap and to re-theme. */
   applyStyle(style: string | StyleSpecification): void;
+  /**
+   * Force the GL canvas's pixel buffer and CSS box to match its container's
+   * current size, right now.
+   *
+   * MapLibre keeps its own internal `ResizeObserver` (`trackResize`, on by
+   * default) and would eventually catch a container resize on its own — but
+   * "eventually" is a ~50ms-debounced side channel racing React's own layout
+   * commit, and it deliberately skips its own first callback (treating it as
+   * the initial measurement rather than a real change). The marker overlay
+   * (`MapOverlays.tsx`) has zero such lag: it is plain CSS positioned from
+   * `project()`, which reads the map's *current* transform. A caller that
+   * knows the container just changed size (the resizable drawer's
+   * `ResizeObserver` in `useMapEngine.ts`) should call this synchronously with
+   * that knowledge, rather than trust MapLibre's own implicit side channel to
+   * resolve before the next paint.
+   */
+  resize(): void;
   destroy(): void;
 }
 
@@ -64,6 +81,20 @@ export function createMapEngine({
   initialStyle,
 }: CreateMapEngineOptions): MapEngine {
   ensurePmtilesProtocol();
+  // The very first fit jumps straight to the final view instead of easing to it.
+  // Confirmed live against production (real DEB-KER12 data, real network latency
+  // to the GCS-backed pmtiles archive): an eased fitBounds keeps the camera moving
+  // for ~300-600ms, and MapLibre cancels each batch of in-flight tile/pmtiles-
+  // directory-chunk requests as the camera supersedes them. The archive itself was
+  // verified to hold real tile content at every zoom for DEB-KER12's location (the
+  // network's easternmost station) via `pmtiles tile` - so a permanently blank
+  // patch under its marker is a cancelled request that never got retried once the
+  // camera settled, not missing data. Local dev never surfaces this: a same-origin
+  // pmtiles file resolves each range request fast enough that the churn never
+  // outlasts the animation. A later re-fit (the `stations` list changing after the
+  // engine already has a settled view) keeps the eased eye-candy - it is not the
+  // cold-load path this only starts moving from a neutral, tile-free world view.
+  let hasFitOnce = false;
   const map: MapLibreMap = new maplibregl.Map({
     container,
     style: initialStyle ?? resolveStyle(),
@@ -100,16 +131,21 @@ export function createMapEngine({
     fitStations(stations) {
       const bounds = boundsForStations(stations);
       if (!bounds) return;
+      const immediate = !hasFitOnce;
+      hasFitOnce = true;
       map.fitBounds(bounds, {
         padding: overlayPadding(container),
         maxZoom: 13,
-        duration: prefersReducedMotion() ? 0 : 600,
+        duration: immediate || prefersReducedMotion() ? 0 : 600,
       });
     },
     applyStyle(style) {
       // diff:true keeps the camera and only swaps the changed layers, so bringing
       // in the basemap or re-theming does not throw the view back to the start.
       map.setStyle(style, { diff: true });
+    },
+    resize() {
+      map.resize();
     },
     destroy() {
       map.remove();

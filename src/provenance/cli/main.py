@@ -295,6 +295,30 @@ def db_load(
     )
 
 
+@db_app.command("rescore")
+def db_rescore(
+    source: Path = typer.Option(_DATA_DEFAULT, "--source", help="Data drop to rescore."),
+) -> None:
+    """Recompute an already-loaded drop's trust scores against currently-cached models.
+
+    Readings and defects are untouched - only `TrustScore` rows are replaced. Use
+    this after a model finishes training for a drop that was loaded before the
+    model existed, so trust reflects it without reloading or retraining anything.
+    """
+    from provenance.io.db import migrate
+    from provenance.io.db.loader import BatchNotLoadedError
+
+    try:
+        report = migrate.rescore(source)
+    except BatchNotLoadedError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    console.print(
+        f"[green]Rescored[/green] {report.trust_scores_replaced:,} trust scores "
+        f"(run {report.audit_run_id})."
+    )
+
+
 # ---------------------------------------------------------------------- graph
 _ADJ_DEFAULT = REPO_ROOT / "reports" / "adjudications"
 

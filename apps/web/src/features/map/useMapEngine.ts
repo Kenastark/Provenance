@@ -161,12 +161,18 @@ export function useMapEngine(
     engine.applyStyle(showBasemap ? buildBasemapStyle(theme, undefined, showGlyphs) : resolveStyle());
   }, [engineGeneration, theme, basemapPresent, glyphsPresent]);
 
-  // Keep the fallback projection honest about the container it is drawing into.
+  // Keep the fallback projection honest about the container it is drawing into,
+  // and force the real engine's canvas to match it deterministically. Relying on
+  // MapLibre's own internal, debounced resize observer left a window where the
+  // canvas kept its stale pixel footprint while the marker overlay (pure CSS,
+  // zero lag) already reflected the container's new size - see `resize()`'s own
+  // doc comment in `mapEngine.ts` for the station this was first caught on.
   useEffect(() => {
     const node = nodeRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       setSize({ width: node.clientWidth, height: node.clientHeight });
+      engineRef.current?.resize();
     });
     observer.observe(node);
     return () => observer.disconnect();

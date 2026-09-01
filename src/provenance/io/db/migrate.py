@@ -18,7 +18,7 @@ from provenance.io.db.engine import create_all, drop_all, make_engine
 if TYPE_CHECKING:
     from alembic.config import Config
 
-    from provenance.io.db.loader import LoadReport
+    from provenance.io.db.loader import LoadReport, RescoreReport
 
 
 def _url(override: str | None) -> str:
@@ -90,6 +90,30 @@ def load(
         try:
             async with sm() as session:
                 return await load_path(session, Path(source), source=source_name)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def rescore(source: Path, *, url: str | None = None) -> RescoreReport:
+    """Recompute an already-loaded drop's trust scores against currently-cached models.
+
+    Never reloads readings or retrains anything (standing rule: a model retrains only
+    on explicit command or new data, never as a side effect of scoring). Raises
+    :class:`~provenance.io.db.loader.BatchNotLoadedError` if ``db load`` has not run
+    for this exact drop yet.
+    """
+    from provenance.io.db.engine import make_engine as _mk
+    from provenance.io.db.engine import make_sessionmaker
+    from provenance.io.db.loader import rescore_path
+
+    async def _run() -> RescoreReport:
+        engine = _mk(_url(url))
+        sm = make_sessionmaker(engine)
+        try:
+            async with sm() as session:
+                return await rescore_path(session, Path(source))
         finally:
             await engine.dispose()
 

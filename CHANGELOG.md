@@ -4,7 +4,46 @@ All notable changes to this project are recorded here.
 Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
+### Added
+- **`prov db rescore --source <path>`**, a new command that recomputes and
+  replaces an already-loaded drop's `TrustScore` rows against whatever model
+  artefacts exist right now, without reloading readings/defects or retraining
+  anything (ADR 0013). Closes the gap found while diagnosing why production kept
+  serving `ImputationCertainty` as a statistics-only placeholder (`T02`) despite a
+  real, checksum-matching imputation model existing on disk: `db load` computes
+  and permanently persists `TrustScore` exactly once, at load time, and nothing
+  previously re-derived it once training finished afterward. Raises
+  `BatchNotLoadedError` if the drop was never loaded - rescoring is a repair path,
+  not a load path.
+
 ### Fixed
+- **The Network map floated DEB-KER12 - the network's easternmost station - over
+  a blank patch with no basemap tiles, on every fresh load of the live site.**
+  Reproduced deterministically against production (not a flake: 3/3 runs) at a
+  realistic desktop viewport. Confirmed the archive itself was not at fault -
+  `pmtiles tile` returned real vector content (tens of KB) for DEB-KER12's exact
+  tile coordinates at every zoom level checked. The browser's own network log
+  showed several in-flight byte-range requests to the pmtiles archive aborted
+  (`net::ERR_ABORTED`) partway through the map's initial `fitBounds` ease
+  animation (600ms, panning from a neutral world view to the fitted network) -
+  MapLibre cancels superseded tile/pmtiles-directory-chunk requests as the camera
+  keeps moving, and whichever chunk DEB-KER12's tiles resolved through, being at
+  the fitted view's extreme edge, was consistently among the casualties. Fixed by
+  making only the *first* `fitStations` call an instant jump (`duration: 0`)
+  instead of an eased pan - eliminating the intermediate camera positions that
+  cause the cancel-then-never-retry race in the first place. Local dev never
+  surfaced this: a same-origin pmtiles file resolves each range request fast
+  enough that the churn never outlasts the animation regardless.
+- **Resizing the station-detail drawer could leave the map's GL canvas a stale
+  size relative to its container**, independently of the above - MapLibre's own
+  internal resize handling is a ~50ms-debounced side channel that also
+  deliberately skips its first callback, racing React's own layout commit. The
+  marker overlay (plain CSS, positioned from the map's live projection) has no
+  such lag, so a size mismatch could leave a marker projected past the canvas's
+  actually-painted edge. `MapEngine` now exposes an explicit `resize()`, called
+  synchronously from the same `ResizeObserver` that already tracked the
+  container for the no-WebGL fallback path, so the canvas is kept in sync by this
+  app's own code rather than an implicit library side effect.
 - **Update 27 follow-up: `make basemap` still failed on the Linux deploy
   runner, so the production map kept the token ground even after CI started
   running the fetch.** Verified live rather than assumed: after update 27
