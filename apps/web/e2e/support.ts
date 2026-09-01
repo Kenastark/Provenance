@@ -22,6 +22,29 @@ export async function apiStationCount(page: Page): Promise<number> {
   return body.items.filter((station) => station.lat !== null).length;
 }
 
+/**
+ * The station id sitting at the extreme east of the network - whichever corpus is
+ * loaded, real or synthetic. `boundsForStations` fits the map to every located
+ * station, so this one always lands at the fitted view's right edge, which is
+ * exactly the edge a resizable panel shrinks the map into. Deriving it from the
+ * API rather than naming a real station (`DEB-KER12`) keeps the test meaningful
+ * against the synthetic corpus this suite actually loads in CI.
+ */
+export async function easternmostStationId(page: Page): Promise<string> {
+  const response = await page.request.get(`${API_BASE_URL}/v1/stations?limit=500`, {
+    headers: { "X-API-Key": API_KEY },
+  });
+  expect(response.ok(), `The API must be serving data. Run: make demo-data`).toBeTruthy();
+  const body = (await response.json()) as {
+    items: { station_id: string; lat: number | null; lon: number | null }[];
+  };
+  const located = body.items.filter(
+    (s): s is { station_id: string; lat: number; lon: number } => s.lat !== null && s.lon !== null,
+  );
+  expect(located.length, "at least one located station is required").toBeGreaterThan(0);
+  return located.reduce((east, s) => (s.lon > east.lon ? s : east)).station_id;
+}
+
 /** Wait for the shell and the first data-bearing paint. */
 export async function gotoRoute(page: Page, path: string): Promise<void> {
   await page.goto(path);

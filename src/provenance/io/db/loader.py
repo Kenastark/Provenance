@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import func, insert, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from provenance.audit.orchestrator import run_audit
@@ -44,6 +44,24 @@ class LoadReport:
     readings_inserted: int
     defects_inserted: int
     trust_scores_inserted: int
+
+
+class BatchNotLoadedError(Exception):
+    """Raised by :func:`rescore_frame` when the drop it names has never been loaded.
+
+    Rescoring recomputes trust for an *existing* ingest batch; it is not a load path
+    (readings and defects are untouched). A drop with no matching batch has nothing
+    to rescore — the caller wants ``db load`` first, not this.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class RescoreReport:
+    """What one rescore did: which run's trust scores were replaced, and how many."""
+
+    ingest_batch_id: str
+    audit_run_id: str
+    trust_scores_replaced: int
 
 
 async def load_frame(
@@ -131,6 +149,63 @@ async def load_path(
         station_meta=station_meta,
         exposure=exposure,
     )
+
+
+async def rescore_frame(
+    session: AsyncSession,
+    frame: pd.DataFrame,
+    *,
+    station_meta: dict[str, StationLocation] | None = None,
+    exposure: ExposureLayer | None = None,
+) -> RescoreReport:
+    """Recompute and replace an already-loaded drop's trust scores. Never reloads data.
+
+    Trust scoring depends on which model artefacts are available at the moment it
+    runs (``ImputationLookup`` degrades to the statistics-layer placeholder when a
+    parameter has none, standing rule 6) - and that moment is normally "whenever
+    ``db load`` first ran," permanently, since nothing else ever recomputes it. If a
+    model finishes training *after* a drop was loaded (training and loading are two
+    separate steps, commonly two separate deploy/job runs), the stored trust scores
+    stay pinned to whatever was available at load time even once better models exist.
+
+    This is the explicit, deliberate command for that gap: same frame, same
+    ``audit_run_id`` (data checksum and config hash are unchanged, so nothing else
+    about the run's identity moves), only the ``TrustScore`` rows are deleted and
+    reinserted - readings, defects, coverage facts and events are untouched. It
+    never trains anything itself; it only asks "given the models on disk right now,
+    what would trust look like." Raises :class:`BatchNotLoadedError` if the batch
+    was never loaded — rescoring an unloaded drop is a `db load` away, not this.
+    """
+    obs = observe(frame)
+    checksum = obs.checksum
+    batch_id = f"ib_{checksum}"
+
+    existing = await session.get(m.IngestBatch, batch_id)
+    if existing is None:
+        raise BatchNotLoadedError(
+            f"No ingest batch {batch_id!r} exists yet — run `db load` before rescoring."
+        )
+
+    run_id = _run_id(frame)
+    coverage = build_coverage(frame)
+    await session.execute(delete(m.TrustScore).where(m.TrustScore.audit_run_id == run_id))
+    trust_inserted = _insert_trust_scores(
+        session, frame, coverage, run_id, exposure=exposure, station_meta=station_meta or {}
+    )
+    await session.commit()
+    return RescoreReport(
+        ingest_batch_id=batch_id, audit_run_id=run_id, trust_scores_replaced=trust_inserted
+    )
+
+
+async def rescore_path(session: AsyncSession, data_dir: Path) -> RescoreReport:
+    """Recompute an already-loaded drop's trust scores from whatever lives under ``data_dir``."""
+    from provenance.io import loaders
+
+    frame = loaders.load_data(data_dir)
+    station_meta = loaders.load_station_metadata(data_dir)
+    exposure = exposure_for_drop(data_dir, station_meta)
+    return await rescore_frame(session, frame, station_meta=station_meta, exposure=exposure)
 
 
 def exposure_for_drop(

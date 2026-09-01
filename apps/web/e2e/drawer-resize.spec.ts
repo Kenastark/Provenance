@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { gotoRoute, waitForMapIdle } from "./support";
+import { easternmostStationId, gotoRoute, waitForMapIdle } from "./support";
 
 /**
  * The station detail drawer's resize handle.
@@ -94,6 +94,45 @@ test("double-clicking the handle resets the panel to the token default width", a
   expect(reset.width).toBeLessThan(widened.width);
   expect(Math.abs(reset.width - defaultWidth)).toBeLessThan(5);
   expect(await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)).toBeNull();
+});
+
+test("resizing the drawer keeps the GL canvas in sync with its container, so the network's easternmost station stays over painted tiles", async ({
+  page,
+}) => {
+  // Regression test (real-drop symptom: DEB-KER12 floating in a blank grey box).
+  // MapLibre's own internal resize observer is debounced and raced React's
+  // layout commit, leaving the canvas at a stale pixel size while the marker
+  // overlay (plain CSS, zero lag) already reflected the container's new box.
+  // Whichever station sits at the extreme east of the loaded corpus lands at the
+  // fitted view's right edge - the one marker a canvas/container size mismatch
+  // pushes past the last painted pixel. Derived from the API, not hardcoded to
+  // the real station id, so this holds against the synthetic corpus CI loads.
+  const eastId = await easternmostStationId(page);
+  await openStationDetail(page);
+  const mapSection = page.locator('[aria-label="Network map"]');
+  const canvas = page.locator('[data-testid="map-canvas"] canvas');
+  const handle = page.getByTestId("drawer-resize-handle");
+
+  await dragHandleBy(page, handle, -150);
+  await waitForMapIdle(page);
+
+  const containerBox = await mapSection.boundingBox();
+  const canvasBox = await canvas.boundingBox();
+  if (!containerBox || !canvasBox) throw new Error("missing layout box");
+
+  // The canvas's own rendered box must track its container's, not lag behind it.
+  expect(Math.abs(canvasBox.width - containerBox.width)).toBeLessThan(2);
+  expect(Math.abs(canvasBox.height - containerBox.height)).toBeLessThan(2);
+
+  const eastMarker = page.locator(`[data-testid="station-marker"][data-station="${eastId}"]`);
+  await expect(eastMarker).toBeVisible();
+  const markerBox = await eastMarker.boundingBox();
+  if (!markerBox) throw new Error(`${eastId} marker has no layout box`);
+
+  // The marker must sit within the canvas's actually-painted area, not past its
+  // right edge in the container's bare background.
+  expect(markerBox.x).toBeGreaterThanOrEqual(canvasBox.x);
+  expect(markerBox.x + markerBox.width).toBeLessThanOrEqual(canvasBox.x + canvasBox.width + 1);
 });
 
 test("the handle is a keyboard-operable separator: arrow keys resize, and it carries an accessible name", async ({

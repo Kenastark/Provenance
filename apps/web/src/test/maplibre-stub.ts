@@ -32,6 +32,9 @@ class StubMap {
   setStyle() {
     return this;
   }
+  resize() {
+    return this;
+  }
   remove() {
     return this;
   }
