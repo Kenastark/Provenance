@@ -5,6 +5,26 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Fixed
+- **Update 27 follow-up: `make basemap` still failed on the Linux deploy
+  runner, so the production map kept the token ground even after CI started
+  running the fetch.** Verified live rather than assumed: after update 27
+  deployed, `www.provenancel2.com/basemap/debrecen.pmtiles` came back 200 with
+  `content-type: text/html` — the SPA's own `index.html` fallback, meaning the
+  file was never actually uploaded (confirmed 404 straight from the GCS
+  bucket). The deploy log showed why: `scripts/fetch-basemap.sh` built the
+  `go-pmtiles` CLI download URL with Darwin's asset-naming convention
+  (`go-pmtiles-1.31.2_Linux_x86_64.zip`) on every platform, but the upstream
+  release only publishes Linux binaries as
+  `go-pmtiles_1.31.2_Linux_x86_64.tar.gz` (underscore before the version,
+  `.tar.gz`, checked directly against the release's asset list) — a 404, the
+  non-fatal fallback did its job exactly as designed, and the deploy stayed
+  green while quietly never fetching real streets. Fonts were unaffected
+  (that fetch has no per-OS CLI download) and are confirmed live in
+  production. Fixed by branching the CLI download on `${os}` to match each
+  platform's actual asset name and archive format; verified end-to-end in an
+  `ubuntu:24.04` container (the same base the GitHub-hosted runner is close
+  to) that the corrected URL now downloads, unpacks, and extracts a genuine
+  `debrecen.pmtiles`.
 - **The production dashboard's map showed the token-coloured ground instead of
   real Debrecen streets.** `apps/web/public/basemap/` and `apps/web/public/fonts/`
   are gitignored by design (ADR 0006, ADR 0011) and only ever fetched locally
