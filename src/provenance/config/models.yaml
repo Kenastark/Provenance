@@ -19,7 +19,14 @@ deweather:
   # common defect parameter in the confirmed export (schema_assumptions.yaml
   # `known_parameters`), and like CO/NO2/O3 its local concentration is driven by
   # dispersion conditions (boundary layer, wind), so it belongs in the same set.
-  pollutants: [PM10, NO2, O3, CO, CO2]
+  # PM2.5 added the same way (update 33): a confirmed `known_parameters` entry,
+  # dispersion-driven exactly like PM10 (its own strict physical subset, per
+  # thresholds.yaml's R09), and the pollutant behind nearly all of the real
+  # drop's R07-R09 physical-impossibility flags at DEB-KER04/06 — evidence the
+  # architecture treats as weather-explainable (explain/service.py's
+  # `_METADATA_ONLY_CODES` comment), yet it was never in this list, so those
+  # flags could only ever fall back to the rule sentence in the Evidence tab.
+  pollutants: [PM10, NO2, O3, CO, CO2, PM2.5]
   n_splits: 4                 # forward-chaining time-blocked folds
   # The R² sanity band (§ test gate). Below the floor, weather is not being captured
   # and the residual is just the raw value; above the ceiling, no unexplained signal
