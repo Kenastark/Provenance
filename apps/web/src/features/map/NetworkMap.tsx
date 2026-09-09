@@ -114,7 +114,10 @@ export function NetworkMap() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col lg:flex-row">
+    // `relative` is the containing block for the station sheet, which overlays the
+    // map below `lg` rather than stacking under it. It has no offsets of its own,
+    // so the `lg` layout is unchanged.
+    <div className="relative flex h-full min-h-0 flex-1 flex-col lg:flex-row">
       <MapSurface
         markers={markers}
         withoutCoordinates={withoutCoordinates}

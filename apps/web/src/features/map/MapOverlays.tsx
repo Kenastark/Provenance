@@ -312,7 +312,7 @@ export function WindOverlay({ wind }: { wind: WindVector | null }) {
   if (!wind) {
     return (
       <div
-        className="prov-panel absolute right-7 top-3 p-3 text-caption text-text-tertiary shadow-overlay"
+        className="prov-panel absolute right-7 top-3 max-w-[44vw] p-2 text-caption text-text-tertiary shadow-overlay lg:max-w-none lg:p-3"
         data-map-overlay=""
       data-testid="wind-overlay-empty"
       >
@@ -328,7 +328,7 @@ export function WindOverlay({ wind }: { wind: WindVector | null }) {
   return (
     <div
       // right-7 clears MapLibre's own zoom control, which sits in the same corner.
-      className="prov-panel absolute right-7 top-3 flex items-center gap-3 p-3 shadow-overlay"
+      className="prov-panel absolute right-7 top-3 flex max-w-[44vw] items-center gap-2 p-2 shadow-overlay lg:max-w-none lg:gap-3 lg:p-3"
       data-map-overlay=""
       data-testid="wind-overlay"
       data-direction={Math.round(wind.directionDegrees)}
@@ -381,7 +381,7 @@ export function MapLegend({
       // bottom-7, not bottom-3: the Positions section makes this panel tall enough
       // to reach the MapLibre attribution control (bottom-right, ~34px tall), and
       // bottom-3 let the two overlap.
-      className="prov-panel absolute bottom-7 right-3 p-3 text-caption shadow-overlay"
+      className="prov-panel absolute bottom-7 right-3 max-w-[62vw] p-2 text-caption shadow-overlay lg:max-w-none lg:p-3"
       data-map-overlay=""
       data-testid="map-legend"
     >
@@ -426,7 +426,11 @@ export interface LayerTogglesProps {
 export function LayerToggles({ layers, enabled, onToggle }: LayerTogglesProps) {
   return (
     <fieldset
-      className="prov-panel absolute left-3 top-3 p-3 text-caption shadow-overlay"
+      // The width cap is what stops this and the wind readout meeting in the
+      // middle of a 390px map: 40vw + 44vw + both offsets still leaves a gutter.
+      // Every toggle stays on screen and operable - the panel gets tighter, not
+      // shorter, because a layer you cannot see is a layer you cannot turn on.
+      className="prov-panel absolute left-3 top-3 max-w-[40vw] p-2 text-caption shadow-overlay lg:max-w-none lg:p-3"
       data-map-overlay=""
       data-testid="layer-toggles"
     >

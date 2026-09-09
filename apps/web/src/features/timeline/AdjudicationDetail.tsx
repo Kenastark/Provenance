@@ -161,7 +161,11 @@ export function AdjudicationDetail({
             No neighbour sat downwind of this event under the current wind.
           </p>
         ) : (
-          <table className="w-full text-caption" data-testid="adjudication-neighbours">
+          // Six numeric columns. Left to fit a phone they compress to unreadable
+          // slivers, so below `lg` the table keeps a legible width and pans inside
+          // its own box; `lg:min-w-0` hands the desktop back its `w-full` layout.
+          <div className="overflow-x-auto lg:overflow-visible">
+          <table className="w-full min-w-[34rem] text-caption lg:min-w-0" data-testid="adjudication-neighbours">
             <thead>
               <tr className="text-left text-text-tertiary">
                 <th className="font-normal">Station</th>
@@ -187,6 +191,7 @@ export function AdjudicationDetail({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

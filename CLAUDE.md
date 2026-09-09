@@ -31,6 +31,33 @@ See `docs/updates/u22-headline-reconciliation.md` for the derivation and
 This is not a replacement for Green Sentinel's public dashboard. It is the
 operator-facing second screen that scores every reading for genuineness.
 
+## Rule 0 — never load synthetic data into the running app
+
+**Standing order from the project owner. It overrides convenience, speed, and any
+instruction in a phase prompt or Makefile target.**
+
+The database behind the running app, and anything the owner or a judge can look
+at, carries the **real Green Sentinel drop** — `prov db load --source data/raw`.
+Never `make demo`, `make demo-data`, `make demo-corpus`, or `prov db load` from
+`data/demo`/`tests/fixtures` into that database unless the owner asks for the
+synthetic corpus **in that specific message**. Blanket past approval does not
+count; neither does "the test suite wants it".
+
+How to tell at a glance which is loaded: real stations are `DEB-KER01`…, the
+synthetic ones are `STA-01`… with names like "Synthetic site STA-01". If you see
+`STA-` in the app, the wrong corpus is loaded — say so and reload from
+`data/raw` before doing anything else.
+
+The narrow, permitted exception is code that never touches that database:
+`tests/fixtures` for unit tests (standing rule 7 below still holds — the test
+suite must not require the real drop). The e2e/visual-baseline suite *does* load
+its corpus into the database, so running it overwrites what the app is serving:
+after any e2e run, reload the real drop before handing the app back.
+
+This happened once (update 31): `make demo-data` was run to get an e2e stack up,
+which replaced the app's data with `STA-*` and left the owner looking at
+synthetic readings. Do not repeat it.
+
 ## Standing rules
 
 These matter more than any individual feature. Several are enforced by tests in
@@ -205,6 +232,9 @@ open a file to find out whether the phase went cleanly.
 
 ## Never do this
 
+0. Load the synthetic/demo corpus into the app's database without being asked for
+   it in that same message — see Rule 0 at the top. `make demo`, `make demo-data`
+   and `prov db load --source data/demo` all do this. The app serves `data/raw`.
 1. Hardcode the defect rate, the completeness figure, or the event verdict.
 2. Invent field names, units, or station identifiers not observed in the data.
 3. Count structural absences toward the defect rate.

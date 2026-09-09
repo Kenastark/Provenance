@@ -80,7 +80,17 @@ export function TrustBreakdown({ components, className }: TrustBreakdownProps) {
   }
 
   return (
-    <table className={["prov-table", className ?? ""].join(" ")} data-testid="trust-breakdown">
+    // Four unconstrained columns. The --prov-drawer-width token is sized so this
+    // table fits the desktop rail (see its comment); the mobile sheet is narrower
+    // than that floor by design, so here the table scrolls sideways inside its own
+    // box rather than pushing the sheet - and the page - out past the viewport.
+    //
+    // Released at `lg`. `overflow-x: auto` also forces `overflow-y` to `auto`,
+    // which opens a scroll container and reserves a scrollbar's worth of height -
+    // enough to shift everything below this table down the rail, which is exactly
+    // what the desktop visual baseline caught. Above `lg` this is a plain block box.
+    <div className="overflow-x-auto lg:overflow-visible">
+      <table className={["prov-table", className ?? ""].join(" ")} data-testid="trust-breakdown">
       <caption className="sr-only">Trust score component breakdown</caption>
       <thead>
         <tr>
@@ -142,6 +152,7 @@ export function TrustBreakdown({ components, className }: TrustBreakdownProps) {
           </tr>
         ))}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }

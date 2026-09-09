@@ -87,10 +87,21 @@ export function StationDetailPanel({
 
   return (
     <aside
-      // Stacked and full width on a narrow screen; a fixed, resizable rail beside
-      // the content from `lg` up. `min-w-0` so a long station name cannot widen
-      // the page.
-      className="flex w-full min-w-0 shrink-0 flex-col border-t border-border bg-bg-raised lg:max-w-[var(--prov-drawer-width)] lg:flex-row lg:border-l lg:border-t-0"
+      // A bottom sheet over the map on a narrow screen; a fixed, resizable rail
+      // beside the content from `lg` up. `min-w-0` so a long station name cannot
+      // widen the page.
+      //
+      // The sheet overlays rather than stacks. Stacked in the same flex column,
+      // opening a station squeezed the map into a sliver - the map and its detail
+      // were dividing one screen's height between them, so the thing you tapped
+      // scrolled out of sight to show you what you tapped. Capping the sheet at
+      // 70% keeps the selected marker's surroundings on screen behind it.
+      className={[
+        "absolute inset-x-0 bottom-0 z-drawer flex max-h-[70%] w-full min-w-0 shrink-0 flex-col",
+        "overflow-hidden rounded-t-lg border-t border-border bg-bg-raised shadow-overlay",
+        "lg:static lg:z-auto lg:max-h-none lg:max-w-[var(--prov-drawer-width)] lg:flex-row",
+        "lg:overflow-visible lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none",
+      ].join(" ")}
       style={style}
       aria-label={`Station detail for ${stationId}`}
       data-testid="station-detail-panel"
@@ -174,7 +185,13 @@ function StationDetailBody({
 
   return (
     <div className="flex flex-col gap-5 p-4">
-      <header className="flex items-start gap-3">
+      {/* Sticky only as a sheet: the sheet scrolls internally, and a Close button
+          that scrolls away leaves a tap-to-dismiss control the operator has to
+          scroll back up to find. The negative margins let the sticky bar span the
+          container's own padding instead of leaving content visible either side of
+          it; every one of them is released at `lg`, where the header is an ordinary
+          block in a rail that does not scroll under it. */}
+      <header className="sticky top-0 z-10 -mx-4 -mt-4 flex items-start gap-3 bg-bg-raised px-4 pb-2 pt-4 lg:static lg:mx-0 lg:mt-0 lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0">
         <div className="min-w-0 flex-1">
           <h2 className="text-heading">{stationId}</h2>
           {station?.name && <p className="text-caption text-text-secondary">{station.name}</p>}

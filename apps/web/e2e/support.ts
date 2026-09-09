@@ -48,8 +48,28 @@ export async function easternmostStationId(page: Page): Promise<string> {
 /** Wait for the shell and the first data-bearing paint. */
 export async function gotoRoute(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await expect(page.getByRole("navigation", { name: /primary/i })).toBeVisible();
+  // The lockup rather than the nav: below `xl` the nav is behind the menu button,
+  // so waiting on it would hang on a phone viewport. The lockup is the one piece
+  // of chrome that is visible at every width, which is what "the shell is up"
+  // actually means here.
+  await expect(page.getByTestId("lockup")).toBeVisible();
   if (path === "/") await waitForMapIdle(page);
+}
+
+/**
+ * Open the collapsed chrome, on the viewports that collapse it.
+ *
+ * Below `xl` the nav, the window picker, the theme switch and the account menu are
+ * all behind one menu button, so any helper reaching for those has to come through
+ * here first. On a desktop viewport the toggle is `display: none`, `isVisible()` is
+ * false, and this returns without touching anything.
+ */
+export async function openChromeIfCollapsed(page: Page): Promise<void> {
+  const toggle = page.getByTestId("topbar-menu-toggle");
+  if (!(await toggle.isVisible())) return;
+  if ((await toggle.getAttribute("aria-expanded")) === "true") return;
+  await toggle.click();
+  await expect(page.getByRole("navigation", { name: /primary/i })).toBeVisible();
 }
 
 /**
@@ -68,6 +88,7 @@ export async function waitForMapIdle(page: Page): Promise<void> {
 }
 
 export async function setTheme(page: Page, theme: "dark" | "light"): Promise<void> {
+  await openChromeIfCollapsed(page);
   await page.getByTestId("theme-switch").selectOption(theme);
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
 }
@@ -81,6 +102,7 @@ export type Role = "public_read" | "researcher" | "operator" | "admin";
  * survives the `page.goto` that follows within the same test.
  */
 export async function setRole(page: Page, role: Role): Promise<void> {
+  await openChromeIfCollapsed(page);
   const menu = page.getByTestId("account-menu");
   const isOpen = await menu.evaluate((node) => (node.closest("details") as HTMLDetailsElement)?.open);
   if (!isOpen) await menu.click();
