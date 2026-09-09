@@ -53,6 +53,42 @@ def test_models_train_demo_branch(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
         get_settings.cache_clear()
 
 
+def test_models_train_skip_if_cached_reuses_matching_artefacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Mirrors the HST-GAT/imputation skip-if-cached tests below: `make demo-real`
+    passes `--skip-if-cached` to `prov models train` too now, so a valid cached
+    deweather AND fault artefact for the exact data drop is reused rather than
+    retrained, and the default (no flag) always retrains both."""
+    art = _env(monkeypatch, tmp_path)
+    args = ["models", "train", "--source", "tests/fixtures"]
+    try:
+        first = runner.invoke(app, args)
+        assert first.exit_code == 0, first.output
+        assert "Deweather" in first.output and "Fault" in first.output
+        dw_artefacts = sorted(art.glob("deweather-*.joblib"))
+        fc_artefacts = sorted(art.glob("fault-*.joblib"))
+        assert len(dw_artefacts) == 1 and len(fc_artefacts) == 1
+        dw_trained_at = dw_artefacts[0].stat().st_mtime
+        fc_trained_at = fc_artefacts[0].stat().st_mtime
+
+        second = runner.invoke(app, [*args, "--skip-if-cached"])
+        assert second.exit_code == 0, second.output
+        assert "Deweather already cached" in second.output
+        assert "Fault already cached" in second.output
+        dw_after = sorted(art.glob("deweather-*.joblib"))
+        fc_after = sorted(art.glob("fault-*.joblib"))
+        assert len(dw_after) == 1 and dw_after[0].stat().st_mtime == dw_trained_at
+        assert len(fc_after) == 1 and fc_after[0].stat().st_mtime == fc_trained_at
+
+        third = runner.invoke(app, args)  # default: no --skip-if-cached
+        assert third.exit_code == 0, third.output
+        assert "Deweather already cached" not in third.output
+        assert "Fault already cached" not in third.output
+    finally:
+        get_settings.cache_clear()
+
+
 def test_models_train_hstgat_skip_if_cached_reuses_matching_artefact(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

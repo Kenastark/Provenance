@@ -5,6 +5,13 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **`prov models train --skip-if-cached`** (update 32). The deweather regressors
+  and fault classifier now reuse an already-trained, card-verified artefact for
+  an unchanged data drop instead of always retraining, the same mechanism
+  `train-hstgat`/`train-imputation` already had. `make demo-real` now passes the
+  flag, so a re-run against the same real drop no longer pays deweather/fault
+  training cost twice; a new `make demo-real-models` forces a fresh retrain when
+  one is actually wanted. See `docs/updates/u32-cache-deweather-fault-models.md`.
 - **A mobile layout for the whole dashboard, at full functional parity** (update
   31). Every screen, control and destination stays reachable at 390px; nothing is
   hidden or cut down for small screens. The operator chrome (seven nav links, the

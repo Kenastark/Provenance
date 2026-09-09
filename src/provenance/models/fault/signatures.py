@@ -62,11 +62,17 @@ _GAIN_FACTOR = 100.0  # a decimal-point / scaling fault: pushes the value past i
 _DROPOUT_HOURS = 10  # > comm_gap min (6h), so R02 fires.
 _DRIFT_HOURS = 60  # a slow ramp long enough to show a sustained residual trend.
 
+DEFAULT_SEED = 20260907
+"""Shared with `fault.classify.train_fault_classifier`'s own default so a cache
+pre-check (`prov models train --skip-if-cached`) can reproduce the exact labeled
+frame - and therefore the exact checksum - a real training run would produce,
+without duplicating the literal in two places."""
+
 
 def build_labeled_corpus(
     clean_frame: pd.DataFrame,
     *,
-    seed: int = 20260907,
+    seed: int = DEFAULT_SEED,
 ) -> LabeledCorpus:
     """Inject the four fault signatures into ``clean_frame`` and return the ground truth.
 

@@ -293,7 +293,7 @@ check-real-drop: ## fail loudly if data/raw has no real drop to load (no silent 
 	fi
 
 .PHONY: demo-real
-demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, models trained (incl. HST-GAT, cached across re-runs), API up, dashboard open
+demo-real: check-real-drop ## one command against the REAL Green Sentinel drop in data/raw: stack up, DB loaded, audited, adjudicated, all models trained (HST-GAT, imputation, deweather, fault - each cached across re-runs), API up, dashboard open
 	$(MAKE) up
 	@# station_id and parameter name are global primary keys shared by every batch
 	@# ever loaded (synthetic demo stations use the same STA-xx ids and the same
@@ -328,7 +328,13 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	$(VENV)/bin/prov audit run --data data/raw --out reports
 	$(VENV)/bin/prov graph adjudicate-db --source data/raw
 	$(VENV)/bin/prov graph adjudicate --data data/raw --out reports/adjudications
-	$(VENV)/bin/prov models train --source data/raw
+	@# Deweather + fault: same cheap checksum-cache mechanism as the pre-flight above
+	@# (`prov models train --skip-if-cached`, cli/main.py), just run after `db load`/
+	@# `audit run` rather than before - unlike imputation, nothing in
+	@# `_insert_trust_scores` reads these two, so there is no ordering reason to move
+	@# them earlier. `residuals` is not model training - it writes rows tied to
+	@# *this* audit run (`latest_audit_run`), so it always runs, cached models or not.
+	$(VENV)/bin/prov models train --source data/raw --skip-if-cached
 	$(VENV)/bin/prov models residuals --source data/raw
 	$(MAKE) api-bg
 	cd apps/web && pnpm install --no-frozen-lockfile
@@ -345,6 +351,7 @@ demo-real: check-real-drop ## one command against the REAL Green Sentinel drop i
 	@echo "  The Attention overlay map layer is already live for this drop above."
 	@echo "  Force a fresh HST-GAT: make demo-real-hstgat"
 	@echo "  Force fresh imputation models: make demo-real-imputation"
+	@echo "  Force fresh deweather/fault models: make demo-real-models"
 	@echo ""
 	$(MAKE) web
 
@@ -376,6 +383,18 @@ demo-real-imputation: check-real-drop ## force-retrain the imputation models + c
 	@echo "  Parameter count and conformal coverage per parameter are reported above."
 	@echo "  The trust score's ImputationUncertainty term picks these up on the next"
 	@echo "  'prov db load' (it is precomputed at load time, not served live)."
+	@echo ""
+
+# Same discipline again, for the deweather + fault pair: demo-real already
+# auto-trains-or-skips these; this target is only for a deliberate retrain
+# (model-code change, or refreshing the CV metrics on the cards).
+.PHONY: demo-real-models
+demo-real-models: check-real-drop ## force-retrain the deweather + fault models on the REAL drop (demo-real already auto-trains this if missing/skips it if cached; use this only to force a fresh retrain)
+	$(VENV)/bin/prov models train --source data/raw
+	@echo ""
+	@echo "  Deweather + fault models trained on the real Green Sentinel drop (data/raw)."
+	@echo "  Run 'make demo-real' again (or 'prov models residuals --source data/raw')"
+	@echo "  to pick these up in the running app's evidence panel."
 	@echo ""
 
 .PHONY: demo-scenarios
