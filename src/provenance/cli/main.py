@@ -498,6 +498,17 @@ def models_train(
     ),
     stations: int = typer.Option(6, "--stations", min=4, help="Demo corpus station count."),
     days: int = typer.Option(30, "--days", help="Demo corpus days of hourly data."),
+    skip_if_cached: bool = typer.Option(
+        False,
+        "--skip-if-cached/--no-skip-if-cached",
+        help=(
+            "Reuse an already-trained, card-verified artefact for this exact data drop "
+            "(by content checksum) instead of retraining - deweather and fault are checked "
+            "independently, so either can be reused while the other retrains. `make "
+            "demo-real` uses this so re-running it doesn't pay the training cost again for "
+            "the same drop; run without the flag to always retrain."
+        ),
+    ),
 ) -> None:
     """Train the deweather and fault models and save their artefacts and cards.
 
@@ -507,7 +518,12 @@ def models_train(
     from provenance.fixtures.weather import generate_weather_corpus
     from provenance.models import registry
     from provenance.models.deweather import train_deweather
+    from provenance.models.deweather.model import DeweatherModel
     from provenance.models.fault import train_fault_classifier
+    from provenance.models.fault.classify import FaultClassifier
+    from provenance.models.fault.signatures import DEFAULT_SEED, build_labeled_corpus
+    from provenance.models.registry import ModelCardMissingError
+    from provenance.schema.observe import observe
 
     if not demo and source is None:
         console.print("[red]--no-demo requires --source pointing at a real data drop.[/red]")
@@ -523,21 +539,64 @@ def models_train(
         frame, weather = generate_weather_corpus(n_stations=stations, n_days=days)
         console.print(f"Training on the seeded demo corpus ({stations} stations, {days} days).")
 
-    dw = train_deweather(frame, weather=weather)
-    console.print(
-        f"[green]Deweather[/green] {dw.version}: "
-        + ", ".join(f"{p} R²={dw.metrics[p].cv_r2_mean:.2f}" for p in dw.pollutants)
-    )
-    fc = train_fault_classifier(frame, dw, weather=weather)
-    console.print(
-        f"[green]Fault[/green] {fc.version}: recall "
-        + ", ".join(f"{k}={v:.2f}" for k, v in sorted(fc.signature_recall.items()))
-        + f" | meteo precision {fc.meteo_precision:.2f}"
-    )
-    dw_paths = registry.save_model(dw)
-    fc_paths = registry.save_model(fc)
-    console.print(f"[green]Saved[/green] {dw_paths['model'].name}, card {dw_paths['doc']}")
-    console.print(f"[green]Saved[/green] {fc_paths['model'].name}, card {fc_paths['doc']}")
+    dw: DeweatherModel | None = None
+    if skip_if_cached:
+        # Same stem format as `DeweatherModel.version` (deweather/model.py) - built here
+        # rather than from an instance, since there is no trained model yet.
+        dw_checksum = observe(frame).checksum
+        dw_stem = f"deweather-v1-{dw_checksum[:8]}"
+        try:
+            cached = registry.load_artefact(dw_stem)
+        except ModelCardMissingError:
+            pass  # No valid cached artefact for this exact drop; train below.
+        else:
+            assert isinstance(cached, DeweatherModel)
+            dw = cached
+            console.print(
+                f"[green]Deweather already cached[/green] for this data drop ({dw_stem}); "
+                "skipping training. Run with --no-skip-if-cached to force a retrain."
+            )
+
+    if dw is None:
+        dw = train_deweather(frame, weather=weather)
+        console.print(
+            f"[green]Deweather[/green] {dw.version}: "
+            + ", ".join(f"{p} R²={dw.metrics[p].cv_r2_mean:.2f}" for p in dw.pollutants)
+        )
+        dw_paths = registry.save_model(dw)
+        console.print(f"[green]Saved[/green] {dw_paths['model'].name}, card {dw_paths['doc']}")
+
+    fc: FaultClassifier | None = None
+    if skip_if_cached:
+        # The fault classifier's checksum is of the *labeled* frame (clean data plus
+        # deterministically-injected synthetic signatures, §5.5), not the raw frame - so
+        # the pre-check has to build that same labeled frame first. Cheap (pandas/numpy
+        # row injection under a fixed seed, no model fit) relative to the LightGBM CV +
+        # fit this check exists to skip.
+        fc_checksum = observe(build_labeled_corpus(frame, seed=DEFAULT_SEED).frame).checksum
+        fc_stem = f"fault-v1-{fc_checksum[:8]}"
+        try:
+            cached_fc = registry.load_artefact(fc_stem)
+        except ModelCardMissingError:
+            pass  # No valid cached artefact for this exact drop; train below.
+        else:
+            assert isinstance(cached_fc, FaultClassifier)
+            fc = cached_fc
+            console.print(
+                f"[green]Fault already cached[/green] for this data drop ({fc_stem}); "
+                "skipping training. Run with --no-skip-if-cached to force a retrain."
+            )
+
+    if fc is None:
+        fc = train_fault_classifier(frame, dw, weather=weather)
+        console.print(
+            f"[green]Fault[/green] {fc.version}: recall "
+            + ", ".join(f"{k}={v:.2f}" for k, v in sorted(fc.signature_recall.items()))
+            + f" | meteo precision {fc.meteo_precision:.2f}"
+        )
+        fc_paths = registry.save_model(fc)
+        console.print(f"[green]Saved[/green] {fc_paths['model'].name}, card {fc_paths['doc']}")
+
     console.print(
         "[dim]No headline accuracy is reported for the classifier (standing rule 4).[/dim]"
     )

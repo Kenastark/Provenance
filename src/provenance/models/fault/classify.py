@@ -35,7 +35,7 @@ from provenance.models.fault.labels import (
     FaultClass,
     rule_class_for,
 )
-from provenance.models.fault.signatures import Injection, build_labeled_corpus
+from provenance.models.fault.signatures import DEFAULT_SEED, Injection, build_labeled_corpus
 from provenance.schema import canonical as C
 
 FAULT_CLASS = "fault_class"
@@ -290,7 +290,7 @@ def train_fault_classifier(
     *,
     weather: pd.DataFrame | None = None,
     cfg: dict[str, Any] | None = None,
-    seed: int = 20260907,
+    seed: int = DEFAULT_SEED,
 ) -> FaultClassifier:
     """Train the subtle-case model on synthetic signatures and report its evaluation."""
     cfg = cfg or load_models_config()
