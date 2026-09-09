@@ -115,6 +115,25 @@ New e2e coverage, all at 390px:
 | every control is a real touch target | Nav links and the menu button measure ≥44px — asserting the token block reached them, not that a component hardcoded a height |
 | station detail overlays the map | The map keeps its height when a station opens, and the sheet's top edge sits inside the map's box |
 | the sign-in screen fits | The screen the other specs never loaded, because they all start signed in |
+| every tab actually navigates | Clicks each tab and checks the URL moved, plus that the element at the link's own centre point *is* the link |
+| tapping outside dismisses | Raising the panel above the backdrop must not disable dismissal |
+
+## The collapsed menu shipped broken once — how, and what caught it
+
+The first version of the dropdown put the tap-outside backdrop **inside** the
+header at `z-drawer`, and left the panel itself at `z-auto`. Both share the
+header's stacking context, so a positioned `z-40` element paints above a
+positioned `auto` one: the backdrop covered the open menu. Every link was
+present, visible and correctly labelled — and every tap on one hit the backdrop,
+so the menu closed and nothing navigated.
+
+The four new e2e tests all passed against that build, because
+`expect(link).toBeVisible()` says nothing about whether the link can be
+*clicked*. Visibility is not hit-testability. The panel and the toggle button are
+both explicitly raised above the backdrop now, and
+`every tab in the collapsed menu actually navigates` clicks each tab for real and
+additionally asserts `document.elementFromPoint` at the link's centre resolves to
+the link — the assertion that would have failed on the broken build.
 
 `support.ts` gained `openChromeIfCollapsed`, and `gotoRoute` now waits on the
 lockup rather than the nav — the nav is behind a button at phone widths, so the
@@ -137,14 +156,25 @@ both:
 - `demo-path.spec.ts` → `the defect table renders with its evidence`, which
   expects two `not-yet-computed` slots and finds one.
 
-Both look like fixture state rather than layout: this environment's `demo-data`
-run does not reproduce the exact degraded state the baselines were captured
-against. `make demo-data` alone was used here, per the Makefile's
-demo-data/demo-models split, and no model artefacts exist on disk. Worth a
-separate look — the likely culprit is a database that was not `down -v` fresh, or
-`graph adjudicate-db` now populating something the capture predates. Flagged
-rather than papered over: regenerating the baselines to make them green would
-have destroyed the evidence.
+**Cause: cached model artefacts on the machine.** The baselines are captured
+against `demo-data` with *no* models — that is the whole point of the Makefile's
+demo-data/demo-models split, which pins an "everything degraded" state. This
+machine has 11MB of previously-trained artefacts in
+`src/provenance/models/artefacts/` (dating from Aug 22 – Sep 1), so the trust
+score and the Evidence panel render real model output instead of the degraded
+placeholders the baselines expect. That is exactly the "move local model artefacts
+aside" precondition the baseline-regeneration procedure calls for.
+
+An earlier draft of this section blamed fixture state. That was wrong, and the
+reason is worth recording: the check looked in `models/`, found nothing, and
+concluded the machine had none — the artefacts actually live under
+`src/provenance/models/artefacts/`. Looking in one plausible directory and
+treating an empty result as proof of absence is how that mistake happens.
+
+Neither failure is caused by this update: both were reproduced on a clean `main`
+in the same environment before any conclusion was drawn. Flagged rather than
+papered over — regenerating the baselines to make them green would have destroyed
+the evidence.
 
 ## Superseded
 

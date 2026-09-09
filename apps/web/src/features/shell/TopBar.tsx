@@ -112,7 +112,9 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
 
       <button
         type="button"
-        className="prov-button ml-auto shrink-0 xl:hidden"
+        // Above the backdrop, or the backdrop swallows the tap that closes the
+        // menu. z-index applies to a flex item even unpositioned, so no `relative`.
+        className="prov-button z-overlay ml-auto shrink-0 xl:z-auto xl:hidden"
         aria-expanded={menuOpen}
         aria-controls="topbar-chrome"
         aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -144,6 +146,13 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
         </svg>
       </button>
 
+      {/* Tap-outside-to-dismiss. It lives inside the header, so it shares the
+          header's stacking context - which means its z-index is measured against
+          the panel and the toggle button, not against the page. It has to stay
+          *below* both: at z-drawer with the panel left at `auto`, this div was
+          painting over the open menu and every tap on a nav link hit the backdrop
+          instead, closing the menu without navigating. The panel and the toggle
+          are both explicitly raised above it now. */}
       {menuOpen && (
         <div
           className="fixed inset-0 z-drawer xl:hidden"
@@ -152,7 +161,10 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
         />
       )}
 
-      <div id="topbar-chrome" className={`${menuOpen ? "flex" : "hidden"} ${CHROME_LAYOUT}`}>
+      <div
+        id="topbar-chrome"
+        className={`${menuOpen ? "flex" : "hidden"} z-overlay xl:z-auto ${CHROME_LAYOUT}`}
+      >
         <nav
           aria-label="Primary"
           className="flex min-w-0 flex-col items-stretch gap-1 xl:ml-6 xl:flex-1 xl:flex-row xl:items-center xl:overflow-x-auto"

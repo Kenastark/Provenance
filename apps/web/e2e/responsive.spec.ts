@@ -103,6 +103,67 @@ test("the primary navigation stays reachable on a narrow screen", async ({ page,
   await expect(nav).toBeHidden();
 });
 
+test("every tab in the collapsed menu actually navigates", async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? COLLAPSE_BREAKPOINT) >= COLLAPSE_BREAKPOINT, "chrome not collapsed");
+  await gotoRoute(page, "/");
+
+  // Regression test with a story. The first version of the collapsed menu put the
+  // tap-outside-to-dismiss backdrop inside the header, at `z-drawer`, while the
+  // panel itself was left at `z-auto`. Both share the header's stacking context,
+  // so the backdrop painted *over* the open menu: every link was present, visible,
+  // and correctly labelled, and every tap on one landed on the backdrop instead -
+  // the menu closed and nothing navigated.
+  //
+  // The point of this test is that `toBeVisible()` cannot catch that. Visibility
+  // is not hit-testability. So this clicks each tab for real and checks the URL
+  // moved, and asserts the element at the link's own centre point is the link.
+  const nav = page.getByRole("navigation", { name: /primary/i });
+  const tabs: [string, string][] = [
+    ["Data quality", "/quality"],
+    ["Events", "/timeline"],
+    ["Evidence", "/evidence"],
+    ["Audit report", "/audit"],
+    ["Network map", "/"],
+  ];
+
+  for (const [label, path] of tabs) {
+    await openChromeIfCollapsed(page);
+    const link = nav.getByRole("link", { name: label });
+    await expect(link).toBeVisible();
+
+    const box = await link.boundingBox();
+    expect(box, `${label} must be laid out`).not.toBeNull();
+    const topmost = await page.evaluate(
+      ({ x, y }) => {
+        const element = document.elementFromPoint(x, y);
+        return element?.closest("a") ? "link" : (element?.getAttribute("data-testid") ?? "other");
+      },
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 },
+    );
+    expect(topmost, `nothing may cover the "${label}" tab`).toBe("link");
+
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, "\\/")}$`));
+    // Following a link closes the menu, so the screen it just opened is visible.
+    await expect(nav).toBeHidden();
+  }
+});
+
+test("tapping outside the collapsed menu dismisses it", async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? COLLAPSE_BREAKPOINT) >= COLLAPSE_BREAKPOINT, "chrome not collapsed");
+  await gotoRoute(page, "/");
+
+  const nav = page.getByRole("navigation", { name: /primary/i });
+  await openChromeIfCollapsed(page);
+  await expect(nav).toBeVisible();
+
+  // Low on the screen, clear of the panel. The backdrop still has to receive this
+  // - raising the panel above it must not disable dismissal.
+  const size = page.viewportSize()!;
+  await page.mouse.click(size.width / 2, size.height - 40);
+  await expect(nav).toBeHidden();
+});
+
 test("every control in the collapsed menu is a real touch target", async ({ page, viewport }) => {
   test.skip((viewport?.width ?? COLLAPSE_BREAKPOINT) >= COLLAPSE_BREAKPOINT, "chrome not collapsed");
   await gotoRoute(page, "/");
