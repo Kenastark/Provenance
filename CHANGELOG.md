@@ -37,6 +37,17 @@ Format: Keep a Changelog. Versioning: SemVer.
   not a load path.
 
 ### Fixed
+- **The Evidence tab's "Feature attribution (SHAP)" and "Deweathered residual"
+  cards never loaded for PM2.5 defects** (update 33), including the DEB-KER06
+  and DEB-KER04 events driving most of the real drop's R09
+  physically-impossible flags. Root cause: `PM2.5` - a confirmed real
+  parameter, dispersion-driven exactly like PM10 - was never in
+  `config/models.yaml`'s `deweather.pollutants` list, so no PM2.5 model was
+  ever trained and the Evidence tab correctly (if unhelpfully) fell back to
+  the rule sentence every time, same class of gap as update 16's CO2 fix.
+  Added `PM2.5` to the list and retrained against the real drop; verified live
+  against both stations' flagged events. See
+  `docs/updates/u33-deweather-pm25-coverage.md`.
 - **The Network map floated DEB-KER12 - the network's easternmost station - over
   a blank patch with no basemap tiles, on every fresh load of the live site.**
   Reproduced deterministically against production (not a flake: 3/3 runs) at a
