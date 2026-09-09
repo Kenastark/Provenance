@@ -143,7 +143,12 @@ test("every tab in the collapsed menu actually navigates", async ({ page, viewpo
     expect(topmost, `nothing may cover the "${label}" tab`).toBe("link");
 
     await link.click();
-    await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, "\\/")}$`));
+    // A plain string predicate, not a hand-built regex: escaping only "/" (as an
+    // earlier version of this line did) leaves every other regex metacharacter
+    // live, which is exactly the class of bug CodeQL's incomplete-escaping check
+    // exists to catch - these paths are literals today, but the pattern itself
+    // was still wrong.
+    await expect(page).toHaveURL((url) => url.pathname === path);
     // Following a link closes the menu, so the screen it just opened is visible.
     await expect(nav).toBeHidden();
   }
