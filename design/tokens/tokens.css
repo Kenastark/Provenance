@@ -129,6 +129,10 @@
   --prov-radius-icon: 16px; /* app icon only */
 
   --prov-topbar-height: 72px;
+  /* The approved lockup, scaled - never re-set. It shrinks with the bar below
+     `lg` (see the compact block at the foot of this file) so the two stay in
+     proportion instead of the mark drifting inside a band sized for a desktop. */
+  --prov-lockup-height: 56px;
   --prov-rail-width: 240px;
   /* Measured against the longest realistic station detail: a full 4-component
      trust breakdown, 5 reason codes, and 7 parameter rows. Below ~516px the
@@ -235,4 +239,28 @@
   --prov-chart-series-6: var(--prov-red-600);
 
   --prov-shadow-overlay: 0 8px 24px rgb(7 26 51 / 12%);
+}
+
+/* ============================ COMPACT / TOUCH ============================= */
+/* Below Tailwind's `lg` (1024px) the same token names resolve to touch-sized
+   values, so every control built on them grows without a single component
+   knowing it is on a phone. 44px is the documented minimum tap target on both
+   iOS and Android; 32px is a mouse measurement and mis-taps at arm's length.
+
+   Sizing only. No colour is redefined here - a theme is a theme at every width,
+   and the dark/light blocks above stay the single source of that.
+
+   1023.98px rather than 1023px: a fractional viewport width (browser zoom, a
+   scaled desktop) lands between the two and would otherwise match neither this
+   query nor Tailwind's `min-width: 1024px`, leaving controls sized by whichever
+   rule happened to cascade last. */
+@media (max-width: 1023.98px) {
+  :root {
+    /* The lockup scales with it (see TopBar), so the bar keeps its proportions
+       rather than becoming a 72px band with a small logo adrift in it. */
+    --prov-topbar-height: 56px;
+    --prov-lockup-height: 36px;
+    --prov-row-height: 44px;
+    --prov-row-height-compact: 36px;
+  }
 }

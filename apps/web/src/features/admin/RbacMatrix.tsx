@@ -20,6 +20,7 @@ export function RbacMatrix() {
           Each role grants everything the roles beneath it grant. There is no session or login -
           a caller's role is resolved purely from the <code>X-API-Key</code> header it sends.
         </p>
+        <div className="overflow-x-auto lg:overflow-visible">
         <table className="prov-table">
           <caption className="sr-only">Role hierarchy, lowest to highest</caption>
           <thead>
@@ -44,10 +45,15 @@ export function RbacMatrix() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div>
         <h4 className="mb-1 text-subhead">Operational endpoints</h4>
+        {/* Method, path and description are all nowrap row-header content, so this
+            table is wider than a phone at any font size. It pans inside its own box
+            rather than dragging the Admin screen sideways with it. */}
+        <div className="overflow-x-auto lg:overflow-visible">
         <table className="prov-table">
           <caption className="sr-only">Which role each operational endpoint requires</caption>
           <thead>
@@ -82,6 +88,7 @@ export function RbacMatrix() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

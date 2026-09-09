@@ -72,7 +72,16 @@ export function HeroFlowVisual() {
   const reducedMotion = usePrefersReducedMotion();
 
   return (
-    <div aria-hidden="true" className="flex items-center justify-center gap-0 py-2">
+    // Three 240px cards and two 200px connectors are a fixed 1120px row, and every
+    // child is shrink-0, so below `lg` it is clipped rather than fitted - centred,
+    // so it loses both outer cards at once. The row becomes a column there and the
+    // connectors drop out with it: they draw left-to-right flow between cards that
+    // are no longer left-to-right, and the whole graphic is aria-hidden decoration,
+    // so nothing is lost by not redrawing them vertically.
+    <div
+      aria-hidden="true"
+      className="flex flex-col items-center justify-center gap-4 py-2 lg:flex-row lg:gap-0"
+    >
       <div
         className="prov-panel relative z-10 flex shrink-0 flex-col items-center gap-1 border-ambiguous p-4 text-center"
         style={{ width: CARD_SIZE, height: CARD_SIZE }}
@@ -106,7 +115,7 @@ export function HeroFlowVisual() {
       <svg
         width={CONNECTOR_WIDTH}
         height="8"
-        className="hero-connector-flow shrink-0 self-center"
+        className="hero-connector-flow hidden shrink-0 self-center lg:block"
         viewBox={`0 0 ${CONNECTOR_WIDTH} 8`}
       >
         <line
@@ -170,7 +179,7 @@ export function HeroFlowVisual() {
       <svg
         width={CONNECTOR_WIDTH}
         height="8"
-        className="shrink-0 self-center"
+        className="hidden shrink-0 self-center lg:block"
         viewBox={`0 0 ${CONNECTOR_WIDTH} 8`}
       >
         <line x1="0" y1="4" x2={CONNECTOR_WIDTH} y2="4" stroke="var(--prov-state-verified)" strokeWidth="2" />

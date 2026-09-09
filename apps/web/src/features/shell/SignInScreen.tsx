@@ -62,8 +62,13 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           (measured: ~116px from the right edge, ~20px from the top, at this
           app's 1440px baseline viewport - TopBar puts the account menu to its
           right, so it isn't flush with the edge). The login button lives in the
-          same fixed row, immediately to the theme switch's right. */}
-      <div className="fixed right-[116px] top-[20px] z-drawer flex items-center gap-3">
+          same fixed row, immediately to the theme switch's right.
+
+          That measurement only describes the desktop bar. Below `lg` the bar has
+          collapsed to a lockup and a menu button, so there is nothing at 116px to
+          line up with, and holding the offset just pushed this row inward from a
+          screen that has no width to spare. It sits in the corner instead. */}
+      <div className="fixed right-3 top-3 z-drawer flex items-center gap-3 lg:right-[116px] lg:top-[20px]">
         <ThemeSwitch />
         {canSwitch && (
           <button
@@ -106,9 +111,16 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
               style={{ height: 152 }}
               data-testid="signin-lockup"
             />
+            {/* `nowrap` at 27px is ~600px of unbreakable text - three phone widths,
+                clipped by #root's overflow rather than scrolled to. It wraps below
+                `lg`, and the clamp reaches its 27px ceiling at any viewport from
+                540px up, so every desktop width renders the measured size. */}
             <p
-              className="whitespace-nowrap font-display font-semibold text-text"
-              style={{ fontSize: "27px", lineHeight: "var(--prov-lh-display-l)" }}
+              className="font-display font-semibold text-text lg:whitespace-nowrap"
+              style={{
+                fontSize: "clamp(18px, 5vw, 27px)",
+                lineHeight: "var(--prov-lh-display-l)",
+              }}
             >
               An AI trust layer for Environmental Sensor Networks
             </p>
@@ -138,7 +150,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
             <div
               role="group"
               aria-label="Choose a role"
-              className="grid grid-cols-2 gap-3"
+              className="grid grid-cols-1 gap-3 sm:grid-cols-2"
               data-testid="signin-role-picker"
             >
               {ROLE_HIERARCHY.map((option) => (

@@ -45,6 +45,9 @@ export function FactorBreakdown({
         <span className="text-caption text-text-tertiary">{valueLabel}</span>
       </div>
       {formula && <p className="mt-1 text-caption text-text-tertiary">{formula}</p>}
+      {/* `.prov-table th` is nowrap, and that includes the row headers carrying
+          these factor labels - so a narrow container overflows rather than wraps. */}
+      <div className="overflow-x-auto lg:overflow-visible">
       <table className="prov-table mt-2">
         <caption className="sr-only">{valueLabel} factors</caption>
         <thead>
@@ -68,6 +71,7 @@ export function FactorBreakdown({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

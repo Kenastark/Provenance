@@ -5,6 +5,19 @@ Format: Keep a Changelog. Versioning: SemVer.
 
 ## [Unreleased]
 ### Added
+- **A mobile layout for the whole dashboard, at full functional parity** (update
+  31). Every screen, control and destination stays reachable at 390px; nothing is
+  hidden or cut down for small screens. The operator chrome (seven nav links, the
+  window picker, theme switch and account menu) collapses behind a menu button
+  below `xl` as a single DOM tree rather than a duplicated "mobile nav"; the
+  station detail becomes a bottom sheet that overlays the map instead of stacking
+  under it and halving it; four tables that were wider than a phone now scroll
+  inside their own container; and the sign-in screen's fixed 1120px hero row and
+  `nowrap` headline now fit. Touch sizing is carried by the design tokens - a
+  sub-1024px block re-points `--prov-row-height` to the 44px iOS/Android minimum -
+  so no component hardcodes a phone-specific height. The desktop layout is
+  unchanged and the 1440px visual baselines were re-run to prove it, not
+  regenerated. See `docs/updates/u31-mobile-responsive-parity.md`.
 - **`prov db rescore --source <path>`**, a new command that recomputes and
   replaces an already-loaded drop's `TrustScore` rows against whatever model
   artefacts exist right now, without reloading readings/defects or retraining
