@@ -94,15 +94,15 @@
   /* The wordmark is a fixed asset in a geometric face, not a live webfont.
      Never re-set the word "Provenance" in the display face - use the lockup SVG. */
 
-  --prov-size-display-xl: 44px;
-  --prov-size-display-l: 32px;
-  --prov-size-heading: 20px;
-  --prov-size-subhead: 16px;
-  --prov-size-body: 14px;
-  --prov-size-data: 13px;
-  --prov-size-code: 13px;
-  --prov-size-caption: 12px;
-  --prov-size-micro: 11px;
+  --prov-size-display-xl: 43px;
+  --prov-size-display-l: 31px;
+  --prov-size-heading: 19px;
+  --prov-size-subhead: 15px;
+  --prov-size-body: 13px;
+  --prov-size-data: 12px;
+  --prov-size-code: 12px;
+  --prov-size-caption: 11px;
+  --prov-size-micro: 10px;
 
   --prov-lh-display-xl: 48px;
   --prov-lh-display-l: 38px;

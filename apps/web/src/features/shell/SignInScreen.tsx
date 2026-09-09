@@ -26,6 +26,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
   const [rawKey, setRawKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const rolePickerRef = useRef<HTMLDivElement | null>(null);
 
   // Every mount of this screen - first load, or a return trip via "Sign out" -
   // is a fresh screen a keyboard user has not seen the layout of yet, so it takes
@@ -60,8 +61,21 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
       {/* Positioned to land where TopBar's own theme switch sits post-sign-in
           (measured: ~116px from the right edge, ~20px from the top, at this
           app's 1440px baseline viewport - TopBar puts the account menu to its
-          right, so it isn't flush with the edge). */}
-      <ThemeSwitch className="fixed right-[116px] top-[20px] z-drawer" />
+          right, so it isn't flush with the edge). The login button lives in the
+          same fixed row, immediately to the theme switch's right. */}
+      <div className="fixed right-[116px] top-[20px] z-drawer flex items-center gap-3">
+        <ThemeSwitch />
+        {canSwitch && (
+          <button
+            type="button"
+            className="prov-button"
+            onClick={() => rolePickerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            data-testid="signin-login-button"
+          >
+            Log in
+          </button>
+        )}
+      </div>
 
       {/* `m-auto` rather than `justify-center` on the parent: when this block is
           taller than the viewport, `justify-center` on an overflow-auto flex
@@ -71,7 +85,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           to top-aligned, fully-scrollable flow the moment there's no free space
           left to distribute, so nothing above the fold is ever unreachable. */}
       <div className="flex w-full flex-col items-center gap-8 m-auto">
-        <div className="relative flex flex-col items-center gap-5 px-4">
+        <div className="relative flex flex-col items-center gap-4 px-4">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-0 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-16 rounded-full"
@@ -83,7 +97,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
           <span className="text-caption font-display uppercase tracking-[0.2em] text-interactive">
             Green Sentinel&rsquo;s Layer 2 AI Verification Engine
           </span>
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-1">
             <img
               src={lockup}
               alt="Provenance"
@@ -92,7 +106,10 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
               style={{ height: 152 }}
               data-testid="signin-lockup"
             />
-            <p className="whitespace-nowrap text-display-l font-display font-semibold text-text">
+            <p
+              className="whitespace-nowrap font-display font-semibold text-text"
+              style={{ fontSize: "27px", lineHeight: "var(--prov-lh-display-l)" }}
+            >
               An AI trust layer for Environmental Sensor Networks
             </p>
           </div>
@@ -117,7 +134,7 @@ export function SignInScreen({ role, canSwitch, onSelectRole }: SignInScreenProp
         </div>
 
         {canSwitch ? (
-          <div className="flex flex-col items-center gap-6">
+          <div ref={rolePickerRef} className="flex flex-col items-center gap-6">
             <div
               role="group"
               aria-label="Choose a role"
