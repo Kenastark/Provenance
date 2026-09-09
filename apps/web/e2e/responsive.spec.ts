@@ -152,11 +152,12 @@ test("the station detail overlays the map rather than stacking under it", async 
   expect(sheetBox!.height).toBeLessThanOrEqual(mapAfter!.height * 0.75);
 });
 
-test("the sign-in screen fits a narrow viewport", async ({ page }) => {
-  // Not covered by the loop above: every other spec starts from a pre-seeded
-  // role, so the screen in front of the dashboard had never been measured at this
-  // width - and it carried a 1120px hero row and a nowrap headline that were
-  // simply clipped by #root's overflow.
+test("the sign-in screen never scrolls the page sideways", async ({ page }) => {
+  // Deliberately unguarded, so it runs at both project widths: the point is that
+  // the route loop above cannot reach this screen at all. Every other spec starts
+  // from a pre-seeded role, so the one screen a first-time visitor sees had never
+  // been measured at 390px - and it carried a fixed 1120px hero row and a nowrap
+  // headline that were simply clipped by #root's overflow.
   await page.context().clearCookies();
   await page.goto("/");
   await page.evaluate(() => window.localStorage.clear());

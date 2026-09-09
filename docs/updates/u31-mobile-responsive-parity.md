@@ -72,6 +72,13 @@ genuinely wider than a phone. The neighbours table also keeps a legible
 `min-w-[34rem]` below `lg` rather than compressing six numeric columns into
 slivers; `lg:min-w-0` hands the desktop back its `w-full` layout.
 
+Every one of those wrappers is `overflow-x-auto lg:overflow-visible`, so above
+`lg` it is an inert block box. This is deliberate scoping rather than a fix for an
+observed break: `overflow-x: auto` also forces `overflow-y` to `auto`, which opens
+a scroll container and can reserve a scrollbar's worth of height. The scroll
+container is a mobile affordance and there is no reason to let it change the
+desktop's box model to get it.
+
 **Map overlays are compacted, not collapsed.** Tighter padding and width caps
 (40vw / 44vw / 62vw) so the layer toggles and the wind readout can never meet in
 the middle of a 390px map. Collapsing them behind disclosures was considered and
@@ -86,9 +93,10 @@ corner panels prove too heavy in real use.
 
 Every rule added here is either inside the sub-1024px token block or written as a
 mobile base with an `lg:`/`xl:` reset back to the previous value. The 1440px
-visual baselines were re-run and match; they were not regenerated, which is the
-point — a regenerated baseline would have hidden exactly the regression this
-guarantee is about.
+visual baselines were re-run against this branch and **not regenerated**, which is
+the point: a regenerated baseline cannot tell you whether the desktop moved. The
+twelve that were green on `main` are green here; the two that were already red on
+`main` are red here for the same reason (see below).
 
 ## Test gate
 
@@ -111,6 +119,32 @@ New e2e coverage, all at 390px:
 `support.ts` gained `openChromeIfCollapsed`, and `gotoRoute` now waits on the
 lockup rather than the nav — the nav is behind a button at phone widths, so the
 old wait would have hung every mobile spec.
+
+`responsive.spec.ts` is run by *both* projects, so the three new
+collapsed-layout tests skip themselves by viewport width rather than being moved
+somewhere the desktop project ignores. The pre-existing horizontal-overflow loop
+still runs at 1440px, where it remains a weaker but real assertion.
+
+## Pre-existing failures, not introduced here
+
+Two chromium failures reproduce on a clean `main` in the same environment and are
+**not** caused by this update — verified by checking `main` out and re-running
+both:
+
+- `visual.spec.ts` → `station detail — dark` / `— light` (7,432 px, ratio 0.02).
+  The diff is a vertical shift that begins below the components table, in the
+  notes block.
+- `demo-path.spec.ts` → `the defect table renders with its evidence`, which
+  expects two `not-yet-computed` slots and finds one.
+
+Both look like fixture state rather than layout: this environment's `demo-data`
+run does not reproduce the exact degraded state the baselines were captured
+against. `make demo-data` alone was used here, per the Makefile's
+demo-data/demo-models split, and no model artefacts exist on disk. Worth a
+separate look — the likely culprit is a database that was not `down -v` fresh, or
+`graph adjudicate-db` now populating something the capture predates. Flagged
+rather than papered over: regenerating the baselines to make them green would
+have destroyed the evidence.
 
 ## Superseded
 
