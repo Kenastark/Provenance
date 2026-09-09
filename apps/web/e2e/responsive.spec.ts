@@ -149,6 +149,39 @@ test("every tab in the collapsed menu actually navigates", async ({ page, viewpo
   }
 });
 
+test("the account controls in the collapsed menu are hit-testable", async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? COLLAPSE_BREAKPOINT) >= COLLAPSE_BREAKPOINT, "chrome not collapsed");
+  await gotoRoute(page, "/");
+  await openChromeIfCollapsed(page);
+
+  // Second instance of the same bug class as the tab-tap regression above, so it
+  // gets the same kind of assertion. The account panel was absolutely positioned,
+  // which inside the collapsed menu put it outside the panel's scroll box - Sign
+  // out laid out past the panel's bottom edge, in territory the dismiss backdrop
+  // owns. Playwright's own click still passed, because `click()` scrolls the
+  // element into view first; only a hit test at the element's resting position
+  // shows it. `toBeVisible()` never would have.
+  await page.getByTestId("account-menu").click();
+
+  for (const testId of ["role-switch", "sign-out"]) {
+    const control = page.getByTestId(testId);
+    await expect(control).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box, `${testId} must be laid out`).not.toBeNull();
+    const topmost = await page.evaluate(
+      ({ x, y, id }) => {
+        const element = document.elementFromPoint(x, y);
+        return element?.closest(`[data-testid="${id}"]`) ? id : (element?.getAttribute("data-testid") ?? "other");
+      },
+      { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2, id: testId },
+    );
+    expect(topmost, `nothing may cover ${testId}`).toBe(testId);
+  }
+
+  await page.getByTestId("sign-out").click();
+  await expect(page.getByTestId("signin-screen")).toBeVisible();
+});
+
 test("tapping outside the collapsed menu dismisses it", async ({ page, viewport }) => {
   test.skip((viewport?.width ?? COLLAPSE_BREAKPOINT) >= COLLAPSE_BREAKPOINT, "chrome not collapsed");
   await gotoRoute(page, "/");

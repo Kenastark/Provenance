@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { useVersion } from "../../api/queries";
 import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { formatRelative, formatTimestamp } from "../../lib/format";
 import { ROLE_LABELS, roleAtLeast, useRole, type Role } from "../../lib/role";
@@ -67,7 +66,6 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
   const { resolved } = useTheme();
   const { role, setRole, canSwitch, signOut } = useRole();
   const { anchor } = useWindowState();
-  const version = useVersion();
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleNav = NAV.filter((item) => !item.role || roleAtLeast(role, item.role));
 
@@ -234,18 +232,25 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
 
         <ThemeSwitch />
         <details className="relative shrink-0">
-          <summary
-            className="prov-button list-none"
-            aria-label="Account and build information"
-            data-testid="account-menu"
-          >
+          <summary className="prov-button list-none" aria-label="Account" data-testid="account-menu">
             {ROLE_LABELS[role]}
           </summary>
-          <div className="prov-panel absolute right-0 z-drawer mt-2 w-full min-w-0 p-3 text-caption shadow-overlay">
+          {/* In flow below `xl`, floating from `xl` up.
+
+              Absolute inside the collapsed menu meant this hung outside the
+              panel's scroll box: Sign out landed past the panel's bottom edge, in
+              territory the dismiss backdrop owns, so a tap there closed the menu
+              instead of signing out. In flow it simply makes the panel taller and
+              scrolls with everything else.
+
+              On the desktop bar it stays a floating panel, but sized to its
+              content rather than `w-full` - which, on an absolutely positioned
+              element, resolved to 100% of the <details> (the width of the
+              "Operator" button), wrapping "Sign out" onto two lines and pushing the
+              role <select> off the right of the screen. */}
+          <div className="prov-panel z-drawer mt-2 w-full p-3 text-caption shadow-overlay xl:absolute xl:right-0 xl:w-max xl:min-w-[12rem] xl:max-w-[16rem]">
             <p className="text-text-secondary">
-              Signed in as <span className="text-text">{ROLE_LABELS[role]}</span> (local API key). A
-              role is resolved from the <code>X-API-Key</code> header sent with every request - there
-              is no separate login.
+              Signed in as <span className="text-text">{ROLE_LABELS[role]}</span>
             </p>
             {canSwitch ? (
               <label className="mt-3 flex items-center gap-2">
@@ -268,29 +273,12 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
                 This deployment pins a fixed API key (VITE_API_KEY); role switching is disabled.
               </p>
             )}
+            {/* Build and config hashes are not here. They belong on Admin, which
+                already carries them beside the audit-run history that gives them
+                meaning - see AdminDashboard. */}
             <button type="button" className="prov-button mt-3 w-full" onClick={signOut} data-testid="sign-out">
               Sign out
             </button>
-            {version.data && (
-              <dl className="mt-3 space-y-1 font-mono text-micro text-text-tertiary">
-                <div className="flex justify-between gap-3">
-                  <dt>version</dt>
-                  <dd>{version.data.version}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>git</dt>
-                  <dd>{version.data.git_sha.slice(0, 10)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>config</dt>
-                  <dd>{version.data.config_hash.slice(0, 10)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt>trust cfg</dt>
-                  <dd>{version.data.trust_config_hash.slice(0, 10)}</dd>
-                </div>
-              </dl>
-            )}
           </div>
         </details>
       </div>
