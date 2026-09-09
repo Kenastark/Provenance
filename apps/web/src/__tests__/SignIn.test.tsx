@@ -105,6 +105,9 @@ describe("SignInGate", () => {
     await user.tab(); // -> the theme switch, top-right and first in visual and tab order
     expect(screen.getByTestId("theme-switch")).toHaveFocus();
 
+    await user.tab(); // -> the login button, next in the same fixed row
+    expect(screen.getByTestId("signin-login-button")).toHaveFocus();
+
     await user.tab(); // -> Public read card, the first role card
     expect(screen.getByTestId("signin-role-public_read")).toHaveFocus();
 

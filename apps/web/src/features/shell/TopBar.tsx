@@ -59,7 +59,7 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
 
   return (
     <header
-      className="flex h-8 shrink-0 flex-wrap items-center gap-4 border-b border-border bg-bg-raised px-4"
+      className="flex shrink-0 flex-wrap items-center gap-4 border-b border-border bg-bg-raised px-4"
       style={{ height: "var(--prov-topbar-height)" }}
     >
       <img
@@ -77,9 +77,10 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
             key={item.to}
             to={item.to}
             end={item.end}
+            style={{ fontSize: "12px" }}
             className={({ isActive }) =>
               [
-                "whitespace-nowrap rounded-md px-3 py-2 text-body",
+                "whitespace-nowrap rounded-md px-3 py-2",
                 isActive
                   ? "bg-surface text-interactive"
                   : "text-text-secondary hover:bg-surface-hover hover:text-text",
@@ -91,25 +92,7 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
         ))}
       </nav>
 
-      {/* Deliberately the one place freshness is measured against the real wall
-          clock rather than the dataset's own anchor: this answers "is the pipeline
-          itself live right now", a whole-network fact, not "did this station fall
-          behind its peers" (what the station drawer's "last reading" shows, and
-          which stays anchor-relative on purpose - see lib/format.ts's formatRelative
-          doc comment). A frozen historical drop reads as increasingly old here,
-          honestly, rather than every station masking that fact by looking current
-          relative only to itself. */}
-      {anchor && (
-        <p
-          className="shrink-0 whitespace-nowrap text-caption text-text-tertiary"
-          data-testid="data-freshness"
-          title={`Newest ingested reading: ${formatTimestamp(anchor.toISOString())}`}
-        >
-          Data as of {formatTimestamp(anchor.toISOString())} ({formatRelative(anchor.toISOString())})
-        </p>
-      )}
-
-      <label className="flex shrink-0 items-center gap-2 text-caption text-text-tertiary">
+      <label className="relative flex shrink-0 items-center gap-2 text-caption text-text-tertiary">
         <span>Window</span>
         <select
           className="prov-input"
@@ -122,6 +105,26 @@ export function TopBar({ timeWindow, onTimeWindowChange }: TopBarProps) {
             </option>
           ))}
         </select>
+
+        {/* Deliberately the one place freshness is measured against the real wall
+            clock rather than the dataset's own anchor: this answers "is the pipeline
+            itself live right now", a whole-network fact, not "did this station fall
+            behind its peers" (what the station drawer's "last reading" shows, and
+            which stays anchor-relative on purpose - see lib/format.ts's formatRelative
+            doc comment). A frozen historical drop reads as increasingly old here,
+            honestly, rather than every station masking that fact by looking current
+            relative only to itself. Absolutely positioned under the window control
+            so it doesn't add to the header's fixed height. */}
+        {anchor && (
+          <p
+            className="absolute left-0 top-full mt-0.5 whitespace-nowrap text-text-tertiary"
+            style={{ fontSize: "8px" }}
+            data-testid="data-freshness"
+            title={`Newest ingested reading: ${formatTimestamp(anchor.toISOString())}`}
+          >
+            Data as of {formatTimestamp(anchor.toISOString())} ({formatRelative(anchor.toISOString())})
+          </p>
+        )}
       </label>
 
       <ThemeSwitch />
