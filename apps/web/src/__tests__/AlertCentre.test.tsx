@@ -90,6 +90,17 @@ describe("AlertCentre", () => {
     expect(within(breakdown).getByText("Confidence weight")).toBeInTheDocument();
   });
 
+  it("exposes a resize handle on the alert detail panel, like the station drawer", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+
+    const rows = await findAlertRows();
+    await user.click(rows[0]!);
+
+    await screen.findByTestId("alert-detail");
+    expect(screen.getByRole("separator", { name: /resize alert detail panel/i })).toBeInTheDocument();
+  });
+
   it("reuses the trust chip and breakdown components for the station's trust score", async () => {
     const user = userEvent.setup();
     renderScreen();

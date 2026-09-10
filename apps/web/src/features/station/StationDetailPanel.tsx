@@ -10,7 +10,7 @@ import { Sparkline } from "../../components/Sparkline";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { TrustBreakdown } from "../../components/TrustBreakdown";
 import { TrustChip, type NonEmpty } from "../../components/TrustChip";
-import { useDrawerWidth } from "../../lib/drawerWidth";
+import { STATION_DRAWER_WIDTH_CONFIG, useDrawerWidth } from "../../lib/drawerWidth";
 import { formatCount, formatRelative, formatTimestamp } from "../../lib/format";
 import { ROLE_LABELS, useRole } from "../../lib/role";
 import { trustBandDescription, trustState } from "../../lib/trust";
@@ -55,7 +55,7 @@ export function StationDetailPanel({
   qualityRow,
   onClose,
 }: StationDetailPanelProps) {
-  const { width, min, max, setWidth, reset } = useDrawerWidth();
+  const { width, min, max, setWidth, reset } = useDrawerWidth(STATION_DRAWER_WIDTH_CONFIG);
   // Only the `lg` layout resizes - below it the drawer is stacked full-width, so
   // the custom width must not leak into that layout as a max-width.
   const style = { "--prov-drawer-width": `${width}px` } as CSSProperties;
