@@ -24,6 +24,7 @@ export interface DrawerResizeHandleProps {
   onResize: (width: number) => void;
   onReset: () => void;
   className?: string;
+  ariaLabel?: string;
 }
 
 export function DrawerResizeHandle({
@@ -33,6 +34,7 @@ export function DrawerResizeHandle({
   onResize,
   onReset,
   className,
+  ariaLabel = "Resize station detail panel",
 }: DrawerResizeHandleProps) {
   // The handle sits on the drawer's *left* edge: dragging it left (toward the map)
   // widens the drawer, so the delta is start-minus-current, not the other way round.
@@ -87,7 +89,7 @@ export function DrawerResizeHandle({
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize station detail panel"
+      aria-label={ariaLabel}
       aria-valuenow={Math.round(width)}
       aria-valuemin={Math.round(min)}
       aria-valuemax={Math.round(max)}

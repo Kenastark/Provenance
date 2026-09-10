@@ -140,6 +140,9 @@
      table layout) overflows its container rather than wrapping - 520px keeps a
      few pixels of headroom for cross-platform font-metric differences. */
   --prov-drawer-width: 520px;
+  /* The alert detail panel's prior fixed width (`lg:w-[420px]`), now the resize
+     handle's starting point and double-click reset target. */
+  --prov-alert-drawer-width: 420px;
   --prov-row-height: 32px;
   --prov-row-height-compact: 28px;
 

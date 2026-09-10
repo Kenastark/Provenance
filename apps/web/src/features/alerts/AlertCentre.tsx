@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAlerts } from "../../api/queries";
 import type { AlertItem } from "../../api/operations";
 import { DataTable, type Column } from "../../components/DataTable";
+import { DrawerResizeHandle } from "../../components/DrawerResizeHandle";
 import { EmptyState, ErrorState, LoadingState } from "../../components/States";
 import { formatPercent, formatTimestamp } from "../../lib/format";
+import { ALERT_DRAWER_WIDTH_CONFIG, useDrawerWidth } from "../../lib/drawerWidth";
 import { verdictMeta } from "../../lib/verdict";
 import { AlertDetail } from "./AlertDetail";
 import { MaintenanceQueue } from "./MaintenanceQueue";
@@ -27,6 +30,10 @@ export function AlertCentre() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("event");
   const [filter, setFilter] = useState("");
+  const { width, min, max, setWidth, reset } = useDrawerWidth(ALERT_DRAWER_WIDTH_CONFIG);
+  // Only the `lg` layout resizes - below it the panel is stacked full-width, so
+  // the custom width must not leak into that layout as a fixed width.
+  const drawerStyle = { "--prov-alert-drawer-width": `${width}px` } as CSSProperties;
 
   const alerts = useAlerts();
   const items = useMemo(() => alerts.data?.items ?? [], [alerts.data]);
@@ -71,7 +78,15 @@ export function AlertCentre() {
       {
         key: "headline",
         header: "Headline",
-        render: (row) => <span className="truncate">{row.headline}</span>,
+        // `block` (not the default inline) so the span establishes its own box -
+        // only then does `overflow-hidden`/ellipsis let this column shrink below its
+        // full text width in the table's auto layout, freeing room for Verdict and
+        // When to stay on one line rather than wrapping.
+        render: (row) => (
+          <span className="block truncate" title={row.headline}>
+            {row.headline}
+          </span>
+        ),
       },
       {
         key: "severity",
@@ -112,7 +127,7 @@ export function AlertCentre() {
         key: "when",
         header: "When",
         sortValue: (row) => row.timestamp_utc,
-        render: (row) => formatTimestamp(row.timestamp_utc),
+        render: (row) => <span className="whitespace-nowrap">{formatTimestamp(row.timestamp_utc)}</span>,
       },
     ],
     [],
@@ -185,11 +200,21 @@ export function AlertCentre() {
         <aside
           className={
             selected
-              ? "w-full min-w-0 shrink-0 border-t border-border bg-bg-raised pt-1 lg:w-[420px] lg:border-l lg:border-t-0 lg:pt-0"
-              : "hidden w-full min-w-0 shrink-0 border-t border-border bg-bg-raised lg:flex lg:w-[420px] lg:border-l lg:border-t-0"
+              ? "flex w-full min-w-0 shrink-0 border-t border-border bg-bg-raised pt-1 lg:w-[var(--prov-alert-drawer-width)] lg:border-l lg:border-t-0 lg:pt-0"
+              : "hidden w-full min-w-0 shrink-0 border-t border-border bg-bg-raised lg:flex lg:w-[var(--prov-alert-drawer-width)] lg:border-l lg:border-t-0"
           }
+          style={drawerStyle}
           aria-label="Alert detail"
         >
+          <DrawerResizeHandle
+            width={width}
+            min={min}
+            max={max}
+            onResize={setWidth}
+            onReset={reset}
+            ariaLabel="Resize alert detail panel"
+            className="hidden lg:block"
+          />
           <div className="min-w-0 flex-1 overflow-y-auto">
             <AlertDetail alert={selected} />
           </div>

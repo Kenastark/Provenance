@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  ALERT_DRAWER_WIDTH_CONFIG,
   clampDrawerWidth,
   clearStoredDrawerWidth,
   DRAWER_MIN_WIDTH,
@@ -102,6 +103,27 @@ describe("useDrawerWidth", () => {
     act(() => result.current.reset());
     expect(result.current.width).toBe(520);
     expect(result.current.isCustom).toBe(false);
+    expect(readStoredDrawerWidth()).toBeNull();
+  });
+});
+
+describe("useDrawerWidth with a second config", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.style.setProperty("--prov-drawer-width", "520px");
+    document.documentElement.style.setProperty("--prov-alert-drawer-width", "420px");
+  });
+
+  it("reads its own token default and persists under its own key, independent of the station drawer", () => {
+    const station = renderHook(() => useDrawerWidth());
+    const alert = renderHook(() => useDrawerWidth(ALERT_DRAWER_WIDTH_CONFIG));
+    expect(station.result.current.width).toBe(520);
+    expect(alert.result.current.width).toBe(420);
+
+    act(() => alert.result.current.setWidth(500));
+    expect(alert.result.current.width).toBe(500);
+    expect(station.result.current.width).toBe(520);
+    expect(readStoredDrawerWidth(ALERT_DRAWER_WIDTH_CONFIG)).toBe(500);
     expect(readStoredDrawerWidth()).toBeNull();
   });
 });

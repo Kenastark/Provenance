@@ -132,7 +132,7 @@ export function VerdictChip({
   const meta = verdictMeta(verdict, parseNotApplicable(evidence));
   return (
     <span
-      className={`rounded-sm border border-current px-2 text-caption ${VERDICT_TONE_CLASS[meta.tone]}`}
+      className={`whitespace-nowrap rounded-sm border border-current px-2 text-caption ${VERDICT_TONE_CLASS[meta.tone]}`}
       data-testid="event-verdict"
       data-verdict-kind={meta.kind}
     >
